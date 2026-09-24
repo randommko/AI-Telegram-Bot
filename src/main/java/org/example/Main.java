@@ -2,25 +2,12 @@ package org.example;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.Authenticator;
-import okhttp3.ConnectionSpec;
-import okhttp3.Credentials;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-import java.net.InetSocketAddress;
-import java.net.PasswordAuthentication;
-import java.net.Proxy;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -87,56 +74,41 @@ public class Main {
         int maxRetries = 3;
         int attempt = 0;
 
+        // Настраиваем прокси для Telegram API через системные свойства
+        if (proxyEnabled && proxyHost != null && !proxyHost.isEmpty()) {
+            System.setProperty("https.proxyHost", proxyHost);
+            System.setProperty("https.proxyPort", String.valueOf(proxyPort));
+            System.setProperty("http.proxyHost", proxyHost);
+            System.setProperty("http.proxyPort", String.valueOf(proxyPort));
+            if (proxyUser != null && !proxyUser.isEmpty()) {
+                final String user = proxyUser;
+                final String pass = proxyPass != null ? proxyPass : "";
+                java.net.Authenticator.setDefault(new java.net.Authenticator() {
+                    @Override
+                    protected java.net.PasswordAuthentication getPasswordAuthentication() {
+                        return new java.net.PasswordAuthentication(user, pass.toCharArray());
+                    }
+                });
+                logger.info("Прокси с аутентификацией: {}:{}", proxyHost, proxyPort);
+            } else {
+                logger.info("Прокси без аутентификации: {}:{}", proxyHost, proxyPort);
+            }
+        } else {
+            logger.info("Прокси для Telegram API отключён");
+        }
+
+        org.telegram.telegrambots.bots.DefaultBotOptions options = new org.telegram.telegrambots.bots.DefaultBotOptions();
+        options.setProxyType(org.telegram.telegrambots.bots.DefaultBotOptions.ProxyType.SOCKS5);
+        options.setProxyHost(proxyHost);
+        options.setProxyPort(proxyPort);
+
         while (attempt < maxRetries) {
             try {
                 attempt++;
 
-                // Создаем кастомный HTTP-клиент с SOCKS5 прокси для Telegram API
-                OkHttpClient httpClient;
-                if (proxyEnabled && proxyHost != null && !proxyHost.isEmpty()) {
-                    Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, proxyPort));
-                    
-                    OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                            .proxy(proxy)
-                            .connectTimeout(30, TimeUnit.SECONDS)
-                            .readTimeout(30, TimeUnit.SECONDS)
-                            .writeTimeout(30, TimeUnit.SECONDS)
-                            .connectionSpecs(Collections.singletonList(ConnectionSpec.MODERN_TLS))
-                            .hostnameVerifier(new HostnameVerifier() {
-                                @Override
-                                public boolean verify(String hostname, SSLSession session) {
-                                    return true;
-                                }
-                            });
-
-                    if (proxyUser != null && !proxyUser.isEmpty()) {
-                        final String user = proxyUser;
-                        final String pass = proxyPass != null ? proxyPass : "";
-                        builder.proxyAuthenticator((route, response) -> {
-                            PasswordAuthentication auth = new PasswordAuthentication(user, pass.toCharArray());
-                            if (auth == null) {
-                                return null;
-                            }
-                            String credential = Credentials.basic(auth.getUserName(), auth.getPassword());
-                            return response.request().newBuilder()
-                                    .header("Proxy-Authorization", credential)
-                                    .build();
-                        });
-                        logger.info("SOCKS5 прокси с аутентификацией: {}:{}", proxyHost, proxyPort);
-                    } else {
-                        logger.info("SOCKS5 прокси без аутентификации: {}:{}", proxyHost, proxyPort);
-                    }
-
-                    httpClient = builder.build();
-                } else {
-                    httpClient = new OkHttpClient();
-                }
-
-                org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient telegramClient =
-                        new org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient(httpClient);
-
-                TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class, telegramClient);
-                botsApi.registerBot(new TelegramBot(botToken, gigaChatToken));
+                TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
+                TelegramBot bot = new TelegramBot(botToken, gigaChatToken, options);
+                botsApi.registerBot(bot);
 
                 logger.info("Бот успешно запущен на попытке №{}", attempt);
                 break;
