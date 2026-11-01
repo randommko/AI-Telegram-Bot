@@ -4,6 +4,7 @@ import org.example.Users.UsersService;
 import org.example.Chats.ChatsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.User;
 
@@ -11,6 +12,7 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Component
 public class UserChatManager {
     private static final Logger logger = LoggerFactory.getLogger(UserChatManager.class);
     private final UsersService usersService;

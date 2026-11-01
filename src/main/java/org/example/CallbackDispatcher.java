@@ -4,12 +4,14 @@ import org.example.CockSize.CockSizeGame;
 import org.example.Horoscope.HoroscopeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.Map;
 
+@Component
 public class CallbackDispatcher {
     private static final Logger logger = LoggerFactory.getLogger(CallbackDispatcher.class);
     private final MessageSender messageSender;

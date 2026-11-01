@@ -10,12 +10,20 @@ import java.util.Random;
 import com.vdurmont.emoji.EmojiParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 
+@Service
 public class CockSizeService {
-    private static final CockSizeRepository repo = new CockSizeRepository();
     private static final Logger logger = LoggerFactory.getLogger(CockSizeService.class);
-    private final UsersService usersService = new UsersService();
+    private final CockSizeRepository repo;
+    private final UsersService usersService;
+
+    public CockSizeService(CockSizeRepository repo, UsersService usersService) {
+        this.repo = repo;
+        this.usersService = usersService;
+    }
+
     public Integer measureCockSize(Long userID) {
         int newRandomSize = getCockSize(userID);
         repo.setCockSizeWinner(userID, newRandomSize);
@@ -24,7 +32,7 @@ public class CockSizeService {
     public Integer findTodayCockSize(Long userID) {
         return repo.getTodayPlayerCockSize(userID);
     }
-    private static int getCockSize(Long userID) {
+    private int getCockSize(Long userID) {
         ArrayList<Integer> cockSizeList = new ArrayList<>();
 
         cockSizeList.add(0);

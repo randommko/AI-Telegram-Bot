@@ -7,6 +7,7 @@ import org.example.CockSize.CockSizeGame;
 import org.example.PidorGame.PidorGame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -18,6 +19,7 @@ import java.util.function.Consumer;
 
 import static org.example.Settings.Settings.USER_ROLE;
 
+@Component
 public class CommandDispatcher {
     private static final Logger logger = LoggerFactory.getLogger(CommandDispatcher.class);
 

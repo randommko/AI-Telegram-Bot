@@ -1,10 +1,11 @@
 package org.example.CockSize;
 
 import org.example.DTO.AVGCockSizeDTO;
-import org.example.DataSourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -15,12 +16,19 @@ import java.util.List;
 
 import static org.example.Settings.TablesDB.*;
 
+@Repository
 public class CockSizeRepository {
     private final Logger logger = LoggerFactory.getLogger(CockSizeRepository.class);
+    private final DataSource dataSource;
+
+    public CockSizeRepository(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
     public void setCockSizeWinner (Long userID, Integer size) {
         LocalDate today = LocalDate.now();
         String insertQuery = "INSERT INTO " + COCKSIZE_STATS_TABLE + " (user_id, size, date) VALUES (?, ?, ?)";
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
                 insertStmt.setLong(1, userID);
                 insertStmt.setInt(2, size);
@@ -34,7 +42,7 @@ public class CockSizeRepository {
 
     public String getCockSizeImageName(Integer size) {
         String selectQuery = "SELECT img FROM " + COCKSIZE_IMAGES_TABLE + " WHERE cock_size = ?";
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             try (PreparedStatement insertStmt = connection.prepareStatement(selectQuery)) {
                 insertStmt.setInt(1, size);
                 ResultSet resultImageSet = insertStmt.executeQuery();
@@ -49,7 +57,7 @@ public class CockSizeRepository {
 
     public int getTodayPlayerCockSize(Long userID) {
         LocalDate currentDate = LocalDate.now();
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             // Проверяем, есть ли запись для текущей даты
             String checkQuery = "SELECT size FROM " + COCKSIZE_STATS_TABLE + " WHERE user_id = ? AND date = ?";
             try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
@@ -69,7 +77,7 @@ public class CockSizeRepository {
         }
     }
     public List<Integer> getPlayerCockSizeByDays(Long userID, Integer days) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             LocalDate dateTwoDaysAgo = LocalDate.now().minusDays(2);
             String checkQuery = "SELECT size FROM " + COCKSIZE_STATS_TABLE + " WHERE user_id = ? AND date >= ? LIMIT ?";
             try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
@@ -90,7 +98,7 @@ public class CockSizeRepository {
     }
 
     public AVGCockSizeDTO getAVGCockSize(Long userID) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             String checkQuery = "SELECT " +
                     "    AVG(size) AS average_size, " +
                     "    COUNT(size) AS measurement_count, " +

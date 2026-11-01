@@ -1,10 +1,16 @@
 package org.example.Users;
 
+import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.User;
 
 
+@Service
 public class UsersService {
-    private final UsersRepository repo = new UsersRepository();
+    private final UsersRepository repo;
+
+    public UsersService(UsersRepository repo) {
+        this.repo = repo;
+    }
 
     public void addUser(User user) {
         repo.insertUserInDB(user);

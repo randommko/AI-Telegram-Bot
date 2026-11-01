@@ -3,9 +3,11 @@ package org.example.AiChat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
@@ -16,17 +18,18 @@ import java.net.http.HttpResponse;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.Settings.Settings.DEEP_SEEK_BASE_URL;
 
+@Component
 public class DeepSeekClient {
-    private final SettingsService settings = new SettingsService();
     private final Logger logger = LoggerFactory.getLogger(DeepSeekClient.class);
 
     private final String deepSeekApiKey;
-    private final Integer maxTokens = Integer.valueOf(settings.getSettingValue(AI_MAX_TOKENS_ANSWER_QUESTION));
+    private final Integer maxTokens;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public DeepSeekClient(String deepSeekApiKey) {
-        this.deepSeekApiKey = deepSeekApiKey;
+    public DeepSeekClient(BotProperties properties, SettingsService settings) {
+        this.deepSeekApiKey = properties.ai().key();
+        this.maxTokens = Integer.valueOf(settings.getSettingValue(AI_MAX_TOKENS_ANSWER_QUESTION));
     }
     public String sendRequestToAi(ArrayNode messages, Float temperature) {
         try {
