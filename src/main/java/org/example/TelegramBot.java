@@ -28,7 +28,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final CallbackDispatcher callbackDispatcher;
     private final ThreadPoolExecutor executor;
 
-    public TelegramBot(String botToken, String aiToken) {
+    public TelegramBot(String botToken, String aiToken, org.telegram.telegrambots.bots.DefaultBotOptions options) {
+        super(options);
         this.botToken = botToken;
         instance = this;
 
