@@ -41,3 +41,6 @@ src/main/resources/config.json
 .DS_Store
 /src/main/resources/image
 /.idea/
+
+### Qwen temp ###
+.qwen/tmp/

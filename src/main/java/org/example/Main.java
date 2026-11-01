@@ -2,7 +2,7 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
@@ -27,6 +27,8 @@ public class Main {
             System.exit(1);
         }
 
+        DefaultBotOptions botOptions = configureProxy();
+
         try {
             DataSourceConfig.initialize(dbUrl, dbUser, dbPassword);
         } catch (Exception e) {
@@ -41,7 +43,7 @@ public class Main {
                 attempt++;
 
                 TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-                TelegramBot bot = new TelegramBot(botToken, aiToken);
+                TelegramBot bot = new TelegramBot(botToken, aiToken, botOptions);
                 botsApi.registerBot(bot);
 
                 logger.info("Бот успешно запущен на попытке №{}", attempt);
@@ -56,5 +58,74 @@ public class Main {
                 }
             }
         }
+    }
+
+    /**
+     * Настраивает прокси для Telegram API по переменным окружения BOT_PROXY_*.
+     * Если BOT_PROXY_HOST не задан, возвращает null — прямое подключение.
+     */
+    private static DefaultBotOptions configureProxy() {
+        String host = System.getenv("BOT_PROXY_HOST");
+        if (host == null || host.isBlank()) {
+            logger.info("Прокси для Telegram API не задан — прямое подключение");
+            return null;
+        }
+
+        String type = System.getenv("BOT_PROXY_TYPE");
+        if (type == null || type.isBlank()) {
+            type = "HTTP";
+        }
+
+        String portValue = System.getenv("BOT_PROXY_PORT");
+        int port;
+        try {
+            port = Integer.parseInt(portValue);
+        } catch (NumberFormatException e) {
+            logger.error("Ошибка: некорректный BOT_PROXY_PORT='{}', прокси отключён", portValue);
+            return null;
+        }
+
+        boolean socks = "SOCKS5".equalsIgnoreCase(type) || "SOCKS4".equalsIgnoreCase(type);
+
+        DefaultBotOptions options = new DefaultBotOptions();
+        if ("SOCKS5".equalsIgnoreCase(type)) {
+            options.setProxyType(DefaultBotOptions.ProxyType.SOCKS5);
+        } else if ("SOCKS4".equalsIgnoreCase(type)) {
+            options.setProxyType(DefaultBotOptions.ProxyType.SOCKS4);
+        } else {
+            options.setProxyType(DefaultBotOptions.ProxyType.HTTP);
+        }
+        options.setProxyHost(host);
+        options.setProxyPort(port);
+
+        // Системные свойства для java.net.http.HttpClient (DeepSeek, гороскоп)
+        if (socks) {
+            System.setProperty("socksProxyHost", host);
+            System.setProperty("socksProxyPort", String.valueOf(port));
+        } else {
+            System.setProperty("https.proxyHost", host);
+            System.setProperty("https.proxyPort", String.valueOf(port));
+            System.setProperty("http.proxyHost", host);
+            System.setProperty("http.proxyPort", String.valueOf(port));
+        }
+
+        String user = System.getenv("BOT_PROXY_USER");
+        if (user != null && !user.isBlank()) {
+            final String proxyUser = user;
+            final String proxyPass = System.getenv("BOT_PROXY_PASS") != null
+                    ? System.getenv("BOT_PROXY_PASS")
+                    : "";
+            java.net.Authenticator.setDefault(new java.net.Authenticator() {
+                @Override
+                protected java.net.PasswordAuthentication getPasswordAuthentication() {
+                    return new java.net.PasswordAuthentication(proxyUser, proxyPass.toCharArray());
+                }
+            });
+            logger.info("Прокси {}:{} ({}) с аутентификацией", host, port, type);
+        } else {
+            logger.info("Прокси {}:{} ({}) без аутентификации", host, port, type);
+        }
+
+        return options;
     }
 }
