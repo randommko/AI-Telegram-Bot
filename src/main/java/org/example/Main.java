@@ -62,13 +62,13 @@ public class Main {
 
     /**
      * Настраивает прокси для Telegram API по переменным окружения BOT_PROXY_*.
-     * Если BOT_PROXY_HOST не задан, возвращает null — прямое подключение.
+     * Если BOT_PROXY_HOST не задан, возвращает настройки без прокси — прямое подключение.
      */
     private static DefaultBotOptions configureProxy() {
         String host = System.getenv("BOT_PROXY_HOST");
         if (host == null || host.isBlank()) {
             logger.info("Прокси для Telegram API не задан — прямое подключение");
-            return null;
+            return new DefaultBotOptions();
         }
 
         String type = System.getenv("BOT_PROXY_TYPE");
@@ -82,7 +82,7 @@ public class Main {
             port = Integer.parseInt(portValue);
         } catch (NumberFormatException e) {
             logger.error("Ошибка: некорректный BOT_PROXY_PORT='{}', прокси отключён", portValue);
-            return null;
+            return new DefaultBotOptions();
         }
 
         boolean socks = "SOCKS5".equalsIgnoreCase(type) || "SOCKS4".equalsIgnoreCase(type);
