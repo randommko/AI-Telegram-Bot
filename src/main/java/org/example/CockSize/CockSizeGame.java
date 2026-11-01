@@ -4,10 +4,10 @@ package org.example.CockSize;
 import com.vdurmont.emoji.EmojiParser;
 import org.example.DTO.AVGCockSizeDTO;
 import org.example.MessageSender;
-import org.example.TelegramBot;
 import org.example.Users.UsersService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
@@ -23,17 +23,18 @@ import java.util.List;
 import java.util.Map;
 
 
+@Component
 public class CockSizeGame {
-    final CockSizeService service = new CockSizeService();
     private static final Logger logger = LoggerFactory.getLogger(CockSizeGame.class);
-    private final UsersService usersService = new UsersService();
+    private final CockSizeService service;
+    private final UsersService usersService;
     private final MessageSender sender;
-    private final TelegramBot bot;
     private static final String RESOURCES_PATH = "/bin/tg_bot/resources";
 
-    public CockSizeGame() {
-        bot = TelegramBot.getInstance();
-        sender = new MessageSender(bot);
+    public CockSizeGame(CockSizeService service, UsersService usersService, MessageSender sender) {
+        this.service = service;
+        this.usersService = usersService;
+        this.sender = sender;
     }
     public void sendTodayCockSize(Message message) {
         Integer userSize = null;
@@ -60,7 +61,7 @@ public class CockSizeGame {
         InlineKeyboardMarkup markup = createInlineKeyboard();
         sendPhoto.setReplyMarkup(markup);
         try {
-            bot.execute(sendPhoto);
+            sender.getBot().execute(sendPhoto);
         } catch (Exception e) {
             logger.error("Ошибка отправки длинны члена с картинкой {}", String.valueOf(e));
             sender.sendMessage(chatID, messageForFoundSize);

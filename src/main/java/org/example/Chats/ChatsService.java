@@ -1,9 +1,16 @@
 package org.example.Chats;
 
+import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 
+@Service
 public class ChatsService {
-    final ChatsRepository repo = new ChatsRepository();
+    private final ChatsRepository repo;
+
+    public ChatsService(ChatsRepository repo) {
+        this.repo = repo;
+    }
+
     public boolean checkChat(Long chatID) {
         Chat chat = repo.getChatByID(chatID);
         return chat != null;

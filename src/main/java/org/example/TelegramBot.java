@@ -1,13 +1,10 @@
 package org.example;
 
-import org.example.AiChat.AiService;
-import org.example.Chats.ChatsService;
-import org.example.CockSize.CockSizeGame;
-import org.example.Horoscope.HoroscopeService;
-import org.example.PidorGame.PidorGame;
-import org.example.Users.UsersService;
+import org.example.Config.BotProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -16,10 +13,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
+@Component
 public class TelegramBot extends TelegramLongPollingBot {
     private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
     private final String botToken;
-    private static TelegramBot instance;
 
     // Зависимости
     private final MessageSender messageSender;
@@ -28,27 +25,15 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final CallbackDispatcher callbackDispatcher;
     private final ThreadPoolExecutor executor;
 
-    public TelegramBot(String botToken, String aiToken,
-                       org.telegram.telegrambots.bots.DefaultBotOptions options) {
+    public TelegramBot(BotProperties properties, DefaultBotOptions options,
+                       MessageSender messageSender, UserChatManager userChatManager,
+                       CommandDispatcher commandDispatcher, CallbackDispatcher callbackDispatcher) {
         super(options);
-        this.botToken = botToken;
-        instance = this;
-
-        // Инициализация сервисов
-        UsersService usersService = new UsersService();
-        ChatsService chatsService = new ChatsService();
-        CockSizeGame cockSizeGame = new CockSizeGame();
-        PidorGame pidorGame = new PidorGame();
-        HoroscopeService horoscopeService = new HoroscopeService();
-        AiService aiService = new AiService(aiToken);
-
-        // Фабрики диспетчеров
-        this.messageSender = new MessageSender(this);
-        this.userChatManager = new UserChatManager(usersService, chatsService);
-        this.commandDispatcher = new CommandDispatcher(messageSender, cockSizeGame,
-                pidorGame, aiService);
-        this.callbackDispatcher = new CallbackDispatcher(
-                messageSender, horoscopeService, cockSizeGame);
+        this.botToken = properties.token();
+        this.messageSender = messageSender;
+        this.userChatManager = userChatManager;
+        this.commandDispatcher = commandDispatcher;
+        this.callbackDispatcher = callbackDispatcher;
         this.executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
     }
     @Override
@@ -85,8 +70,5 @@ public class TelegramBot extends TelegramLongPollingBot {
         userChatManager.checkChat(message.getChat());
 
         commandDispatcher.dispatch(update);
-    }
-    public static TelegramBot getInstance() {
-        return instance;
     }
 }

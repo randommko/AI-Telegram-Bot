@@ -1,10 +1,11 @@
 package org.example.PidorGame;
 
-import org.example.DataSourceConfig;
 import org.example.Users.UsersService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
+import javax.sql.DataSource;
 import java.sql.*;
 import java.sql.Date;
 import java.time.LocalDate;
@@ -12,13 +13,21 @@ import java.util.*;
 
 import static org.example.Settings.TablesDB.*;
 
+@Repository
 public class PidorGameRepository {
     private static final Logger logger = LoggerFactory.getLogger(PidorGameRepository.class);
-    private final UsersService usersService = new UsersService();
+    private final UsersService usersService;
+    private final DataSource dataSource;
+
+    public PidorGameRepository(DataSource dataSource, UsersService usersService) {
+        this.dataSource = dataSource;
+        this.usersService = usersService;
+    }
+
     public void setPidorWinner(Long chatID, Long userID) {
         LocalDate today = LocalDate.now();
         String insertQuery = "INSERT INTO " + PIDOR_STATS_TABLE + " (chat_id, date, user_id) VALUES (?, ?, ?)";
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
                 insertStmt.setLong(1, chatID);
                 insertStmt.setDate(2, Date.valueOf(today));
@@ -32,7 +41,7 @@ public class PidorGameRepository {
 
     public Set<Long> getPidorGamePlayers(Long chatID) {
         Set<Long> chatPlayers = new HashSet<>();
-        try (Connection getPlayersConn = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection getPlayersConn = dataSource.getConnection()) {
             String query = "SELECT user_id FROM " + PIDOR_PLAYERS_TABLE + " WHERE chat_id = ?";
             PreparedStatement stmt = getPlayersConn.prepareStatement(query);
             stmt.setLong(1, chatID);
@@ -49,7 +58,7 @@ public class PidorGameRepository {
     public Integer registerPlayer(Long chatID, Long userID) {
         String insertQuery = "INSERT INTO " + PIDOR_PLAYERS_TABLE + " (chat_id, user_id) VALUES (?, ?) ON CONFLICT (chat_id, user_id) DO NOTHING";
 
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             PreparedStatement preparedStatement = connection.prepareStatement(insertQuery);
 
             preparedStatement.setLong(1, chatID);
@@ -70,7 +79,7 @@ public class PidorGameRepository {
                 "WHERE pst.chat_id = ? " +
                 "GROUP BY pst.user_id";
 
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             PreparedStatement preparedStatement = connection.prepareStatement(query);
             preparedStatement.setLong(1, chatID);
             ResultSet resultSet = preparedStatement.executeQuery();
@@ -87,7 +96,7 @@ public class PidorGameRepository {
     }
 
     public Long getTodayWinner(Long chatID) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             LocalDate today = LocalDate.now();
 
             String checkQuery = "SELECT user_id FROM " + PIDOR_STATS_TABLE + " WHERE chat_id = ? AND date = ?";
@@ -109,7 +118,7 @@ public class PidorGameRepository {
     public String getWinnerResponse() {
         String sql = "SELECT text FROM " + MESSAGES_TABLE + " WHERE group_num = 100 ORDER BY RANDOM() LIMIT 1";
 
-        try (Connection conn = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
@@ -131,7 +140,7 @@ public class PidorGameRepository {
 
         List<String> responses = new ArrayList<>();
 
-        try (Connection conn = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             for (int groupNum = 1; groupNum <= 3; groupNum++) {
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, groupNum);

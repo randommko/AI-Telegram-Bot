@@ -2,10 +2,10 @@ package org.example.Horoscope;
 
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.example.MessageSender;
-import org.example.TelegramBot;
 import org.example.Users.UsersService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 
 import java.io.IOException;
@@ -18,9 +18,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+@Component
 public class HoroscopeService {
     private static final Map<String, String> zodiacMap;  //key - код знака зодиака, value - название знака зодиака
-    private final UsersService usersService = new UsersService();
+    private final UsersService usersService;
     static {
         zodiacMap = new HashMap<>();
         zodiacMap.put("aries", "овен");
@@ -36,16 +37,16 @@ public class HoroscopeService {
         zodiacMap.put("aquarius", "водолей");
         zodiacMap.put("pisces", "рыбы");
     }
-    private final TelegramBot bot;
     LocalDate lastSend;
     private Horoscope horoscope;
-    MessageSender sender;
+    private final MessageSender sender;
     private static final String URL = "https://ignio.com/r/export/utf/xml/daily/com.xml";
     private static final Logger logger = LoggerFactory.getLogger(HoroscopeService.class);
-    public HoroscopeService() {
-        this.bot = TelegramBot.getInstance();
-        sender = new MessageSender(bot);
-        horoscope = new Horoscope();
+
+    public HoroscopeService(UsersService usersService, MessageSender sender) {
+        this.usersService = usersService;
+        this.sender = sender;
+        this.horoscope = new Horoscope();
     }
     public void sendHoroscope(CallbackQuery callback, String zodiacCode, String day) {
         Long chatID = callback.getMessage().getChatId();

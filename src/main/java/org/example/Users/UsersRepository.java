@@ -1,21 +1,28 @@
 package org.example.Users;
 
-import org.example.DataSourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 import org.telegram.telegrambots.meta.api.objects.User;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 import static org.example.Settings.TablesDB.TG_USERS_TABLE;
 
+@Repository
 public class UsersRepository {
     private final Logger logger = LoggerFactory.getLogger(UsersRepository.class);
+    private final DataSource dataSource;
+
+    public UsersRepository(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
 
     public void updateUserInDB(User user) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             String updateUserQuery = "UPDATE " + TG_USERS_TABLE + " SET " +
                     "first_name = ?, " +
                     "is_bot = ?, " +
@@ -58,7 +65,7 @@ public class UsersRepository {
     }
 
     public void insertUserInDB(User user) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             String insertUserQuery = "INSERT INTO " + TG_USERS_TABLE + " (" +
                     "user_id, " +
                     "first_name, " +
@@ -92,7 +99,7 @@ public class UsersRepository {
     }
 
     public User getUserByID(Long userID) {
-        try (Connection connection = DataSourceConfig.getDataSource().getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             String userNameQuery = "SELECT " +
                     "user_id, " +
                     "first_name, " +

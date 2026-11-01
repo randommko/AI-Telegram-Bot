@@ -2,28 +2,29 @@ package org.example.PidorGame;
 
 import com.vdurmont.emoji.EmojiParser;
 import org.example.MessageSender;
-import org.example.TelegramBot;
 import org.example.Users.UsersService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@Component
 public class PidorGame {
-        private final TelegramBot bot;
         private static final Logger logger = LoggerFactory.getLogger(PidorGame.class);
-        private final PidorGameRepository repo = new PidorGameRepository();
-        private final UsersService usersService = new UsersService();
+        private final PidorGameRepository repo;
+        private final UsersService usersService;
         private final MessageSender sender;
 
         // Thread-safe map для флагов "в процессе" по чатам
         private static final ConcurrentHashMap<Long, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
 
-        public PidorGame() {
-                bot = TelegramBot.getInstance();
-                sender = new MessageSender(bot);
+        public PidorGame(PidorGameRepository repo, UsersService usersService, MessageSender sender) {
+                this.repo = repo;
+                this.usersService = usersService;
+                this.sender = sender;
         }
         public void registerPlayer(Long chatID, Long userID) {
                 String userName = usersService.getUserNameByID(userID);

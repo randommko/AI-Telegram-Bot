@@ -17,10 +17,13 @@ public class ChatMessages {
     private Integer numOfAiReset;
 
     private static final Logger logger = LoggerFactory.getLogger(ChatMessages.class);
-    private final SettingsService settings = new SettingsService();
+    private final SettingsService settings;
+    private final UsersService usersService;
 
-    public ChatMessages(Long chatId) {
+    public ChatMessages(Long chatId, SettingsService settings, UsersService usersService) {
         this.chatId = chatId;
+        this.settings = settings;
+        this.usersService = usersService;
         numOfAiReset = 0;
         initAiInChat();
     }
@@ -87,7 +90,6 @@ public class ChatMessages {
             addMessage(AI_ID, AI_SYSTEM_ROLE, "Тебе обнуляли память уже " + numOfAiReset + " раз");
     }
     private String getUserName(Long userId) {
-        UsersService usersService = new UsersService();
         if (userId == 0L)
             return "AI Bot";
         return usersService.getUserNameByID(userId);
