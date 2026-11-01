@@ -11,19 +11,16 @@ public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
-        if (args.length < 5) {
-            logger.error("Ошибка: ожидается 5 аргументов: token dbUrl dbUser dbPassword aiKey");
-            System.exit(1);
-        }
-
-        String botToken = args[0];
-        String dbUrl = args[1];
-        String dbUser = args[2];
-        String dbPassword = args[3];
-        String aiToken = args[4];
+        String botToken = resolveParameter(args, 0, "BOT_TOKEN");
+        String dbUrl = resolveParameter(args, 1, "BOT_DB_URL");
+        String dbUser = resolveParameter(args, 2, "BOT_DB_USER");
+        String dbPassword = resolveParameter(args, 3, "BOT_DB_PASSWORD");
+        String aiToken = resolveParameter(args, 4, "BOT_AI_KEY");
 
         if (botToken.isEmpty() || dbUrl.isEmpty() || dbUser.isEmpty() || dbPassword.isEmpty() || aiToken.isEmpty()) {
-            logger.error("Ошибка: не заполнены обязательные параметры запуска.");
+            logger.error("Ошибка: не заполнены обязательные параметры запуска. Передайте 5 аргументов "
+                    + "(token dbUrl dbUser dbPassword aiKey) или переменные окружения "
+                    + "BOT_TOKEN, BOT_DB_URL, BOT_DB_USER, BOT_DB_PASSWORD, BOT_AI_KEY.");
             System.exit(1);
         }
 
@@ -58,6 +55,18 @@ public class Main {
                 }
             }
         }
+    }
+
+    /**
+     * Берёт параметр из аргумента командной строки, иначе из переменной окружения.
+     * Аргументы приоритетнее, чтобы локальный запуск не зависел от переменных среды.
+     */
+    private static String resolveParameter(String[] args, int index, String envName) {
+        if (args.length > index && !args[index].isBlank()) {
+            return args[index];
+        }
+        String value = System.getenv(envName);
+        return value == null ? "" : value;
     }
 
     /**

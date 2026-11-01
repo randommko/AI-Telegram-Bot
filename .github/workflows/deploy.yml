@@ -28,28 +28,36 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+          # Параметры запуска уходят в systemd через env-файл: аргументы командной
+          # строки видны в ps любому локальному пользователю на сервере.
+          cat > bot.env <<'ENVFILE'
+          BOT_TOKEN=${{ secrets.TOKEN_TG_BOT }}
+          BOT_DB_URL=${{ secrets.DB_ADDR_TG_BOT }}
+          BOT_DB_USER=${{ secrets.DB_USER_TG_BOT }}
+          BOT_DB_PASSWORD=${{ secrets.DB_PASS_TG_BOT }}
+          BOT_AI_KEY=${{ secrets.DEEPSEEK_API_KEY }}
+          BOT_PROXY_TYPE=${{ secrets.BOT_PROXY_TYPE }}
+          BOT_PROXY_HOST=${{ secrets.BOT_PROXY_HOST }}
+          BOT_PROXY_PORT=${{ secrets.BOT_PROXY_PORT }}
+          BOT_PROXY_USER=${{ secrets.BOT_PROXY_USER }}
+          BOT_PROXY_PASS=${{ secrets.BOT_PROXY_PASS }}
+          ENVFILE
+
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "install -d -m 700 /etc/telegram-bot"
+          scp bot.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/telegram-bot/bot.env
+          rm -f bot.env
           scp target/telegram-bot-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot/
+          scp deploy/telegram-bot.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/systemd/system/telegram-bot.service
+
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-            # Завершение текущих процессов приложения
-            pgrep -f '/usr/bin/tg_bot/telegram-bot-1.0.jar' | xargs -r kill -9
-
-            # Прокси для Telegram API (если секреты заданы; пустые значения = прямое подключение)
-            export BOT_PROXY_TYPE="${{ secrets.BOT_PROXY_TYPE }}"
-            export BOT_PROXY_HOST="${{ secrets.BOT_PROXY_HOST }}"
-            export BOT_PROXY_PORT="${{ secrets.BOT_PROXY_PORT }}"
-            export BOT_PROXY_USER="${{ secrets.BOT_PROXY_USER }}"
-            export BOT_PROXY_PASS="${{ secrets.BOT_PROXY_PASS }}"
-
-            # Запуск нового процесса приложения
-            nohup java -jar /usr/bin/tg_bot/telegram-bot-1.0.jar \
-              ${{ secrets.TOKEN_TG_BOT }} \
-              ${{ secrets.DB_ADDR_TG_BOT }} \
-              ${{ secrets.DB_USER_TG_BOT }} \
-              ${{ secrets.DB_PASS_TG_BOT }} \
-              ${{ secrets.DEEPSEEK_API_KEY }} \
-              > /var/log/telegram-bot.log 2>&1 &
-          
-              echo "Deployment complete."
+            chmod 600 /etc/telegram-bot/bot.env
+            systemctl daemon-reload
+            systemctl enable telegram-bot
+            systemctl restart telegram-bot
+            sleep 25
+            journalctl -u telegram-bot --no-pager -n 20
+            systemctl is-active telegram-bot
           EOF
 
         env:
