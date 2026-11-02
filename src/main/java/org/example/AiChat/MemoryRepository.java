@@ -158,9 +158,11 @@ public class MemoryRepository {
             return Map.of();
 
         String placeholders = String.join(", ", names.stream().map(name -> "?").toList());
+        // В tg_users ник хранится с ведущим «@», а модель возвращает его без него —
+        // сравниваем обе стороны без собачки, иначе все связи людей теряются.
         String query = "SELECT user_id, user_name, first_name FROM " + TG_USERS_TABLE +
-                " WHERE lower(user_name) IN (" + placeholders + ")" +
-                " OR lower(first_name) IN (" + placeholders + ")";
+                " WHERE lower(replace(user_name, '@', '')) IN (" + placeholders + ")" +
+                " OR lower(replace(first_name, '@', '')) IN (" + placeholders + ")";
 
         Map<String, Long> users = new HashMap<>();
         try (Connection connection = dataSource.getConnection();
@@ -368,6 +370,6 @@ public class MemoryRepository {
 
     private void putUser(Map<String, Long> users, String name, long userId) {
         if (name != null && !name.isBlank())
-            users.put(name.toLowerCase(), userId);
+            users.put(name.replace("@", "").trim().toLowerCase(), userId);
     }
 }
