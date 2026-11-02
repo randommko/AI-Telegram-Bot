@@ -1,5 +1,6 @@
 package org.example;
 
+import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +24,12 @@ public class StartupNotifier {
 
     private final SettingsService settings;
     private final MessageSender sender;
+    private final BotProperties properties;
 
-    public StartupNotifier(SettingsService settings, MessageSender sender) {
+    public StartupNotifier(SettingsService settings, MessageSender sender, BotProperties properties) {
         this.settings = settings;
         this.sender = sender;
+        this.properties = properties;
     }
 
     /**
@@ -45,12 +48,25 @@ public class StartupNotifier {
                 + "Хост: " + hostName() + "\n"
                 + "Модель: " + settings.getModel() + "\n"
                 + "Температура: " + temperature() + "\n"
-                + "Максимум токенов: " + maxTokens();
+                + "Максимум токенов: " + maxTokens()
+                + adminLine();
 
         if (sender.sendMessage(chatId, text) != null)
             logger.info("Уведомление о запуске отправлено в чат {}", chatId);
         else
             logger.warn("Уведомление о запуске не отправлено в чат {}", chatId);
+    }
+
+    /** Ссылка на админку — только если она включена паролем. Доступна через SSH-туннель. */
+    private String adminLine() {
+        if (!properties.hasAdmin())
+            return "";
+
+        BotProperties.Admin admin = properties.admin();
+        String bind = admin.bind();
+        String host = bind == null || bind.isBlank() || "0.0.0.0".equals(bind) ? "127.0.0.1" : bind;
+        int port = admin.port() == null ? 8081 : admin.port();
+        return "\nАдминка: http://" + host + ":" + port + "/admin (через SSH-туннель)";
     }
 
     private Long ownerChatId() {

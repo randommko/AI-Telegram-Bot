@@ -1,5 +1,6 @@
 package org.example;
 
+import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +19,46 @@ class StartupNotifierTest {
 
     private final SettingsService settings = mock(SettingsService.class);
     private final MessageSender sender = mock(MessageSender.class);
+    private final BotProperties properties = mock(BotProperties.class);
+
+    @Test
+    void addsAdminLinkWhenAdminIsEnabled() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("deepseek-flash");
+        when(properties.hasAdmin()).thenReturn(true);
+        when(properties.admin()).thenReturn(new BotProperties.Admin("secret", 8081, "127.0.0.1"));
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Админка: http://127.0.0.1:8081/admin (через SSH-туннель)")));
+    }
+
+    @Test
+    void omitsAdminLinkWhenAdminIsDisabled() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("deepseek-flash");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text -> !text.contains("Админка:")));
+    }
+
+    @Test
+    void usesConfiguredAdminPort() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("deepseek-flash");
+        when(properties.hasAdmin()).thenReturn(true);
+        when(properties.admin()).thenReturn(new BotProperties.Admin("secret", 9090, "0.0.0.0"));
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Админка: http://127.0.0.1:9090/admin")));
+    }
 
     @Test
     void sendsStartupMessageToConfiguredChat() {
@@ -27,7 +68,7 @@ class StartupNotifierTest {
         when(settings.getModel()).thenReturn("deepseek-flash");
         when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), argThat(text ->
                 text.startsWith("Бот запущен")
@@ -43,7 +84,7 @@ class StartupNotifierTest {
         when(settings.getModel()).thenReturn("deepseek-chat");
         when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), argThat(text -> text.contains("Модель: deepseek-chat")));
     }
@@ -53,7 +94,7 @@ class StartupNotifierTest {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
         when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), argThat(text ->
                 text.contains("Температура: не задана")
@@ -65,7 +106,7 @@ class StartupNotifierTest {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn(" 111222333 ");
         when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), anyString());
     }
@@ -74,7 +115,7 @@ class StartupNotifierTest {
     void skipsWhenOwnerChatIsNotConfigured() {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn(null);
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verifyNoInteractions(sender);
     }
@@ -83,7 +124,7 @@ class StartupNotifierTest {
     void skipsWhenOwnerChatIsNotANumber() {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("не-id");
 
-        new StartupNotifier(settings, sender).notifyOwner();
+        new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verifyNoInteractions(sender);
     }
