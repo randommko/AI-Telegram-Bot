@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,10 @@ public class AiMemoryExtractor {
     private static final int MAX_MESSAGES_PER_ANALYSIS = 100;
     private static final int ANALYSIS_MAX_TOKENS = 2000;
     private static final float ANALYSIS_TEMPERATURE = 0.2f;
+    private static final DateTimeFormatter MESSAGE_TIME =
+            DateTimeFormatter.ofPattern("dd.MM HH:mm").withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter MEMORY_UPDATED =
+            DateTimeFormatter.ofPattern("dd.MM").withZone(ZoneId.systemDefault());
 
     private final PersonaRepository personaRepository;
     private final MemoryRepository memoryRepository;
@@ -97,14 +103,16 @@ public class AiMemoryExtractor {
             throw new IllegalStateException("Модель не вернула ответ анализа памяти");
 
         MemoryExtraction extraction = parser.parse(answer);
-        Set<Long> coreIds = MemoryCoreRules.ids(existing.stream().filter(MemoryRecord::core).toList());
-        for (Long id : MemoryCoreRules.protectedDeletes(extraction.delete(), coreIds))
-            logger.warn("Анализ пытался удалить ядровое воспоминание {} — операция отброшена", id);
+        Set<Long> protectedIds = MemoryCoreRules.ids(existing.stream()
+                .filter(memory -> memory.core() || "manual".equals(memory.source()))
+                .toList());
+        for (Long id : MemoryCoreRules.protectedDeletes(extraction.delete(), protectedIds))
+            logger.warn("Анализ пытался удалить защищённое воспоминание {} (ядро или ручное) — операция отброшена", id);
 
         MemoryExtraction applied = new MemoryExtraction(
                 extraction.add(),
                 extraction.update(),
-                MemoryCoreRules.filterDeletable(extraction.delete(), coreIds));
+                MemoryCoreRules.filterDeletable(extraction.delete(), protectedIds));
 
         long lastMessageId = messages.get(messages.size() - 1).id();
         memoryRepository.apply(
@@ -142,11 +150,11 @@ public class AiMemoryExtractor {
 
         ObjectNode user = objectMapper.createObjectNode();
         user.put("role", "user");
-        user.put("content", "Существующие воспоминания (id | категория | текст | важность | ядро):\n"
+        user.put("content", "Существующие воспоминания (id | категория | текст | важность | ядро | обновлено):\n"
                 + existingMemories(existing)
                 + "\n\nНовые сообщения:\n"
                 + messages.stream()
-                .map(message -> message.content())
+                .map(message -> "[" + MESSAGE_TIME.format(message.createdAt()) + "] " + message.content())
                 .collect(Collectors.joining("\n")));
         payload.add(user);
 
@@ -158,7 +166,8 @@ public class AiMemoryExtractor {
             return "(нет)";
         return existing.stream()
                 .map(memory -> memory.id() + " | " + memory.category() + " | " + memory.content()
-                        + " | " + memory.importance() + " | " + (memory.core() ? "ядро" : "обычное"))
+                        + " | " + memory.importance() + " | " + (memory.core() ? "ядро" : "обычное")
+                        + " | обновлено " + MEMORY_UPDATED.format(memory.updatedAt()))
                 .collect(Collectors.joining("\n"));
     }
 

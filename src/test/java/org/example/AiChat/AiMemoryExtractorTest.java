@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -158,7 +159,7 @@ class AiMemoryExtractorTest {
                 new MemoryRepository.MessageRow(60L, "Сообщение от: @nick: привет")));
         when(memoryRepository.findByPersona(7)).thenReturn(List.of(
                 new MemoryRecord(5, "семья", "родился 1988-04-12", 10, true, LocalDate.of(1988, 4, 12), List.of()),
-                new MemoryRecord(6, "хобби", "шахматы", 5, false, null, List.of())));
+                new MemoryRecord(6, "хобби", "шахматы", 5, false, null, List.of(), "auto", Instant.EPOCH)));
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
         when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
@@ -169,5 +170,31 @@ class AiMemoryExtractorTest {
         ArgumentCaptor<MemoryExtraction> extraction = ArgumentCaptor.forClass(MemoryExtraction.class);
         verify(memoryRepository).apply(eq(1L), eq(7), extraction.capture(), eq(60L), anySet(), anyMap());
         assertEquals(List.of(6L), extraction.getValue().delete());
+    }
+
+    @Test
+    void manualRecordDeletionIsDropped() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_ANALYZE_EVERY)).thenReturn("50");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(personaRepository.findAssignedChats()).thenReturn(List.of(CHAT));
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.countNewMessages(1L, 10L)).thenReturn(50);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 50));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "Сообщение от: @nick: привет")));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of(
+                new MemoryRecord(7, "друзья", "Алексей — это Лёха", 6, false, null, List.of(),
+                        "manual", Instant.EPOCH)));
+        when(memoryRepository.categories()).thenReturn(Set.of("другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[],\"update\":[],\"delete\":[{\"id\":7}]}");
+
+        extractor.analyzeDueChats();
+
+        ArgumentCaptor<MemoryExtraction> extraction = ArgumentCaptor.forClass(MemoryExtraction.class);
+        verify(memoryRepository).apply(eq(1L), eq(7), extraction.capture(), eq(60L), anySet(), anyMap());
+        assertTrue(extraction.getValue().delete().isEmpty(), "ручную запись анализ удалять не должен");
     }
 }

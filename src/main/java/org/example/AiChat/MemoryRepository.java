@@ -10,7 +10,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,7 +35,7 @@ public class MemoryRepository {
     private static final String DEFAULT_CATEGORY = "другое";
 
     private static final String MEMORY_SELECT =
-            "SELECT m.id, m.category, m.content, m.importance, m.is_core, m.event_date," +
+            "SELECT m.id, m.category, m.content, m.importance, m.is_core, m.event_date, m.source, m.updated_at," +
                     " array_agg(coalesce(u.user_name, u.first_name) ORDER BY coalesce(u.user_name, u.first_name))" +
                     " FILTER (WHERE u.user_id IS NOT NULL) AS people" +
                     " FROM " + PERSONA_MEMORIES_TABLE + " m" +
@@ -47,7 +49,11 @@ public class MemoryRepository {
         this.dataSource = dataSource;
     }
 
-    public record MessageRow(long id, String content) {
+    public record MessageRow(long id, String content, Instant createdAt) {
+
+        public MessageRow(long id, String content) {
+            this(id, content, Instant.EPOCH);
+        }
     }
 
     public record WindowInfo(long minId, int count) {
@@ -104,7 +110,7 @@ public class MemoryRepository {
     }
 
     public List<MessageRow> findNewMessages(long chatId, long watermark) {
-        String query = "SELECT id, content FROM " + AI_MESSAGES_TABLE +
+        String query = "SELECT id, content, created_at FROM " + AI_MESSAGES_TABLE +
                 " WHERE chat_id = ? AND id > ? ORDER BY id";
 
         List<MessageRow> messages = new ArrayList<>();
@@ -114,7 +120,10 @@ public class MemoryRepository {
             statement.setLong(2, watermark);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next())
-                    messages.add(new MessageRow(resultSet.getLong("id"), resultSet.getString("content")));
+                    messages.add(new MessageRow(
+                            resultSet.getLong("id"),
+                            resultSet.getString("content"),
+                            resultSet.getObject("created_at", OffsetDateTime.class).toInstant()));
             }
         } catch (Exception e) {
             logger.error("Ошибка чтения новых сообщений в чате {}: ", chatId, e);
@@ -235,6 +244,7 @@ public class MemoryRepository {
 
     private MemoryRecord toMemory(ResultSet resultSet) throws SQLException {
         LocalDate eventDate = resultSet.getObject("event_date", LocalDate.class);
+        OffsetDateTime updatedAt = resultSet.getObject("updated_at", OffsetDateTime.class);
         return new MemoryRecord(
                 resultSet.getInt("id"),
                 resultSet.getString("category"),
@@ -242,7 +252,9 @@ public class MemoryRepository {
                 resultSet.getInt("importance"),
                 resultSet.getBoolean("is_core"),
                 eventDate,
-                people(resultSet));
+                people(resultSet),
+                resultSet.getString("source"),
+                updatedAt == null ? Instant.EPOCH : updatedAt.toInstant());
     }
 
     private List<String> people(ResultSet resultSet) throws SQLException {
