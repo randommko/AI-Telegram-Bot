@@ -8,46 +8,30 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.User;
 
-import java.time.LocalDate;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Component
 public class UserChatManager {
     private static final Logger logger = LoggerFactory.getLogger(UserChatManager.class);
     private final UsersService usersService;
     private final ChatsService chatsService;
-    private final Map<Long, LocalDate> usersUpdateTime = new ConcurrentHashMap<>();
-    private final Map<Long, LocalDate> chatsUpdateTime = new ConcurrentHashMap<>();
 
     public UserChatManager(UsersService usersService, ChatsService chatsService) {
         this.usersService = usersService;
         this.chatsService = chatsService;
     }
 
+    // Обновление не чаще раза в сутки проверяется в SQL по updated_at, поэтому памяти процесса
+    // для этого не нужно: после рестарта отметки сохраняются в БД.
     public void checkUser(User user) {
-        Long userId = user.getId();
-        LocalDate today = LocalDate.now();
-
-        if (!usersService.checkUser(user)) {
+        if (!usersService.checkUser(user))
             usersService.addUser(user);
-            usersUpdateTime.put(userId, today);
-        } else if (!today.equals(usersUpdateTime.get(userId))) {
+        else
             usersService.updateUser(user);
-            usersUpdateTime.put(userId, today);
-        }
     }
 
     public void checkChat(Chat chat) {
-        Long chatId = chat.getId();
-        LocalDate today = LocalDate.now();
-
-        if (!chatsService.checkChat(chatId)) {
+        if (!chatsService.checkChat(chat.getId()))
             chatsService.addChat(chat);
-            chatsUpdateTime.put(chatId, today);
-        } else if (!today.equals(chatsUpdateTime.get(chatId))) {
+        else
             chatsService.updateChat(chat);
-            chatsUpdateTime.put(chatId, today);
-        }
     }
 }

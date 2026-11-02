@@ -69,9 +69,10 @@ public class ChatsRepository {
             chatTitle = "Личный чат с: " + chat.getFirstName() + " " + chat.getLastName();
         try (Connection connection = dataSource.getConnection()) {
             String updateChatQuery = "UPDATE " + TG_CHATS_TABLE + " SET " +
-                    "chat_title = ? " +
-                    "WHERE chat_id = ?"; // Условие для обновления записи по chat_id;
-            //String updateChatQuery = "INSERT INTO " + TG_CHATS_TABLE + " (chat_id, chat_title) VALUES (?, ?) ON CONFLICT (chat_id) DO NOTHING";
+                    "chat_title = ?, " +
+                    "updated_at = now() " +
+                    // Обновляем не чаще раза в сутки: отметка живёт в БД, а не в памяти процесса.
+                    "WHERE chat_id = ? AND updated_at::date IS DISTINCT FROM CURRENT_DATE";
             try (PreparedStatement insertUser = connection.prepareStatement(updateChatQuery)) {
                 insertUser.setString(1, chatTitle);
                 insertUser.setLong(2, chatID);

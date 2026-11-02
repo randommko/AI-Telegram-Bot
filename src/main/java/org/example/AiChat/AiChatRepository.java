@@ -1,0 +1,141 @@
+package org.example.AiChat;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.example.Settings.TablesDB.AI_CHAT_STATE_TABLE;
+import static org.example.Settings.TablesDB.AI_MESSAGES_TABLE;
+
+@Repository
+public class AiChatRepository {
+    private static final Logger logger = LoggerFactory.getLogger(AiChatRepository.class);
+    private final DataSource dataSource;
+
+    public AiChatRepository(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    public void saveMessage(Long chatId, String role, String content, int limit) {
+        String insertQuery = "INSERT INTO " + AI_MESSAGES_TABLE + " (chat_id, role, content) VALUES (?, ?, ?)";
+        // Окно истории на чат: всё, что вышло за последние limit сообщений, удаляется сразу.
+        String trimQuery = "DELETE FROM " + AI_MESSAGES_TABLE +
+                " WHERE chat_id = ? AND id NOT IN (SELECT id FROM " + AI_MESSAGES_TABLE +
+                " WHERE chat_id = ? ORDER BY id DESC LIMIT ?)";
+
+        try (Connection connection = dataSource.getConnection()) {
+            try (PreparedStatement insert = connection.prepareStatement(insertQuery)) {
+                insert.setLong(1, chatId);
+                insert.setString(2, role);
+                insert.setString(3, content);
+                insert.executeUpdate();
+            }
+
+            try (PreparedStatement trim = connection.prepareStatement(trimQuery)) {
+                trim.setLong(1, chatId);
+                trim.setLong(2, chatId);
+                trim.setInt(3, limit);
+                trim.executeUpdate();
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка сохранения сообщения AI в чате {}: ", chatId, e);
+        }
+    }
+
+    public List<AiMessage> findLastMessages(Long chatId, int limit) {
+        String query = "SELECT role, content FROM " + AI_MESSAGES_TABLE +
+                " WHERE chat_id = ? ORDER BY id DESC LIMIT ?";
+        List<AiMessage> messages = new ArrayList<>();
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+            statement.setInt(2, limit);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    messages.add(new AiMessage(resultSet.getString("role"), resultSet.getString("content")));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения истории AI в чате {}: ", chatId, e);
+            return Collections.emptyList();
+        }
+
+        // Читали от новых к старым — в запрос к AI история уходит в хронологическом порядке.
+        Collections.reverse(messages);
+        return messages;
+    }
+
+    public int countMessages(Long chatId) {
+        String query = "SELECT count(*) FROM " + AI_MESSAGES_TABLE + " WHERE chat_id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getInt(1);
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка подсчёта истории AI в чате {}: ", chatId, e);
+        }
+        return 0;
+    }
+
+    public void clearMessages(Long chatId) {
+        String query = "DELETE FROM " + AI_MESSAGES_TABLE + " WHERE chat_id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+            statement.executeUpdate();
+        } catch (Exception e) {
+            logger.error("Ошибка очистки истории AI в чате {}: ", chatId, e);
+        }
+    }
+
+    public int incrementResets(Long chatId) {
+        String query = "INSERT INTO " + AI_CHAT_STATE_TABLE + " (chat_id, resets) VALUES (?, 1)" +
+                " ON CONFLICT (chat_id) DO UPDATE SET resets = " + AI_CHAT_STATE_TABLE + ".resets + 1" +
+                " RETURNING resets";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getInt("resets");
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка счётчика сбросов AI в чате {}: ", chatId, e);
+        }
+        return 0;
+    }
+
+    public int getResets(Long chatId) {
+        String query = "SELECT resets FROM " + AI_CHAT_STATE_TABLE + " WHERE chat_id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getInt("resets");
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения счётчика сбросов AI в чате {}: ", chatId, e);
+        }
+        return 0;
+    }
+}

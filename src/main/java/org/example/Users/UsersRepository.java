@@ -33,8 +33,10 @@ public class UsersRepository {
                     "can_read_all_group_messages = ?, " +
                     "support_inline_queries = ?, " +
                     "is_premium = ?, " +
-                    "added_to_attachment_menu = ? " +
-                    "WHERE user_id = ?"; // Условие для обновления записи по user_id
+                    "added_to_attachment_menu = ?, " +
+                    "updated_at = now() " +
+                    // Обновляем не чаще раза в сутки: отметка живёт в БД, а не в памяти процесса.
+                    "WHERE user_id = ? AND updated_at::date IS DISTINCT FROM CURRENT_DATE";
             String userName = user.getUserName();
             if (userName != null)
                     userName = "@" + userName;
@@ -52,11 +54,9 @@ public class UsersRepository {
                 updateUser.setBoolean(10, Boolean.TRUE.equals(user.getAddedToAttachmentMenu()));
                 updateUser.setLong(11, user.getId()); // WHERE user_id = ?
 
-                updateUser.executeUpdate(); // Используйте executeUpdate для DML-запросов
-
                 int updatedRows = updateUser.executeUpdate(); // Возвращает число обновленных строк
                 if (updatedRows == 0) {
-                    logger.warn("Пользователь с user_id = {} не найден для обновления.", user.getId());
+                    logger.debug("Пользователь с user_id = {} уже обновлялся сегодня.", user.getId());
                 }
             }
         } catch (Exception e) {
