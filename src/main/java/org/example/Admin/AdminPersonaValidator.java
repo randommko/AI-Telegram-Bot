@@ -75,7 +75,7 @@ public class AdminPersonaValidator {
             PersonaDetails details = new PersonaDetails(form.id(), name, prompt, aliases,
                     joy, anger, offence, fatigue, sarcasm, decay, threshold,
                     hysteriaReplies, hysteriaCooldown, maxReplies, replyDelay,
-                    form.initiativeEnabled(), initiativeCooldown);
+                    Boolean.TRUE.equals(form.initiativeEnabled()), initiativeCooldown);
             return new Result(details, errors);
         }
         return new Result(null, errors);

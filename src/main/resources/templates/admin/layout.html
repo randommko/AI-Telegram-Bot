@@ -54,6 +54,16 @@
         .hint { font-size: 13px; color: #3b4a5f; }
         fieldset { border: 1px solid #dcdfe4; border-radius: 6px; padding: 12px 16px; margin: 0 0 16px; }
         legend { font-size: 13px; color: #3b4a5f; padding: 0 6px; }
+        form.filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; background: #fff;
+                       border: 1px solid #dcdfe4; border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; }
+        form.filters label, .field label.select { display: flex; flex-direction: column; gap: 4px;
+                                                  font-size: 13px; color: #3b4a5f; }
+        form.filters label.inline { flex-direction: row; align-items: center; gap: 6px; }
+        form.filters input, form.filters select, .field select { padding: 7px; border: 1px solid #c4c8ce;
+                                                                border-radius: 4px; font: inherit; font-size: 14px; }
+        form.analyze { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .badge { background: #fdecea; color: #b3261e; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+        select[multiple] { min-height: 120px; }
     </style>
 </head>
 <body>

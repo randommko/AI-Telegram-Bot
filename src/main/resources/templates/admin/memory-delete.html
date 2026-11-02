@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Удаление воспоминания</h1>
+
+    <p class="error" th:text="${memory.content}">текст воспоминания</p>
+
+    <p class="hint">
+        Категория: <span th:text="${memory.category}">другое</span>,
+        важность: <span th:text="${memory.importance}">5</span>,
+        источник: <span th:text="${memory.source}">manual</span>.
+    </p>
+
+    <p class="error" th:if="${memory.core}">
+        Это ядровая запись. Автоматический анализ её не восстановит — вернуть факт можно только вручную.
+    </p>
+
+    <form th:action="@{/admin/memories/{id}/delete(id=${memory.id})}" method="post">
+        <input type="hidden" name="confirm" value="true"/>
+        <div class="toolbar">
+            <button class="danger" type="submit">Удалить окончательно</button>
+            <a class="button secondary" th:href="@{/admin/memories}">Отмена</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

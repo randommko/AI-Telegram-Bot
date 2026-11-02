@@ -39,6 +39,10 @@ public class AiMemoryExtractor {
     private static final DateTimeFormatter MEMORY_UPDATED =
             DateTimeFormatter.ofPattern("dd.MM").withZone(ZoneId.systemDefault());
 
+    /** Итог прогона: сколько разобрано и что сделано с памятью. */
+    public record AnalysisResult(int messages, int added, int updated, int deleted, int rejectedDeletes) {
+    }
+
     private final PersonaRepository personaRepository;
     private final MemoryRepository memoryRepository;
     private final MemoryExtractionParser parser;
@@ -82,13 +86,14 @@ public class AiMemoryExtractor {
         }
     }
 
-    void analyzeChat(ChatPersona chat, int historySize) throws Exception {
+    /** Ручной прогон по кнопке в админке: порог не учитывается, отметка анализа соблюдается. */
+    public AnalysisResult analyzeChat(ChatPersona chat, int historySize) throws Exception {
         long watermark = memoryRepository.watermark(chat.chatId());
         logWindowGap(chat.chatId(), watermark, historySize);
 
         List<MemoryRepository.MessageRow> messages = memoryRepository.findNewMessages(chat.chatId(), watermark);
         if (messages.isEmpty())
-            return;
+            return new AnalysisResult(0, 0, 0, 0, 0);
         if (messages.size() > MAX_MESSAGES_PER_ANALYSIS) {
             logger.info("Анализ памяти в чате {}: берём последние {} из {} новых сообщений",
                     chat.chatId(), MAX_MESSAGES_PER_ANALYSIS, messages.size());
@@ -106,7 +111,8 @@ public class AiMemoryExtractor {
         Set<Long> protectedIds = MemoryCoreRules.ids(existing.stream()
                 .filter(memory -> memory.core() || "manual".equals(memory.source()))
                 .toList());
-        for (Long id : MemoryCoreRules.protectedDeletes(extraction.delete(), protectedIds))
+        List<Long> rejected = MemoryCoreRules.protectedDeletes(extraction.delete(), protectedIds);
+        for (Long id : rejected)
             logger.warn("Анализ пытался удалить защищённое воспоминание {} (ядро или ручное) — операция отброшена", id);
 
         MemoryExtraction applied = new MemoryExtraction(
@@ -125,6 +131,9 @@ public class AiMemoryExtractor {
 
         logger.info("Анализ памяти в чате {}: сообщений {}, добавлено {}, обновлено {}, удалено {}",
                 chat.chatId(), messages.size(), applied.add().size(), applied.update().size(), applied.delete().size());
+
+        return new AnalysisResult(messages.size(), applied.add().size(), applied.update().size(),
+                applied.delete().size(), rejected.size());
     }
 
     private void logWindowGap(long chatId, long watermark, int historySize) {

@@ -19,7 +19,7 @@ public record PersonaForm(
         String hysteriaCooldownHours,
         String maxReplies,
         String replyDelayMs,
-        boolean initiativeEnabled,
+        Boolean initiativeEnabled,
         String initiativeCooldownMessages) {
 
     /** Пустая карточка со значениями по умолчанию из схемы. */

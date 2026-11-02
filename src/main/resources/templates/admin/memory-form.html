@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Воспоминание</h1>
+
+    <form class="setting" th:action="@{/admin/memories}" th:object="${form}" method="post">
+        <input type="hidden" th:field="*{id}"/>
+
+        <div class="field">
+            <label for="personaId">Персона</label>
+            <select id="personaId" th:field="*{personaId}">
+                <option th:each="persona : ${personas}" th:value="${persona.id}"
+                        th:text="${persona.name}">Персона</option>
+            </select>
+            <span class="error" th:if="${errors['personaId']}" th:text="${errors['personaId']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="content">Текст воспоминания</label>
+            <textarea id="content" th:field="*{content}"></textarea>
+            <span class="error" th:if="${errors['content']}" th:text="${errors['content']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="category">Категория</label>
+            <select id="category" th:field="*{category}">
+                <option th:each="item : ${categories}" th:value="${item.code}"
+                        th:text="${item.title}">Категория</option>
+            </select>
+            <span class="error" th:if="${errors['category']}" th:text="${errors['category']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="importance">Важность (1..10)</label>
+            <input type="text" id="importance" th:field="*{importance}"/>
+            <span class="error" th:if="${errors['importance']}" th:text="${errors['importance']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="eventDate">Дата события (ГГГГ-ММ-ДД, можно пусто)</label>
+            <input type="text" id="eventDate" th:field="*{eventDate}"/>
+            <span class="error" th:if="${errors['eventDate']}" th:text="${errors['eventDate']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="people">Люди</label>
+            <select id="people" name="people" multiple>
+                <option th:each="person : ${allPeople}" th:value="${person.userId}"
+                        th:selected="${#lists.contains(people, person.userId)}"
+                        th:text="${person.title}">Человек</option>
+            </select>
+            <span class="hint">Ctrl — выбрать несколько.</span>
+        </div>
+
+        <div class="field">
+            <label>
+                <input type="checkbox" th:field="*{core}"/>
+                Незыблемое (ядро) — анализ не сможет её удалить
+            </label>
+        </div>
+
+        <div class="field">
+            <label for="source">Источник</label>
+            <input type="text" id="source" th:value="${form.source}" disabled/>
+            <span class="hint">Источник не меняется: ручные записи остаются manual, созданные анализом — auto.</span>
+        </div>
+
+        <div class="toolbar">
+            <button class="primary" type="submit">Сохранить</button>
+            <a class="button secondary" th:href="@{/admin/memories}">Отмена</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

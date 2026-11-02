@@ -98,6 +98,46 @@ class AiMemoryExtractorTest {
     }
 
     @Test
+    void returnsCountsOfAppliedChanges() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 2));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "первое"),
+                new MemoryRepository.MessageRow(61L, "второе")));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of(
+                new MemoryRecord(1, "друзья", "дружит с Ваней", 7, false, null, List.of(), "manual", Instant.EPOCH),
+                new MemoryRecord(2, "семья", "день рождения", 10, true, null, List.of(), "manual", Instant.EPOCH),
+                new MemoryRecord(3, "работа", "старая работа", 4, false, null, List.of(), "auto", Instant.EPOCH)));
+        when(memoryRepository.categories()).thenReturn(Set.of("хобби", "другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[{\"category\":\"хобби\",\"content\":\"играет в шахматы\","
+                        + "\"importance\":6,\"event_date\":null,\"people\":[]}],"
+                        + "\"update\":[],\"delete\":[1,2,3]}");
+
+        AiMemoryExtractor.AnalysisResult result = extractor.analyzeChat(CHAT, 100);
+
+        assertEquals(2, result.messages());
+        assertEquals(1, result.added());
+        assertEquals(0, result.updated());
+        assertEquals(1, result.deleted(), "удалить можно только запись auto");
+        assertEquals(2, result.rejectedDeletes(), "ручная и ядровая записи защищены");
+    }
+
+    @Test
+    void returnsZeroWhenThereAreNoNewMessages() throws Exception {
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 2));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of());
+
+        AiMemoryExtractor.AnalysisResult result = extractor.analyzeChat(CHAT, 100);
+
+        assertEquals(0, result.messages());
+        verifyNoInteractions(deepSeekClient);
+    }
+
+    @Test
     void onlyTheLastHundredMessagesAreAnalyzed() throws Exception {
         when(settings.getSettingValue(AI_MEMORY_ANALYZE_EVERY)).thenReturn("50");
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("300");
