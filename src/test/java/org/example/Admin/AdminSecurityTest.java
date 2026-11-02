@@ -79,8 +79,8 @@ class AdminSecurityTest {
 
     @Test
     void rendersEverySectionFromTheMenu() throws Exception {
-        // «Настройки» подключает свой контроллер и проверяется в AdminSettingsTest.
-        for (String path : new String[]{"/admin/personas", "/admin/memories", "/admin/chats"}) {
+        // «Персоны» и «Настройки» подключают свои контроллеры и проверяются в своих тестах.
+        for (String path : new String[]{"/admin/memories", "/admin/chats"}) {
             mockMvc.perform(get(path).with(user("admin").roles("ADMIN")))
                     .andExpect(status().isOk());
         }

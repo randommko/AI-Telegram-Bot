@@ -13,11 +13,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Conditional(AdminPasswordPresentCondition.class)
 class AdminSectionsController {
 
-    @GetMapping("/admin/personas")
-    String personas(Model model) {
-        return placeholder(model, "Персоны");
-    }
-
     @GetMapping("/admin/memories")
     String memories(Model model) {
         return placeholder(model, "Воспоминания");

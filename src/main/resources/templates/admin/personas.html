@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Персоны</h1>
+    <p class="notice" th:if="${saved}" th:text="${saved}"></p>
+    <p class="error" th:if="${error}" th:text="${error}"></p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/personas/new}">Новая персона</a>
+    </div>
+
+    <table class="list" th:unless="${#lists.isEmpty(personas)}">
+        <thead>
+        <tr>
+            <th>Имя</th>
+            <th>Алиасы</th>
+            <th>Воспоминаний</th>
+            <th>Чаты</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="persona : ${personas}">
+            <td>
+                <a th:href="@{/admin/personas/{id}(id=${persona.id})}" th:text="${persona.name}">Имя</a>
+            </td>
+            <td th:text="${persona.aliasCount}">0</td>
+            <td th:text="${persona.memoryCount}">0</td>
+            <td th:text="${persona.chats != null ? persona.chats : '—'}">—</td>
+            <td>
+                <form th:action="@{/admin/personas/{id}/delete(id=${persona.id})}" method="post"
+                      style="display:inline" onsubmit="return confirm('Удалить персону и её память?')">
+                    <button class="danger" type="submit">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p class="hint" th:if="${#lists.isEmpty(personas)}">Персон пока нет.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Персона</h1>
+
+    <form class="setting" th:action="@{/admin/personas}" th:object="${form}" method="post">
+        <input type="hidden" th:field="*{id}"/>
+
+        <div class="field">
+            <label for="name">Имя</label>
+            <input type="text" id="name" th:field="*{name}"/>
+            <span class="error" th:if="${errors['name']}" th:text="${errors['name']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="prompt">Промпт — характер персоны</label>
+            <textarea id="prompt" th:field="*{prompt}"></textarea>
+            <span class="error" th:if="${errors['prompt']}" th:text="${errors['prompt']}"></span>
+        </div>
+
+        <div class="field">
+            <label for="aliases">Алиасы — по одному в строке или через запятую</label>
+            <textarea id="aliases" th:field="*{aliases}"></textarea>
+            <span class="hint">Одно слово, не команда бота и не занято другой персоной.</span>
+            <span class="error" th:if="${errors['aliases']}" th:text="${errors['aliases']}"></span>
+        </div>
+
+        <fieldset>
+            <legend>Эмоциональность</legend>
+            <p class="hint">
+                Шкалы 0..10. Эти значения начнут влиять на ответы после задачи #51 — сейчас они только хранятся.
+            </p>
+
+            <div class="field">
+                <label for="baseJoy">Базовая радость</label>
+                <input type="text" id="baseJoy" th:field="*{baseJoy}"/>
+                <span class="error" th:if="${errors['baseJoy']}" th:text="${errors['baseJoy']}"></span>
+            </div>
+            <div class="field">
+                <label for="baseAnger">Базовая злость</label>
+                <input type="text" id="baseAnger" th:field="*{baseAnger}"/>
+                <span class="error" th:if="${errors['baseAnger']}" th:text="${errors['baseAnger']}"></span>
+            </div>
+            <div class="field">
+                <label for="baseOffence">Базовая обида</label>
+                <input type="text" id="baseOffence" th:field="*{baseOffence}"/>
+                <span class="error" th:if="${errors['baseOffence']}" th:text="${errors['baseOffence']}"></span>
+            </div>
+            <div class="field">
+                <label for="baseFatigue">Базовая усталость</label>
+                <input type="text" id="baseFatigue" th:field="*{baseFatigue}"/>
+                <span class="error" th:if="${errors['baseFatigue']}" th:text="${errors['baseFatigue']}"></span>
+            </div>
+            <div class="field">
+                <label for="baseSarcasm">Базовый сарказм</label>
+                <input type="text" id="baseSarcasm" th:field="*{baseSarcasm}"/>
+                <span class="error" th:if="${errors['baseSarcasm']}" th:text="${errors['baseSarcasm']}"></span>
+            </div>
+            <div class="field">
+                <label for="offenceDecayPerHour">Затухание обиды в час (0..10)</label>
+                <input type="text" id="offenceDecayPerHour" th:field="*{offenceDecayPerHour}"/>
+                <span class="error" th:if="${errors['offenceDecayPerHour']}"
+                      th:text="${errors['offenceDecayPerHour']}"></span>
+            </div>
+            <div class="field">
+                <label for="angerThreshold">Порог срыва (1..10)</label>
+                <input type="text" id="angerThreshold" th:field="*{angerThreshold}"/>
+                <span class="error" th:if="${errors['angerThreshold']}" th:text="${errors['angerThreshold']}"></span>
+            </div>
+            <div class="field">
+                <label for="hysteriaReplies">Ответов при срыве (3..5)</label>
+                <input type="text" id="hysteriaReplies" th:field="*{hysteriaReplies}"/>
+                <span class="error" th:if="${errors['hysteriaReplies']}" th:text="${errors['hysteriaReplies']}"></span>
+            </div>
+            <div class="field">
+                <label for="hysteriaCooldownHours">Пауза срыва, часов (0..168)</label>
+                <input type="text" id="hysteriaCooldownHours" th:field="*{hysteriaCooldownHours}"/>
+                <span class="error" th:if="${errors['hysteriaCooldownHours']}"
+                      th:text="${errors['hysteriaCooldownHours']}"></span>
+            </div>
+            <div class="field">
+                <label for="maxReplies">Максимум ответов (1..6)</label>
+                <input type="text" id="maxReplies" th:field="*{maxReplies}"/>
+                <span class="error" th:if="${errors['maxReplies']}" th:text="${errors['maxReplies']}"></span>
+            </div>
+            <div class="field">
+                <label for="replyDelayMs">Задержка ответа, мс (500..5000)</label>
+                <input type="text" id="replyDelayMs" th:field="*{replyDelayMs}"/>
+                <span class="error" th:if="${errors['replyDelayMs']}" th:text="${errors['replyDelayMs']}"></span>
+            </div>
+            <div class="field">
+                <label>
+                    <input type="checkbox" th:field="*{initiativeEnabled}"/>
+                    Может заговорить первой
+                </label>
+            </div>
+            <div class="field">
+                <label for="initiativeCooldownMessages">Пауза инициативы, сообщений (1..1000)</label>
+                <input type="text" id="initiativeCooldownMessages" th:field="*{initiativeCooldownMessages}"/>
+                <span class="error" th:if="${errors['initiativeCooldownMessages']}"
+                      th:text="${errors['initiativeCooldownMessages']}"></span>
+            </div>
+        </fieldset>
+
+        <div class="toolbar">
+            <button class="primary" type="submit">Сохранить</button>
+            <a class="button secondary" th:href="@{/admin/personas}">Отмена</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

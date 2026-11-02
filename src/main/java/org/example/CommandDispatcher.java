@@ -54,6 +54,11 @@ public class CommandDispatcher {
             this.aliases = List.of(aliases);
         }
 
+        /** Все написания команды — нужны проверке алиасов персоны в админке. */
+        public List<String> aliases() {
+            return aliases;
+        }
+
         public static Command fromString(String cmd) {
             String cleanCmd = cmd.toLowerCase().trim();
             for (Command command : values()) {
