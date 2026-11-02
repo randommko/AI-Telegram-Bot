@@ -91,6 +91,41 @@ public class KeyboardBuilder {
     }
 
     /**
+     * Отправляет вопрос о сбросе памяти AI с кнопками подтверждения и отказа
+     */
+    public void sendAiClearQuestion(MessageSender sender, Long chatId, Long authorId, int forgottenCount) {
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text("Обнулить память AI в этом чате? Забыто будет " + forgottenCount + " сообщений")
+                .replyMarkup(buildAiClearKeyboard(authorId, forgottenCount))
+                .build();
+
+        try {
+            sender.getBot().execute(message);
+        } catch (TelegramApiException e) {
+            logger.error("Ошибка отправки вопроса о сбросе памяти AI: ", e);
+        }
+    }
+
+    public InlineKeyboardMarkup buildAiClearKeyboard(Long authorId, int forgottenCount) {
+        InlineKeyboardButton confirm = aiClearButton("Да",
+                new AiClearCallback(AiClearCallback.Decision.CONFIRM, authorId, forgottenCount));
+        InlineKeyboardButton cancel = aiClearButton("Отмена",
+                new AiClearCallback(AiClearCallback.Decision.CANCEL, authorId, forgottenCount));
+
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        markup.setKeyboard(List.of(List.of(confirm, cancel)));
+        return markup;
+    }
+
+    private InlineKeyboardButton aiClearButton(String text, AiClearCallback callback) {
+        InlineKeyboardButton button = new InlineKeyboardButton();
+        button.setText(text);
+        button.setCallbackData(callback.toCallbackData());
+        return button;
+    }
+
+    /**
      * Отправляет сообщение с клавиатурой зодиака
      */
     public void sendHoroscopeKeyboard(MessageSender sender, Long chatId) {

@@ -8,10 +8,12 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 
 import java.io.File;
+import java.util.List;
 
 @Component
 public class MessageSender {
@@ -65,7 +67,16 @@ public class MessageSender {
     }
 
     public boolean editMessage(Long chatId, Integer msgId, String text) {
-        EditMessageText edit = EditMessageText.builder().chatId(chatId).messageId(msgId).text(text).build();
+        // Пустая клавиатура гасит кнопки: после ответа на вопрос их нельзя нажать повторно.
+        InlineKeyboardMarkup emptyKeyboard = new InlineKeyboardMarkup();
+        emptyKeyboard.setKeyboard(List.of());
+
+        EditMessageText edit = EditMessageText.builder()
+                .chatId(chatId)
+                .messageId(msgId)
+                .text(text)
+                .replyMarkup(emptyKeyboard)
+                .build();
         try {
             botProvider.getObject().execute(edit);
             return true;

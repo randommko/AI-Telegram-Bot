@@ -164,6 +164,7 @@ public class CommandDispatcher {
             /pidor_reg - Вступить в ряды пидоров
             /pidor_stats - Статистика пидоров
             /ai - Спроси GigaChat
+            /clear - Обнулить память AI (с подтверждением)
             /summary - Пересказ последних 100 сообщений
             """;
         messageSender.sendMessage(message.getChatId(), info);
@@ -188,26 +189,11 @@ public class CommandDispatcher {
     }
     private void handleAiChatHistory(Message message) {
         Long chatId = message.getChatId();
-        try {
-            String clearMsg = "Запуск принудительной отчистки истории AI, будет удалено воспоминаний: " + aiService.getChatHistorySize(chatId);
-            messageSender.sendMessage(chatId, clearMsg);
-            Thread.sleep(1000);
+        int forgottenCount = aiService.getChatHistorySize(chatId);
 
-            clearMsg = "Было приятно помнить вас \uD83D\uDE22 \uD83D\uDE22 \uD83D\uDE22";
-            messageSender.sendMessage(chatId, clearMsg);
+        keyboardBuilder.sendAiClearQuestion(messageSender, chatId, message.getFrom().getId(), forgottenCount);
 
-            Thread.sleep(1000);
-            aiService.clearChatHistory(chatId);
-
-            String successClearMsg = "Принудительная отчистка истории AI в чате выполнена. Воспоминаний в памяти: 0.";
-            messageSender.sendMessage(chatId, successClearMsg);
-
-            logger.info("Выполнена принудительная отчистка истории AI в чате: {}", message.getChat().getTitle());
-        }
-        catch (Exception e) {
-            logger.error("Ошибка отчистки памяти AI: {}", e.toString());
-        }
-
+        logger.info("Запрошен сброс истории AI в чате {}: будет удалено воспоминаний: {}", chatId, forgottenCount);
     }
 
 }

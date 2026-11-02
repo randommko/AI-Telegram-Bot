@@ -7,8 +7,11 @@ import org.example.PidorGame.PidorGame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -16,8 +19,10 @@ import org.telegram.telegrambots.meta.api.objects.User;
 
 import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.example.Settings.Settings.USER_ROLE;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -89,6 +94,29 @@ class CommandDispatcherTest {
         verify(aiService, never()).askAi(anyLong(), anyString());
     }
 
+    @Test
+    void clearCommandAsksForConfirmationInsteadOfClearing() throws Exception {
+        TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
+        when(messageSender.getBot()).thenReturn(bot);
+        when(aiService.getChatHistorySize(MY_CHAT_ID)).thenReturn(7);
+
+        dispatcher.dispatch(update("/clear", MY_CHAT_ID));
+
+        verify(aiService, never()).clearChatHistory(anyLong());
+
+        ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
+        verify(bot).execute(captor.capture());
+        assertTrue(captor.getValue().getText().contains("Обнулить память AI"), captor.getValue().getText());
+        assertTrue(captor.getValue().getText().contains("7"), captor.getValue().getText());
+    }
+
+    @Test
+    void botInfoListsClearCommand() {
+        dispatcher.dispatch(update("/bot_info", MY_CHAT_ID));
+
+        verify(messageSender).sendMessage(eq(MY_CHAT_ID), contains("/clear"));
+    }
+
     private Update update(String text, Long chatId) {
         Message message = mock(Message.class);
         Chat chat = mock(Chat.class);
@@ -97,12 +125,13 @@ class CommandDispatcherTest {
 
         when(update.getMessage()).thenReturn(message);
         when(message.getText()).thenReturn(text);
-        // Ветка слэш-команды chatId не запрашивает, поэтому заглушка нужна не всем тестам.
+        // Заглушки не нужны всем веткам, поэтому не строгие.
         lenient().when(message.getChatId()).thenReturn(chatId);
-        when(message.getChat()).thenReturn(chat);
-        when(message.getFrom()).thenReturn(user);
-        when(chat.getId()).thenReturn(chatId);
-        when(user.getUserName()).thenReturn("nick");
+        lenient().when(message.getChat()).thenReturn(chat);
+        lenient().when(message.getFrom()).thenReturn(user);
+        lenient().when(chat.getId()).thenReturn(chatId);
+        lenient().when(user.getUserName()).thenReturn("nick");
+        lenient().when(user.getId()).thenReturn(111L);
 
         return update;
     }
