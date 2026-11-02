@@ -14,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
-import static org.example.Settings.Settings.AI_MODEL;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 @Component
@@ -44,7 +43,7 @@ public class StartupNotifier {
                 + "Время: " + LocalDateTime.now().format(TIME_FORMAT)
                 + " (" + ZoneId.systemDefault().getId() + ")\n"
                 + "Хост: " + hostName() + "\n"
-                + "Модель: " + AI_MODEL + "\n"
+                + "Модель: " + settings.getModel() + "\n"
                 + "Температура: " + temperature() + "\n"
                 + "Максимум токенов: " + maxTokens();
 

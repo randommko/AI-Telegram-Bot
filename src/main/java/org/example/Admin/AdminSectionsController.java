@@ -28,11 +28,6 @@ class AdminSectionsController {
         return placeholder(model, "Чаты");
     }
 
-    @GetMapping("/admin/settings")
-    String settings(Model model) {
-        return placeholder(model, "Настройки");
-    }
-
     private String placeholder(Model model, String title) {
         model.addAttribute("title", title);
         return "admin/section";

@@ -52,9 +52,20 @@ class AiServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(settings.getSettingValue(AI_ANSWER_TEMPERATURE)).thenReturn("1.0");
         aiService = new AiService(settings, sender, deepSeekClient, repository,
                 personaService, memoryRepository, memoryPromptBuilder);
+    }
+
+    @Test
+    void temperatureIsReadOnEveryRequest() {
+        when(settings.getFloat(AI_ANSWER_TEMPERATURE, 1.0f)).thenReturn(1.0f, 1.9f);
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(7L, "первый");
+        aiService.askAi(7L, "второй");
+
+        verify(deepSeekClient).sendRequestToAi(any(), eq(1.0f));
+        verify(deepSeekClient).sendRequestToAi(any(), eq(1.9f));
     }
 
     @Test

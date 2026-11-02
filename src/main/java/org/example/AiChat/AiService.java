@@ -19,6 +19,8 @@ public class AiService {
     // Сколько последних сообщений чата помнит AI, если настройка не задана или испорчена.
     private static final int DEFAULT_HISTORY_SIZE = 100;
     private static final int DEFAULT_MEMORY_PROMPT_SIZE = 30;
+    private static final float DEFAULT_ANSWER_TEMPERATURE = 1.0f;
+    private static final float MAX_ANSWER_TEMPERATURE = 2.0f;
     private static final String DEFAULT_SYSTEM_PROMPT = "Ты универсальный помощник";
 
     private static final Logger logger = LoggerFactory.getLogger(AiService.class);
@@ -31,8 +33,6 @@ public class AiService {
     private final MemoryRepository memoryRepository;
     private final MemoryPromptBuilder memoryPromptBuilder;
 
-    private final Float answerTemperature;
-
     public AiService(SettingsService settings, MessageSender sender, DeepSeekClient deepSeekClient,
                      AiChatRepository repository, PersonaService personaService,
                      MemoryRepository memoryRepository, MemoryPromptBuilder memoryPromptBuilder) {
@@ -43,7 +43,6 @@ public class AiService {
         this.personaService = personaService;
         this.memoryRepository = memoryRepository;
         this.memoryPromptBuilder = memoryPromptBuilder;
-        this.answerTemperature = Float.valueOf(settings.getSettingValue(AI_ANSWER_TEMPERATURE));
     }
 
     public void askAi(Message message) {
@@ -59,7 +58,7 @@ public class AiService {
         }
 
         ArrayNode history = getHistoryInChat(chatId);
-        String aiAnswer = deepSeekClient.sendRequestToAi(history, answerTemperature);
+        String aiAnswer = deepSeekClient.sendRequestToAi(history, answerTemperature());
 
         if (aiAnswer != null) {
             sender.sendMessage(chatId, aiAnswer);
@@ -142,6 +141,17 @@ public class AiService {
         }
         logger.info("В чате {} использован промпт по умолчанию", chatId);
         return DEFAULT_SYSTEM_PROMPT;
+    }
+
+    /** Температура читается на каждый запрос: правка в админке действует без перезапуска. */
+    private float answerTemperature() {
+        float configured = settings.getFloat(AI_ANSWER_TEMPERATURE, DEFAULT_ANSWER_TEMPERATURE);
+        if (configured < 0 || configured > MAX_ANSWER_TEMPERATURE) {
+            logger.warn("Температура ответа {} вне диапазона 0..2: используется {}",
+                    configured, DEFAULT_ANSWER_TEMPERATURE);
+            return DEFAULT_ANSWER_TEMPERATURE;
+        }
+        return configured;
     }
 
     private int getHistorySize() {

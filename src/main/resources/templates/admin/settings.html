@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Настройки</h1>
+    <p class="notice" th:if="${saved}">Сохранено. Новые значения применяются к следующему запросу бота.</p>
+    <form class="setting" th:action="@{/admin/settings}" method="post">
+        <section class="group" th:each="group : ${groups}">
+            <h2 th:text="${group.title}">Группа</h2>
+            <div class="field" th:each="field : ${group.fields}">
+                <label th:for="${field.key}" th:text="${field.title}">Поле</label>
+                <textarea th:if="${field.kind == 'textarea'}"
+                          th:id="${field.key}" th:name="${field.key}" th:text="${field.value}"></textarea>
+                <input th:unless="${field.kind == 'textarea'}" type="text"
+                       th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>
+                <span class="error" th:if="${field.error}" th:text="${field.error}">ошибка</span>
+            </div>
+        </section>
+        <button class="primary" type="submit">Сохранить</button>
+    </form>
+</main>
+</body>
+</html>

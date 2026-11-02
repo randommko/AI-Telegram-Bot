@@ -24,6 +24,7 @@ class StartupNotifierTest {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
         when(settings.getSettingValue(AI_ANSWER_TEMPERATURE)).thenReturn("1.8F");
         when(settings.getSettingValue(AI_MAX_TOKENS_ANSWER_QUESTION)).thenReturn("500");
+        when(settings.getModel()).thenReturn("deepseek-flash");
         when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
 
         new StartupNotifier(settings, sender).notifyOwner();
@@ -34,6 +35,17 @@ class StartupNotifierTest {
                         && text.contains("Модель: deepseek-flash")
                         && text.contains("Температура: 1.8")
                         && text.contains("Максимум токенов: 500")));
+    }
+
+    @Test
+    void takesModelFromSettings() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("deepseek-chat");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text -> text.contains("Модель: deepseek-chat")));
     }
 
     @Test
