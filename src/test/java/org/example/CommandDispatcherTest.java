@@ -68,7 +68,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("Юра, как дела?", MY_CHAT_ID));
 
         verify(aiService).askAi(MY_CHAT_ID, "Юра, как дела?");
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick: Юра, как дела?"));
+        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): Юра, как дела?"));
     }
 
     @Test
@@ -95,7 +95,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("юра, как дела?", OTHER_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(OTHER_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick: юра, как дела?"));
+        verify(aiService).saveMessage(eq(OTHER_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юра, как дела?"));
     }
 
     @Test
@@ -106,7 +106,7 @@ class CommandDispatcherTest {
 
         verify(aiService, never()).askAi(anyLong(), anyString());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick: юридический вопрос по договору"));
+        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юридический вопрос по договору"));
     }
 
     @Test
@@ -116,7 +116,22 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("юра, как дела?", MY_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick: юра, как дела?"));
+        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юра, как дела?"));
+    }
+
+    @Test
+    void authorWithoutUsernameIsSavedWithFirstName() {
+        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(List.of());
+        Message message = message("привет", MY_CHAT_ID);
+        User author = mock(User.class);
+        when(author.getFirstName()).thenReturn("Иван");
+        when(message.getFrom()).thenReturn(author);
+        Update update = mock(Update.class);
+        when(update.getMessage()).thenReturn(message);
+
+        dispatcher.dispatch(update);
+
+        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @Иван: привет"));
     }
 
     @Test
@@ -207,6 +222,7 @@ class CommandDispatcherTest {
         lenient().when(message.getReplyToMessage()).thenReturn(null);
         lenient().when(chat.getId()).thenReturn(chatId);
         lenient().when(user.getUserName()).thenReturn("nick");
+        lenient().when(user.getFirstName()).thenReturn("Ник");
         lenient().when(user.getId()).thenReturn(111L);
 
         return message;
