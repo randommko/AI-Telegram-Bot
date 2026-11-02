@@ -31,10 +31,11 @@ public class DeepSeekClient {
         this.deepSeekApiKey = properties.ai().key();
         this.maxTokens = Integer.valueOf(settings.getSettingValue(AI_MAX_TOKENS_ANSWER_QUESTION));
     }
+
     public String sendRequestToAi(ArrayNode messages, Float temperature) {
         try {
             ObjectNode request = objectMapper.createObjectNode();
-            request.put("model", "deepseek-chat");
+            request.put("model", "deepseek-flash");
 
             request.set("messages", messages);
             request.put("temperature", temperature);

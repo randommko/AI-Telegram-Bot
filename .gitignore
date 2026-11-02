@@ -2,6 +2,9 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+.agents/skills/github-issues
+openspec/brief/result.json
+openspec/brief/yura-persona.md
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -44,3 +47,4 @@ src/main/resources/config.json
 
 ### Qwen temp ###
 .qwen/tmp/
+.gitignore
