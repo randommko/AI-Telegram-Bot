@@ -13,10 +13,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static org.example.Settings.TablesDB.AI_MESSAGES_TABLE;
 import static org.example.Settings.TablesDB.CHAT_PERSONAS_TABLE;
 import static org.example.Settings.TablesDB.PERSONAS_TABLE;
 import static org.example.Settings.TablesDB.PERSONA_ALIASES_TABLE;
 import static org.example.Settings.TablesDB.PERSONA_MEMORIES_TABLE;
+import static org.example.Settings.TablesDB.TG_CHATS_TABLE;
 
 @Repository
 public class PersonaRepository {
@@ -333,5 +335,89 @@ public class PersonaRepository {
                 resultSet.getInt("reply_delay_ms"),
                 resultSet.getBoolean("initiative_enabled"),
                 resultSet.getInt("initiative_cooldown_messages"));
+    }
+
+    /** Чат с текущей персоной — строка страницы привязки. */
+    public record ChatSummary(long chatId, String title, Integer personaId, String personaName,
+                              java.time.OffsetDateTime assignedAt) {
+    }
+
+    /** Все известные чаты и их персоны, включая чаты без привязки. */
+    public List<ChatSummary> findAllChats() {
+        String query = "SELECT c.chat_id, c.chat_title, cp.persona_id, p.name, cp.assigned_at"
+                + " FROM " + TG_CHATS_TABLE + " c"
+                + " LEFT JOIN " + CHAT_PERSONAS_TABLE + " cp ON cp.chat_id = c.chat_id"
+                + " LEFT JOIN " + PERSONAS_TABLE + " p ON p.id = cp.persona_id"
+                + " ORDER BY c.chat_id";
+
+        List<ChatSummary> chats = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Integer personaId = resultSet.getObject("persona_id", Integer.class);
+                chats.add(new ChatSummary(
+                        resultSet.getLong("chat_id"),
+                        resultSet.getString("chat_title"),
+                        personaId,
+                        resultSet.getString("name"),
+                        resultSet.getObject("assigned_at", java.time.OffsetDateTime.class)));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения чатов с персонами: ", e);
+        }
+        return chats;
+    }
+
+    /**
+     * Смена персоны одной транзакцией: привязка, очистка истории и сообщение о входе.
+     * Отметка анализа и счётчик сбросов не трогаются. personaId = null снимает привязку.
+     */
+    public void switchPersona(long chatId, Integer personaId, String joinMessage) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                if (personaId == null) {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "DELETE FROM " + CHAT_PERSONAS_TABLE + " WHERE chat_id = ?")) {
+                        statement.setLong(1, chatId);
+                        statement.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "INSERT INTO " + CHAT_PERSONAS_TABLE + " (chat_id, persona_id, assigned_at)"
+                                    + " VALUES (?, ?, now())"
+                                    + " ON CONFLICT (chat_id) DO UPDATE SET persona_id = EXCLUDED.persona_id,"
+                                    + " assigned_at = now()")) {
+                        statement.setLong(1, chatId);
+                        statement.setInt(2, personaId);
+                        statement.executeUpdate();
+                    }
+                }
+
+                if (joinMessage != null) {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "DELETE FROM " + AI_MESSAGES_TABLE + " WHERE chat_id = ?")) {
+                        statement.setLong(1, chatId);
+                        statement.executeUpdate();
+                    }
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "INSERT INTO " + AI_MESSAGES_TABLE + " (chat_id, role, content)"
+                                    + " VALUES (?, 'assistant', ?)")) {
+                        statement.setLong(1, chatId);
+                        statement.setString(2, joinMessage);
+                        statement.executeUpdate();
+                    }
+                }
+                connection.commit();
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка смены персоны в чате {}: ", chatId, e);
+        }
     }
 }

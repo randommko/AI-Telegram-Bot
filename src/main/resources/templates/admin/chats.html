@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Чаты</h1>
+    <p class="notice" th:if="${saved}" th:text="${saved}"></p>
+    <p class="error" th:if="${error}" th:text="${error}"></p>
+
+    <p class="hint">
+        Смена персоны отправляет в чат сообщение о выходе и входе и очищает историю диалога:
+        новая персона начинает разговор заново. Снятие персоны отправляет только сообщение о выходе,
+        история при этом остаётся.
+    </p>
+
+    <table class="list" th:unless="${#lists.isEmpty(chats)}">
+        <thead>
+        <tr>
+            <th>Чат</th>
+            <th>Название</th>
+            <th>Персона</th>
+            <th>Привязана</th>
+            <th>Назначить</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="chat : ${chats}">
+            <td th:text="${chat.chatId}">0</td>
+            <td th:text="${chat.title != null ? chat.title : '—'}">—</td>
+            <td th:text="${chat.personaName != null ? chat.personaName : 'без персоны'}">без персоны</td>
+            <td th:text="${chat.assignedAt != null ? #temporals.format(chat.assignedAt, 'dd.MM.yyyy HH:mm') : '—'}">—</td>
+            <td>
+                <form th:action="@{/admin/chats/assign}" method="post" class="toolbar">
+                    <input type="hidden" name="chatId" th:value="${chat.chatId}"/>
+                    <select name="personaId">
+                        <option value="" th:selected="${chat.personaId == null}">без персоны</option>
+                        <option th:each="persona : ${personas}" th:value="${persona.id}"
+                                th:selected="${chat.personaId == persona.id}"
+                                th:text="${persona.name}">Персона</option>
+                    </select>
+                    <button class="button" type="submit">Сохранить</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p class="hint" th:if="${#lists.isEmpty(chats)}">Чатов пока нет — бот ещё не видел сообщений.</p>
+</main>
+</body>
+</html>

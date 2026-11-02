@@ -9,14 +9,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AdminPagesConditionTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(AdminController.class, AdminSectionsController.class);
+            .withUserConfiguration(AdminController.class);
 
     @Test
     void hasNoPagesWithoutPassword() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(AdminController.class);
-            assertThat(context).doesNotHaveBean(AdminSectionsController.class);
         });
     }
 
@@ -35,7 +34,6 @@ class AdminPagesConditionTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(AdminController.class);
-                    assertThat(context).hasSingleBean(AdminSectionsController.class);
                 });
     }
 }

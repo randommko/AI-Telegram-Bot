@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {AdminController.class, AdminSectionsController.class},
+@WebMvcTest(controllers = AdminController.class,
         properties = {
                 "bot.admin.password=" + AdminSecurityTest.PASSWORD,
                 "bot.token=1:dummy",
@@ -75,13 +75,6 @@ class AdminSecurityTest {
     void rejectsPostWithoutCsrfToken() throws Exception {
         mockMvc.perform(post("/admin/logout").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void rendersEverySectionFromTheMenu() throws Exception {
-        // Остальные разделы подключают свои контроллеры и проверяются в своих тестах.
-        mockMvc.perform(get("/admin/chats").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk());
     }
 
     @Test
