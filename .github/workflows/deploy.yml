@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main # Укажите нужную ветку, например, "main" или "master"
+    # Документация не влияет на jar и systemd-юнит, поэтому не перезапускает бота.
+    paths-ignore:
+      - '**/*.md'
+      - 'openspec/**'
+      - '.agents/**'
 
 jobs:
   build:
