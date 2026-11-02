@@ -51,6 +51,42 @@ class BotPropertiesBindingTest {
                 });
     }
 
+    @Test
+    void startsWithoutAdminSettings() {
+        runner.withPropertyValues(validProperties())
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(BotProperties.class).hasAdmin()).isFalse();
+                });
+    }
+
+    @Test
+    void bindsAdminSettings() {
+        runner.withPropertyValues(validProperties())
+                .withPropertyValues("bot.admin.password=secret", "bot.admin.port=8081",
+                        "bot.admin.bind=127.0.0.1")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    BotProperties properties = context.getBean(BotProperties.class);
+                    assertThat(properties.hasAdmin()).isTrue();
+                    assertThat(properties.admin().port()).isEqualTo(8081);
+                });
+    }
+
+    @Test
+    void treatsBlankAdminPasswordAsDisabled() {
+        runner.withPropertyValues(validProperties())
+                .withPropertyValues("bot.admin.password=")
+                .run(context -> assertThat(context.getBean(BotProperties.class).hasAdmin()).isFalse());
+    }
+
+    @Test
+    void rejectsAdminPortOutOfRange() {
+        runner.withPropertyValues(validProperties())
+                .withPropertyValues("bot.admin.password=secret", "bot.admin.port=70000")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
     private String[] validProperties() {
         return new String[]{
                 "bot.token=123:token",

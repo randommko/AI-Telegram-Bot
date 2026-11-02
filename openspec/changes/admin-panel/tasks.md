@@ -2,14 +2,14 @@
 
 ## 1. Каркас админки и вход (issue #57)
 
-- [ ] 1.1 Добавить в `pom.xml` `spring-boot-starter-web`, `-thymeleaf`, `-security`; в `application.properties` — `server.address=${BOT_ADMIN_BIND:127.0.0.1}`, `server.port=${BOT_ADMIN_PORT:8081}`, `server.servlet.session.timeout=8h` — проверка: `mvn -q test` зелёный, существующие тесты не тронуты
-- [ ] 1.2 Добавить в `BotProperties` опциональную запись `admin` (пароль, порт, адрес) по образцу `Proxy`; биндинг без `BOT_ADMIN_*` не ломает запуск — проверка: `BotPropertiesBindingTest` покрывает запуск без админских переменных и с ними
-- [ ] 1.3 Сделать `AdminSecurityConfig` и контроллеры каркаса под `@ConditionalOnProperty("bot.admin.password")`: form login `/admin/login`, пользователь `admin` с `{bcrypt}`-хешем из env, CSRF, выход через POST, меню из четырёх разделов — проверка: `@WebMvcTest` — без сессии редирект на вход, после входа `/admin` отдаёт 200, POST без CSRF отклоняется
-- [ ] 1.4 Проверить выключенное состояние: без `BOT_ADMIN_PASSWORD` админских бинов нет, `/admin/**` отдаёт 404, в лог идёт один `WARN` — проверка: тест на `ApplicationContextRunner` подтверждает отсутствие контроллеров, существующий `BotLifecycleTest`/`MessageSenderTest` не затронуты
-- [ ] 1.5 Написать шаблоны `templates/admin/layout.html`, `login.html`, `overview.html` без дополнительных диалектов Thymeleaf — проверка: страницы рендерятся в MockMvc-тестах без ошибок разметки
-- [ ] 1.6 Описать в `README.md` админку: переменные `BOT_ADMIN_*`, SSH-туннель `ssh -L 8081:127.0.0.1:8081`, поведение без пароля — проверка: команда из README открывает страницу входа на локальном запуске
-- [ ] 1.7 Добавить строку `BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}` в блок `bot.env` в `deploy.yml`; сам секрет уже создан 2026-11-02, значение в репозиторий не пишется — проверка: `gh secret list --repo randommko/Telegram-bot-game` содержит секрет, `git diff` не содержит пароля, `bot.env` на VPS после деплоя содержит переменную
-- [ ] 1.8 Собрать jar и поднять его на временном PostgreSQL 16 с заглушками `BOT_*`: контекст, Tomcat и long polling поднимаются вместе — проверка: в логе бот зарегистрирован и админка включена, `curl 127.0.0.1:8081/admin/login` отдаёт 200
+- [x] 1.1 Добавить в `pom.xml` `spring-boot-starter-web`, `-thymeleaf`, `-security`; в `application.properties` — `server.address=${BOT_ADMIN_BIND:127.0.0.1}`, `server.port=${BOT_ADMIN_PORT:8081}`, `server.servlet.session.timeout=8h` — проверка: `mvn -q test` зелёный, существующие тесты не тронуты
+- [x] 1.2 Добавить в `BotProperties` опциональную запись `admin` (пароль, порт, адрес) по образцу `Proxy`; биндинг без `BOT_ADMIN_*` не ломает запуск — проверка: `BotPropertiesBindingTest` покрывает запуск без админских переменных и с ними
+- [x] 1.3 Сделать `AdminSecurityConfig` и контроллеры каркаса под `@ConditionalOnProperty("bot.admin.password")`: form login `/admin/login`, пользователь `admin` с `{bcrypt}`-хешем из env, CSRF, выход через POST, меню из четырёх разделов — проверка: `@WebMvcTest` — без сессии редирект на вход, после входа `/admin` отдаёт 200, POST без CSRF отклоняется
+- [x] 1.4 Проверить выключенное состояние: без `BOT_ADMIN_PASSWORD` админских бинов нет, `/admin/**` отдаёт 404, в лог идёт один `WARN` — проверка: тест на `ApplicationContextRunner` подтверждает отсутствие контроллеров, существующий `BotLifecycleTest`/`MessageSenderTest` не затронуты
+- [x] 1.5 Написать шаблоны `templates/admin/layout.html`, `login.html`, `overview.html` без дополнительных диалектов Thymeleaf — проверка: страницы рендерятся в MockMvc-тестах без ошибок разметки
+- [x] 1.6 Описать в `README.md` админку: переменные `BOT_ADMIN_*`, SSH-туннель `ssh -L 8081:127.0.0.1:8081`, поведение без пароля — проверка: команда из README открывает страницу входа на локальном запуске
+- [x] 1.7 Добавить строку `BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}` в блок `bot.env` в `deploy.yml`; сам секрет уже создан 2026-11-02, значение в репозиторий не пишется — проверка: `gh secret list --repo randommko/Telegram-bot-game` содержит секрет, `git diff` не содержит пароля, `bot.env` на VPS после деплоя содержит переменную
+- [x] 1.8 Собрать jar и поднять его на временном PostgreSQL 16 с заглушками `BOT_*`: контекст, Tomcat и long polling поднимаются вместе — проверка: в логе бот зарегистрирован и админка включена, `curl 127.0.0.1:8081/admin/login` отдаёт 200
 
 ## 2. Параметры модели и страница настроек (issue #61, закрывает #48 и #49)
 

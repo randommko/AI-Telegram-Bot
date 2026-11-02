@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head('Вход')}"></head>
+<body>
+<main>
+    <h1>Вход в админку</h1>
+    <p class="error" th:if="${param.error}">Неверный пароль.</p>
+    <p class="ok" th:if="${param.logout}">Сессия завершена.</p>
+    <form class="login" th:action="@{/admin/login}" method="post">
+        <input type="hidden" name="username" value="admin"/>
+        <label>
+            Пароль
+            <input type="password" name="password" autofocus required/>
+        </label>
+        <button type="submit">Войти</button>
+    </form>
+</main>
+</body>
+</html>

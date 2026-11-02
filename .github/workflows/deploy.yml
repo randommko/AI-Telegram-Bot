@@ -42,6 +42,7 @@ jobs:
           BOT_DB_USER=${{ secrets.DB_USER_TG_BOT }}
           BOT_DB_PASSWORD=${{ secrets.DB_PASS_TG_BOT }}
           BOT_AI_KEY=${{ secrets.DEEPSEEK_API_KEY }}
+          BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}
           BOT_PROXY_TYPE=${{ secrets.BOT_PROXY_TYPE }}
           BOT_PROXY_HOST=${{ secrets.BOT_PROXY_HOST }}
           BOT_PROXY_PORT=${{ secrets.BOT_PROXY_PORT }}

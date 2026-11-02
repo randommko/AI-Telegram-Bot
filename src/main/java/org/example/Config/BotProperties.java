@@ -17,11 +17,17 @@ public record BotProperties(
         @NotBlank String token,
         @Valid @NotNull Db db,
         @Valid @NotNull Ai ai,
-        @Valid Proxy proxy) {
+        @Valid Proxy proxy,
+        @Valid Admin admin) {
 
     /** Прокси опционален: без BOT_PROXY_* Spring не создаёт вложенную запись вовсе. */
     public boolean hasProxy() {
         return proxy != null && proxy.hasHost();
+    }
+
+    /** Админка опциональна: без BOT_ADMIN_PASSWORD её страницы не существуют. */
+    public boolean hasAdmin() {
+        return admin != null && admin.password() != null && !admin.password().isBlank();
     }
 
     /** Telegram user id бота: часть токена до двоеточия. По нему узнаём свои сообщения в реплаях. */
@@ -51,6 +57,15 @@ public record BotProperties(
         @AssertTrue(message = "BOT_PROXY_HOST задан, а BOT_PROXY_PORT пуст или вне диапазона 1..65535")
         public boolean isPortUsable() {
             return !hasHost() || (port != null && port > 0 && port < 65536);
+        }
+    }
+
+    /** Настройки веб-админки. Адрес и порт по умолчанию заданы в application.properties. */
+    public record Admin(String password, Integer port, String bind) {
+
+        @AssertTrue(message = "BOT_ADMIN_PORT задан вне диапазона 1..65535")
+        public boolean isPortUsable() {
+            return port == null || (port > 0 && port < 65536);
         }
     }
 }
