@@ -1,6 +1,7 @@
 package org.example;
 
 
+import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
 import org.example.CockSize.CockSizeGame;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.example.Settings.Settings.USER_ROLE;
 
 @Component
@@ -27,6 +29,7 @@ public class CommandDispatcher {
     private final CockSizeGame cockSizeGame;
     private final PidorGame pidorGame;
     private final AiService aiService;
+    private final AiAddressParser addressParser;
     private final KeyboardBuilder keyboardBuilder = new KeyboardBuilder();
 
     // Enum для команд (расширяемо)
@@ -75,11 +78,13 @@ public class CommandDispatcher {
     public CommandDispatcher(MessageSender messageSender,
                              CockSizeGame cockSizeGame,
                              PidorGame pidorGame,
-                             AiService aiService) {
+                             AiService aiService,
+                             AiAddressParser addressParser) {
         this.messageSender = messageSender;
         this.cockSizeGame = cockSizeGame;
         this.pidorGame = pidorGame;
         this.aiService = aiService;
+        this.addressParser = addressParser;
     }
 
     public void dispatch(Update update) {
@@ -89,6 +94,7 @@ public class CommandDispatcher {
         if (!text.startsWith("/")) {
             //Сохраняем оригинальное сообщение
             saveMessageText(message.getFrom(), message.getChat(), text);
+            answerNameAddress(message, text);
             return;
         }
 
@@ -115,6 +121,20 @@ public class CommandDispatcher {
         }
     }
 
+
+    private void answerNameAddress(Message message, String text) {
+        Long chatId = message.getChatId();
+        if (!MY_CHAT_ID.equals(chatId))
+            return;
+
+        addressParser.question(text).ifPresent(question -> {
+            if (question.isEmpty()) {
+                messageSender.sendMessage(chatId, "Юра на связи, но вопроса нет. Напиши его после обращения.");
+                return;
+            }
+            aiService.askAi(chatId, question);
+        });
+    }
 
     private void saveMessageText(User user, Chat chat, String text) {
         String userName = getUserName(user);

@@ -42,9 +42,11 @@ public class AiService {
     public void askAi(Message message) {
         String[] parts = message.getText().split(" ", 2);
         String userQuestion = parts.length > 1 ? parts[1] : "";
-        Long chatId = message.getChatId();
+        askAi(message.getChatId(), userQuestion);
+    }
 
-        if (userQuestion.isBlank()) {
+    public void askAi(Long chatId, String userQuestion) {
+        if (userQuestion == null || userQuestion.isBlank()) {
             sender.sendMessage(chatId, "Напиши свой вопрос после команды /ai");
             return;
         }

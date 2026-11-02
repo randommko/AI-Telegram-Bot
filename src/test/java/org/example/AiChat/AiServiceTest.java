@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -172,6 +173,33 @@ class AiServiceTest {
 
         verify(sender).sendMessage(13L, "ответ AI");
         verify(repository).saveMessage(eq(13L), eq(AI_ASSISTANT_ROLE), eq("ответ AI"), eq(100));
+    }
+
+    @Test
+    void questionCanBeAskedWithoutAMessage() {
+        when(settings.getSettingValue(AI_CONTEXT)).thenReturn("промпт");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(repository.getResets(17L)).thenReturn(0);
+        when(repository.findLastMessages(17L, 100)).thenReturn(List.of(new AiMessage(USER_ROLE, "как дела?")));
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(17L, "как дела?");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        ArrayNode messages = payload.getValue();
+        assertEquals("как дела?", messages.get(messages.size() - 1).get("content").asText(),
+                "вопрос уходит в историю как есть, без префикса команды");
+        verify(sender).sendMessage(17L, "ответ");
+        verify(repository).saveMessage(eq(17L), eq(AI_ASSISTANT_ROLE), eq("ответ"), eq(100));
+    }
+
+    @Test
+    void blankQuestionIsNotSentToAi() {
+        aiService.askAi(17L, " ");
+
+        verifyNoInteractions(deepSeekClient);
+        verify(sender).sendMessage(17L, "Напиши свой вопрос после команды /ai");
     }
 
     private Message message(String text, Long chatId) {
