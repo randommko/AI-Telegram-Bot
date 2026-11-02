@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
+import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.AI_MODEL;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 @Component
@@ -40,7 +43,10 @@ public class StartupNotifier {
         String text = "Бот запущен\n"
                 + "Время: " + LocalDateTime.now().format(TIME_FORMAT)
                 + " (" + ZoneId.systemDefault().getId() + ")\n"
-                + "Хост: " + hostName();
+                + "Хост: " + hostName() + "\n"
+                + "Модель: " + AI_MODEL + "\n"
+                + "Температура: " + temperature() + "\n"
+                + "Максимум токенов: " + maxTokens();
 
         if (sender.sendMessage(chatId, text) != null)
             logger.info("Уведомление о запуске отправлено в чат {}", chatId);
@@ -71,5 +77,25 @@ public class StartupNotifier {
             logger.warn("Не удалось определить имя хоста: {}", e.toString());
             return "неизвестен";
         }
+    }
+
+    private String temperature() {
+        String value = settings.getSettingValue(AI_ANSWER_TEMPERATURE);
+        if (value == null || value.isBlank())
+            return "не задана";
+
+        try {
+            return String.valueOf(Float.parseFloat(value.trim()));
+        } catch (NumberFormatException e) {
+            logger.warn("Некорректная настройка {} ('{}')", AI_ANSWER_TEMPERATURE, value);
+            return value.trim();
+        }
+    }
+
+    private String maxTokens() {
+        String value = settings.getSettingValue(AI_MAX_TOKENS_ANSWER_QUESTION);
+        if (value == null || value.isBlank())
+            return "не задан";
+        return value.trim();
     }
 }

@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.AI_MODEL;
 import static org.example.Settings.Settings.DEEP_SEEK_BASE_URL;
 
 @Component
@@ -35,7 +36,7 @@ public class DeepSeekClient {
     public String sendRequestToAi(ArrayNode messages, Float temperature) {
         try {
             ObjectNode request = objectMapper.createObjectNode();
-            request.put("model", "deepseek-flash");
+            request.put("model", AI_MODEL);
 
             request.set("messages", messages);
             request.put("temperature", temperature);
