@@ -1,5 +1,6 @@
 package org.example.AiChat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -76,6 +77,17 @@ public class DeepSeekClient {
         }
 
         ObjectNode respNode = objectMapper.readValue(response.body(), ObjectNode.class);
-        return respNode.get("choices").get(0).get("message").get("content").asText().trim();
+        JsonNode choice = respNode.get("choices").get(0);
+        String content = choice.get("message").get("content").asText("").trim();
+
+        if (content.isEmpty()) {
+            JsonNode usage = respNode.path("usage");
+            logger.warn("AI вернул пустой ответ: finish_reason={}, prompt_tokens={}, completion_tokens={}, reasoning_tokens={}",
+                    choice.path("finish_reason").asText("unknown"),
+                    usage.path("prompt_tokens").asInt(),
+                    usage.path("completion_tokens").asInt(),
+                    usage.path("completion_tokens_details").path("reasoning_tokens").asInt());
+        }
+        return content;
     }
 }

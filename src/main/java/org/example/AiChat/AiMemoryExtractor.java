@@ -29,6 +29,7 @@ public class AiMemoryExtractor {
     private static final Logger logger = LoggerFactory.getLogger(AiMemoryExtractor.class);
     private static final int DEFAULT_ANALYZE_EVERY = 50;
     private static final int DEFAULT_HISTORY_SIZE = 100;
+    private static final int MAX_MESSAGES_PER_ANALYSIS = 100;
     private static final int ANALYSIS_MAX_TOKENS = 2000;
     private static final float ANALYSIS_TEMPERATURE = 0.2f;
 
@@ -82,6 +83,11 @@ public class AiMemoryExtractor {
         List<MemoryRepository.MessageRow> messages = memoryRepository.findNewMessages(chat.chatId(), watermark);
         if (messages.isEmpty())
             return;
+        if (messages.size() > MAX_MESSAGES_PER_ANALYSIS) {
+            logger.info("Анализ памяти в чате {}: берём последние {} из {} новых сообщений",
+                    chat.chatId(), MAX_MESSAGES_PER_ANALYSIS, messages.size());
+            messages = messages.subList(messages.size() - MAX_MESSAGES_PER_ANALYSIS, messages.size());
+        }
 
         List<MemoryRecord> existing = memoryRepository.findByPersona(chat.personaId());
         ArrayNode payload = buildMessages(extractPrompt(), existing, messages);
@@ -114,6 +120,10 @@ public class AiMemoryExtractor {
     }
 
     private void logWindowGap(long chatId, long watermark, int historySize) {
+        // Пока анализ ни разу не проходил, «разрыва» нет: окно просто ещё не размечено.
+        if (watermark <= 0)
+            return;
+
         MemoryRepository.WindowInfo window = memoryRepository.window(chatId);
         if (window.count() >= historySize && window.minId() > watermark + 1)
             logger.warn("Окно истории чата {} переполнено: отметка анализа {}, самое старое сообщение {}, доступно {} —"
