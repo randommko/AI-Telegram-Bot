@@ -31,7 +31,8 @@
 ## 6. Интеграционная проверка
 
 - [ ] 6.1 Проверить команды после миграции в тестовом чате: `/ai`, `/summary`, `/pidor_*`, `/cocksize`, `/horoscope_today`. Verify: ответы и поведение совпадают с версией до миграции, ошибок в логе нет.
-- [ ] 6.2 Задеплоить на VPS без правок `deploy/telegram-bot.service` и `.github/workflows/deploy.yml`. Verify: `systemctl is-active telegram-bot` — `active`, `journalctl -u telegram-bot -n 50` без ошибок, `systemctl restart telegram-bot` проходит без конфликта сессии и без висящего long polling.
+- [x] 6.2 Задеплоить на VPS без правок `deploy/telegram-bot.service` и `.github/workflows/deploy.yml`. Verify: `systemctl is-active telegram-bot` — `active`, `journalctl -u telegram-bot -n 50` без ошибок, `systemctl restart telegram-bot` проходит без конфликта сессии и без висящего long polling. Выполнено прогоном 41327780567 (`75a0194`): рестарт юнита прошёл, новый jar поднялся, Hikari подключился, «Бот успешно запущен на попытке №1», `systemctl is-active` → `active`.
+- [ ] 6.3 Проверить остановку по SIGTERM уже на новой версии: во время деплоя останавливался предыдущий билд, поэтому `BotLifecycle.stop()` на VPS ещё не исполнялся. Verify: `systemctl restart telegram-bot` на новом билде — в `journalctl` есть «Останавливаю опрос обновлений Telegram» и «Опрос обновлений Telegram остановлен» (или предупреждение о таймауте сессии), нет `Failed with result 'timeout'`, следующий старт без `409 Conflict`. Первый замер (2026-11-01 18:10) выявил зависание `BotSession.stop()`: 20 с без строк в логе и SIGKILL; `stop()` ограничен 5 с, callback фазы отдаётся в `finally`, добавлен `spring.lifecycle.timeout-per-shutdown-phase=10s`, покрыто тестами `runsShutdownCallbackEvenWhenSessionStopFails` и `doesNotBlockShutdownWhenSessionStopHangs`.
 
 ## Workflow follow-up
 

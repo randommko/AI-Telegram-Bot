@@ -60,9 +60,13 @@
 
 ### 5. Старт/остановка: `SmartLifecycle` вокруг `registerBot`
 
-`ApplicationRunner` не даёт хука остановки, поэтому выбирается `SmartLifecycle`: `start()` содержит прежний цикл трёх попыток и сохраняет логи «Бот успешно запущен на попытке №N», `stop()` вызывает `BotSession.stop()`, что останавливает `readerThread`/`handlerThread` в `DefaultBotSession`.
+`ApplicationRunner` не даёт хука остановки, поэтому выбирается `SmartLifecycle`: `start()` содержит прежний цикл трёх попыток и сохраняет логи «Бот успешно запущен на попытке №N», `stop()` останавливает `BotSession`.
+
+Остановка ограничена по времени (5 с, вызов `BotSession.stop()` уходит в отдельный поток): `DefaultBotSession.stop()` синхронизирован и через переопределённый `interrupt()` закрывает Apache-клиент, пока reader висит в long polling, поэтому вызов может не вернуться. Кроме того `stop(Runnable callback)` переопределён с `try/finally` — фаза shutdown получает сигнал даже при исключении, — а `getPhase()` поднят к максимуму, чтобы бот останавливался раньше остальных бинов. В `application.properties` задан `spring.lifecycle.timeout-per-shutdown-phase=10s`: любое зависание укладывается в `TimeoutStopSec=20` юнита и видно в journalctl вместо SIGKILL.
 
 Альтернативы: `spring-retry` (новая зависимость без выигрыша — попыток ровно три и они логируются по-своему); `@PreDestroy` в самом `TelegramBot` (бин не знает свою сессию, пришлось бы хранить её в статическом поле).
+
+**Проверено на VPS 2026-11-01:** первый рестарт нового билда дал `Failed with result 'timeout'` и SIGKILL через 20 с без единой строки в логе приложения — `stop()` не дошёл до логирования, что подтверждает зависание внутри `BotSession.stop()`; отсюда ограничение по времени и переопределённый `stop(Runnable)`.
 
 ### 6. Сборка: `spring-boot-maven-plugin` вместо shade
 

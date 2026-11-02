@@ -6,8 +6,15 @@ import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.BotSession;
 
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -55,5 +62,42 @@ class BotLifecycleTest {
 
         verify(session).stop();
         assertThat(lifecycle.isRunning()).isFalse();
+    }
+
+    @Test
+    void runsShutdownCallbackEvenWhenSessionStopFails() throws TelegramApiException {
+        BotSession session = mock(BotSession.class);
+        when(session.isRunning()).thenReturn(true);
+        doThrow(new IllegalStateException("Session already stopped")).when(session).stop();
+        when(botsApi.registerBot(bot)).thenReturn(session);
+
+        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot, Duration.ofSeconds(1));
+        lifecycle.start();
+
+        AtomicBoolean callbackRan = new AtomicBoolean(false);
+        lifecycle.stop(() -> callbackRan.set(true));
+
+        assertThat(callbackRan).isTrue();
+    }
+
+    @Test
+    void doesNotBlockShutdownWhenSessionStopHangs() throws Exception {
+        CountDownLatch neverReleased = new CountDownLatch(1);
+        BotSession session = mock(BotSession.class);
+        when(session.isRunning()).thenReturn(true);
+        doAnswer(invocation -> {
+            neverReleased.await(5, TimeUnit.SECONDS);
+            return null;
+        }).when(session).stop();
+        when(botsApi.registerBot(bot)).thenReturn(session);
+
+        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot, Duration.ofMillis(200));
+        lifecycle.start();
+
+        long startedAt = System.currentTimeMillis();
+        lifecycle.stop();
+        long elapsed = System.currentTimeMillis() - startedAt;
+
+        assertThat(elapsed).isLessThan(2000L);
     }
 }
