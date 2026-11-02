@@ -18,6 +18,7 @@ import static org.example.Settings.Settings.*;
 public class AiService {
     // Сколько последних сообщений чата помнит AI, если настройка не задана или испорчена.
     private static final int DEFAULT_HISTORY_SIZE = 100;
+    private static final int DEFAULT_MEMORY_PROMPT_SIZE = 30;
     private static final String DEFAULT_SYSTEM_PROMPT = "Ты универсальный помощник";
 
     private static final Logger logger = LoggerFactory.getLogger(AiService.class);
@@ -27,16 +28,21 @@ public class AiService {
     private final DeepSeekClient deepSeekClient;
     private final AiChatRepository repository;
     private final PersonaService personaService;
+    private final MemoryRepository memoryRepository;
+    private final MemoryPromptBuilder memoryPromptBuilder;
 
     private final Float answerTemperature;
 
     public AiService(SettingsService settings, MessageSender sender, DeepSeekClient deepSeekClient,
-                     AiChatRepository repository, PersonaService personaService) {
+                     AiChatRepository repository, PersonaService personaService,
+                     MemoryRepository memoryRepository, MemoryPromptBuilder memoryPromptBuilder) {
         this.settings = settings;
         this.sender = sender;
         this.deepSeekClient = deepSeekClient;
         this.repository = repository;
         this.personaService = personaService;
+        this.memoryRepository = memoryRepository;
+        this.memoryPromptBuilder = memoryPromptBuilder;
         this.answerTemperature = Float.valueOf(settings.getSettingValue(AI_ANSWER_TEMPERATURE));
     }
 
@@ -82,6 +88,7 @@ public class AiService {
         // Промпт и счётчик сбросов не хранятся сообщениями: так промпт всегда актуален
         // и не вытесняется лимитом истории.
         addMessage(messages, objectMapper, AI_SYSTEM_ROLE, getSystemPrompt(chatId));
+        addMemories(messages, objectMapper, chatId);
 
         int resets = repository.getResets(chatId);
         if (resets > 0)
@@ -94,6 +101,26 @@ public class AiService {
         logger.info("Задаем вопрос AI. Подготовлена история сообщений в чате {}, всего сообщений в истории: {}",
                 chatId, messages.size());
         return messages;
+    }
+
+    private void addMemories(ArrayNode messages, ObjectMapper objectMapper, Long chatId) {
+        try {
+            var persona = personaService.personaForChat(chatId);
+            if (persona.isEmpty())
+                return;
+
+            List<MemoryRecord> core = memoryRepository.findCore(persona.get().id());
+            List<MemoryRecord> regular = memoryRepository.findTopRegular(persona.get().id(), getMemoryPromptSize());
+            String block = memoryPromptBuilder.build(core, regular);
+            if (block.isBlank())
+                return;
+
+            addMessage(messages, objectMapper, AI_SYSTEM_ROLE, block);
+            logger.info("В чате {} в промпт добавлено памяти: ядровых {}, обычных {}, символов {}",
+                    chatId, core.size(), regular.size(), block.length());
+        } catch (Exception e) {
+            logger.error("Ошибка сборки памяти для чата {}: {}", chatId, String.valueOf(e));
+        }
     }
 
     private void addMessage(ArrayNode messages, ObjectMapper objectMapper, String role, String content) {
@@ -132,5 +159,25 @@ public class AiService {
             logger.warn("Некорректный лимит истории AI '{}': используется {}", configuredLimit, DEFAULT_HISTORY_SIZE);
         }
         return DEFAULT_HISTORY_SIZE;
+    }
+
+    private int getMemoryPromptSize() {
+        String configuredLimit = settings.getSettingValue(AI_MEMORY_PROMPT_SIZE);
+
+        if (configuredLimit == null)
+            return DEFAULT_MEMORY_PROMPT_SIZE;
+
+        try {
+            int limit = Integer.parseInt(configuredLimit.trim());
+            // Ноль — допустимое значение: в промпт идёт только ядро.
+            if (limit >= 0)
+                return limit;
+            logger.warn("Некорректный размер памяти в промпте '{}': используется {}",
+                    configuredLimit, DEFAULT_MEMORY_PROMPT_SIZE);
+        } catch (NumberFormatException e) {
+            logger.warn("Некорректный размер памяти в промпте '{}': используется {}",
+                    configuredLimit, DEFAULT_MEMORY_PROMPT_SIZE);
+        }
+        return DEFAULT_MEMORY_PROMPT_SIZE;
     }
 }

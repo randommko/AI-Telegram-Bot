@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.Settings.Settings.AI_MODEL;
@@ -21,11 +22,14 @@ import static org.example.Settings.Settings.DEEP_SEEK_BASE_URL;
 
 @Component
 public class DeepSeekClient {
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
+
     private final Logger logger = LoggerFactory.getLogger(DeepSeekClient.class);
 
     private final String deepSeekApiKey;
     private final Integer maxTokens;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DeepSeekClient(BotProperties properties, SettingsService settings) {
@@ -34,6 +38,10 @@ public class DeepSeekClient {
     }
 
     public String sendRequestToAi(ArrayNode messages, Float temperature) {
+        return sendRequestToAi(messages, temperature, maxTokens);
+    }
+
+    public String sendRequestToAi(ArrayNode messages, Float temperature, int maxTokens) {
         try {
             ObjectNode request = objectMapper.createObjectNode();
             request.put("model", AI_MODEL);
@@ -54,6 +62,7 @@ public class DeepSeekClient {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(DEEP_SEEK_BASE_URL))
+                .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + deepSeekApiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))

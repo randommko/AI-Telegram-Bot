@@ -12,12 +12,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.telegram.telegrambots.meta.api.objects.Message;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
 import static org.example.Settings.Settings.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -41,13 +43,18 @@ class AiServiceTest {
     private AiChatRepository repository;
     @Mock
     private PersonaService personaService;
+    @Mock
+    private MemoryRepository memoryRepository;
+
+    private final MemoryPromptBuilder memoryPromptBuilder = new MemoryPromptBuilder();
 
     private AiService aiService;
 
     @BeforeEach
     void setUp() {
         when(settings.getSettingValue(AI_ANSWER_TEMPERATURE)).thenReturn("1.0");
-        aiService = new AiService(settings, sender, deepSeekClient, repository, personaService);
+        aiService = new AiService(settings, sender, deepSeekClient, repository,
+                personaService, memoryRepository, memoryPromptBuilder);
     }
 
     @Test
@@ -224,6 +231,76 @@ class AiServiceTest {
 
         verifyNoInteractions(deepSeekClient);
         verify(sender).sendMessage(17L, "Напиши свой вопрос после команды /ai");
+    }
+
+    @Test
+    void memoryBlockGoesAfterPromptAndBeforeHistory() {
+        when(personaService.resolvePrompt(31L)).thenReturn(Optional.of(
+                new PersonaService.ResolvedPrompt("Промпт персоны", "persona:Юра")));
+        when(personaService.personaForChat(31L)).thenReturn(Optional.of(new Persona(7, "Юра", "Промпт персоны")));
+        when(settings.getSettingValue(AI_MEMORY_PROMPT_SIZE)).thenReturn("30");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(memoryRepository.findCore(7)).thenReturn(List.of(
+                new MemoryRecord(1, "семья", "родился 1988-04-12", 10, true, LocalDate.of(1988, 4, 12), List.of())));
+        when(memoryRepository.findTopRegular(7, 30)).thenReturn(List.of(
+                new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of("nick"))));
+        when(repository.getResets(31L)).thenReturn(0);
+        when(repository.findLastMessages(31L, 100)).thenReturn(List.of(new AiMessage(USER_ROLE, "привет")));
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(31L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        ArrayNode messages = payload.getValue();
+
+        assertEquals(3, messages.size(), "промпт, память и история");
+        assertEquals("Промпт персоны", messages.get(0).get("content").asText());
+        assertEquals(AI_SYSTEM_ROLE, messages.get(1).get("role").asText());
+        String memory = messages.get(1).get("content").asText();
+        assertTrue(memory.startsWith("Что ты помнишь о себе и о людях в чате всегда"), memory);
+        assertTrue(memory.contains("[семья] родился 1988-04-12 (важно: 10, 1988-04-12)"), memory);
+        assertTrue(memory.contains("[хобби] шахматы (важно: 6, @nick)"), memory);
+        assertEquals(USER_ROLE, messages.get(2).get("role").asText());
+    }
+
+    @Test
+    void noPersonaMeansNoMemoryBlock() {
+        when(personaService.resolvePrompt(32L)).thenReturn(Optional.empty());
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(repository.getResets(32L)).thenReturn(0);
+        when(repository.findLastMessages(32L, 100)).thenReturn(List.of(new AiMessage(USER_ROLE, "привет")));
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(32L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        assertEquals(2, payload.getValue().size(), "промпт и история");
+        verifyNoInteractions(memoryRepository);
+    }
+
+    @Test
+    void zeroMemorySizeSendsOnlyCore() {
+        when(personaService.resolvePrompt(33L)).thenReturn(Optional.of(
+                new PersonaService.ResolvedPrompt("Промпт персоны", "persona:Юра")));
+        when(personaService.personaForChat(33L)).thenReturn(Optional.of(new Persona(7, "Юра", "Промпт персоны")));
+        when(settings.getSettingValue(AI_MEMORY_PROMPT_SIZE)).thenReturn("0");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(memoryRepository.findCore(7)).thenReturn(List.of(
+                new MemoryRecord(1, "семья", "родился 1988-04-12", 10, true, null, List.of())));
+        when(memoryRepository.findTopRegular(7, 0)).thenReturn(List.of());
+        when(repository.getResets(33L)).thenReturn(0);
+        when(repository.findLastMessages(33L, 100)).thenReturn(List.of());
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(33L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        String memory = payload.getValue().get(1).get("content").asText();
+        assertTrue(memory.contains("[семья] родился 1988-04-12"), memory);
+        assertFalse(memory.contains("[хобби]"), memory);
     }
 
     private Message message(String text, Long chatId) {

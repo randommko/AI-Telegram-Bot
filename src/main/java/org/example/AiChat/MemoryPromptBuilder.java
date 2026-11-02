@@ -1,0 +1,41 @@
+package org.example.AiChat;
+
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * Собирает блок памяти для системного промпта: ядро первым и целиком,
+ * затем обычные воспоминания. Даты и люди добавляются, только если заполнены.
+ */
+@Component
+public class MemoryPromptBuilder {
+    private static final String CORE_HEADER = "Что ты помнишь о себе и о людях в чате всегда (это незыблемо):";
+    private static final String REGULAR_HEADER = "Что ты помнишь о себе и о людях в чате:";
+
+    public String build(List<MemoryRecord> core, List<MemoryRecord> regular) {
+        List<String> blocks = new ArrayList<>();
+        if (core != null && !core.isEmpty())
+            blocks.add(block(CORE_HEADER, core));
+        if (regular != null && !regular.isEmpty())
+            blocks.add(block(REGULAR_HEADER, regular));
+        return String.join("\n\n", blocks);
+    }
+
+    private String block(String header, List<MemoryRecord> memories) {
+        return header + "\n" + memories.stream().map(this::line).collect(Collectors.joining("\n"));
+    }
+
+    private String line(MemoryRecord memory) {
+        List<String> details = new ArrayList<>();
+        details.add("важно: " + memory.importance());
+        if (memory.eventDate() != null)
+            details.add(memory.eventDate().toString());
+        if (memory.people() != null && !memory.people().isEmpty())
+            details.add(memory.people().stream().map(person -> "@" + person).collect(Collectors.joining(", ")));
+
+        return "- [" + memory.category() + "] " + memory.content() + " (" + String.join(", ", details) + ")";
+    }
+}
