@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Message;
 
 import java.util.List;
-import java.util.Objects;
 
 import static org.example.Settings.Settings.*;
 
@@ -27,15 +26,17 @@ public class AiService {
     private final MessageSender sender;
     private final DeepSeekClient deepSeekClient;
     private final AiChatRepository repository;
+    private final PersonaService personaService;
 
     private final Float answerTemperature;
 
     public AiService(SettingsService settings, MessageSender sender, DeepSeekClient deepSeekClient,
-                     AiChatRepository repository) {
+                     AiChatRepository repository, PersonaService personaService) {
         this.settings = settings;
         this.sender = sender;
         this.deepSeekClient = deepSeekClient;
         this.repository = repository;
+        this.personaService = personaService;
         this.answerTemperature = Float.valueOf(settings.getSettingValue(AI_ANSWER_TEMPERATURE));
     }
 
@@ -104,21 +105,15 @@ public class AiService {
 
     private String getSystemPrompt(Long chatId) {
         try {
-            boolean myChat = Objects.equals(chatId, MY_CHAT_ID);
-            String systemPrompt = myChat
-                    ? settings.getSettingValue(AI_CONTEXT_FOR_MY_CHAT)
-                    : settings.getSettingValue(AI_CONTEXT);
-
-            logger.info(myChat
-                            ? "В синем чате (ID: {}) использован специальный промпт"
-                            : "В чате {} использован промпт по умолчанию",
-                    chatId);
-
-            if (systemPrompt != null && !systemPrompt.isBlank())
-                return systemPrompt;
+            var resolved = personaService.resolvePrompt(chatId);
+            if (resolved.isPresent() && !resolved.get().text().isBlank()) {
+                logger.info("В чате (ID: {}) использован промпт {}", chatId, resolved.get().source());
+                return resolved.get().text();
+            }
         } catch (Exception e) {
-            logger.error("Ошибка применения стартового ПРОМТа: {}", String.valueOf(e));
+            logger.error("Ошибка выбора промпта для чата {}: {}", chatId, String.valueOf(e));
         }
+        logger.info("В чате {} использован промпт по умолчанию", chatId);
         return DEFAULT_SYSTEM_PROMPT;
     }
 

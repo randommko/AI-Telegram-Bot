@@ -24,6 +24,18 @@ public record BotProperties(
         return proxy != null && proxy.hasHost();
     }
 
+    /** Telegram user id бота: часть токена до двоеточия. По нему узнаём свои сообщения в реплаях. */
+    public long botId() {
+        int colon = token.indexOf(':');
+        if (colon <= 0)
+            throw new IllegalStateException("BOT_TOKEN не содержит идентификатор бота");
+        try {
+            return Long.parseLong(token.substring(0, colon));
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException("BOT_TOKEN содержит нечисловой идентификатор бота", e);
+        }
+    }
+
     public record Db(@NotBlank String url, @NotBlank String user, @NotBlank String password) {
     }
 

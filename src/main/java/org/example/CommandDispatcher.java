@@ -3,7 +3,9 @@ package org.example;
 
 import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
+import org.example.AiChat.PersonaService;
 import org.example.CockSize.CockSizeGame;
+import org.example.Config.BotProperties;
 
 import org.example.PidorGame.PidorGame;
 import org.slf4j.Logger;
@@ -30,7 +32,9 @@ public class CommandDispatcher {
     private final PidorGame pidorGame;
     private final AiService aiService;
     private final AiAddressParser addressParser;
+    private final PersonaService personaService;
     private final KeyboardBuilder keyboardBuilder = new KeyboardBuilder();
+    private final long botId;
 
     // Enum для команд (расширяемо)
     public enum Command {
@@ -79,12 +83,16 @@ public class CommandDispatcher {
                              CockSizeGame cockSizeGame,
                              PidorGame pidorGame,
                              AiService aiService,
-                             AiAddressParser addressParser) {
+                             AiAddressParser addressParser,
+                             PersonaService personaService,
+                             BotProperties properties) {
         this.messageSender = messageSender;
         this.cockSizeGame = cockSizeGame;
         this.pidorGame = pidorGame;
         this.aiService = aiService;
         this.addressParser = addressParser;
+        this.personaService = personaService;
+        this.botId = properties.botId();
     }
 
     public void dispatch(Update update) {
@@ -127,13 +135,28 @@ public class CommandDispatcher {
         if (!MY_CHAT_ID.equals(chatId))
             return;
 
-        addressParser.question(text).ifPresent(question -> {
+        // Ответ реплаем на сообщение самого бота — второй триггер, имя в тексте не нужно.
+        if (isReplyToBot(message)) {
+            aiService.askAi(chatId, text);
+            return;
+        }
+
+        List<String> aliases = personaService.aliasesForChat(chatId);
+        addressParser.question(text, aliases).ifPresent(question -> {
             if (question.isEmpty()) {
                 messageSender.sendMessage(chatId, "Юра на связи, но вопроса нет. Напиши его после обращения.");
                 return;
             }
             aiService.askAi(chatId, question);
         });
+    }
+
+    private boolean isReplyToBot(Message message) {
+        Message replied = message.getReplyToMessage();
+        return replied != null
+                && replied.getFrom() != null
+                && replied.getFrom().getId() != null
+                && replied.getFrom().getId() == botId;
     }
 
     private void saveMessageText(User user, Chat chat, String text) {

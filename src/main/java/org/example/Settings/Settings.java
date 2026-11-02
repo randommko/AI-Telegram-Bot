@@ -8,6 +8,9 @@ public class Settings {
     public static final String AI_SUMMARY_TEMPERATURE = "aiSummaryTemperature";
     public static final String AI_MAX_TOKENS_ANSWER_QUESTION = "maxTokensQuestion";
     public static final String AI_HISTORY_SIZE = "aiHistorySize";
+    public static final String AI_MEMORY_PROMPT_SIZE = "aiMemoryPromptSize";
+    public static final String AI_MEMORY_ANALYZE_EVERY = "aiMemoryAnalyzeEvery";
+    public static final String AI_MEMORY_EXTRACT_PROMPT = "aiMemoryExtractPrompt";
     public static final String OWNER_CHAT_ID = "ownerChatId";
     public static final String AI_MODEL = "deepseek-flash";
     public static final Long BOT_ID_PROD = 7332966399L;

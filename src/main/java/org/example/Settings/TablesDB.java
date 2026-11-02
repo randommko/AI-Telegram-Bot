@@ -10,5 +10,12 @@ public final class TablesDB {
     public static final String TG_CHATS_TABLE = "public.tg_chats";
     public static final String AI_MESSAGES_TABLE = "public.ai_messages";
     public static final String AI_CHAT_STATE_TABLE = "public.ai_chat_state";
+    public static final String PERSONAS_TABLE = "public.personas";
+    public static final String PERSONA_ALIASES_TABLE = "public.persona_aliases";
+    public static final String CHAT_PERSONAS_TABLE = "public.chat_personas";
+    public static final String MEMORY_CATEGORIES_TABLE = "public.memory_categories";
+    public static final String PERSONA_MEMORIES_TABLE = "public.persona_memories";
+    public static final String MEMORY_PEOPLE_TABLE = "public.memory_people";
+    public static final String MEMORY_ANALYSIS_STATE_TABLE = "public.memory_analysis_state";
     public  static final String SETTINGS_TABLE = "bot_settings";
 }

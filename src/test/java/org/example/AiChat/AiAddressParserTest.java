@@ -2,6 +2,7 @@ package org.example.AiChat;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,57 +10,73 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiAddressParserTest {
 
+    private static final List<String> ALIASES = List.of("юр", "юра", "юрец", "юрчик", "юрий");
+
     private final AiAddressParser parser = new AiAddressParser();
 
     @Test
     void everyAddressFormIsRecognized() {
-        assertEquals(Optional.of("привет"), parser.question("юра привет"));
-        assertEquals(Optional.of("привет"), parser.question("юрец привет"));
-        assertEquals(Optional.of("привет"), parser.question("юрчик привет"));
-        assertEquals(Optional.of("привет"), parser.question("юрий привет"));
-        assertEquals(Optional.of("привет"), parser.question("юр привет"));
+        assertEquals(Optional.of("юра привет"), parser.question("юра привет", ALIASES));
+        assertEquals(Optional.of("юрец привет"), parser.question("юрец привет", ALIASES));
+        assertEquals(Optional.of("юрчик привет"), parser.question("юрчик привет", ALIASES));
+        assertEquals(Optional.of("юрий привет"), parser.question("юрий привет", ALIASES));
+        assertEquals(Optional.of("юр привет"), parser.question("юр привет", ALIASES));
     }
 
     @Test
     void addressIsRecognizedInAnyCase() {
-        assertEquals(Optional.of("как дела?"), parser.question("ЮРА как дела?"));
-        assertEquals(Optional.of("как дела?"), parser.question("Юрец как дела?"));
-        assertEquals(Optional.of("как дела?"), parser.question("ЮрЧиК как дела?"));
+        assertEquals(Optional.of("ЮРА как дела?"), parser.question("ЮРА как дела?", ALIASES));
+        assertEquals(Optional.of("Юрец как дела?"), parser.question("Юрец как дела?", ALIASES));
+        assertEquals(Optional.of("ЮрЧиК как дела?"), parser.question("ЮрЧиК как дела?", ALIASES));
     }
 
     @Test
-    void punctuationAfterAddressIsDropped() {
-        assertEquals(Optional.of("как дела?"), parser.question("Юра, как дела?"));
-        assertEquals(Optional.of("что нового"), parser.question("Юрий! что нового"));
-        assertEquals(Optional.of("ну?"), parser.question("юр... ну?"));
-        assertEquals(Optional.of("ты тут"), parser.question("  юра   ты тут  "));
+    void addressInTheMiddleOrAtTheEndIsRecognized() {
+        assertEquals(Optional.of("как дела, юра?"), parser.question("как дела, юра?", ALIASES));
+        assertEquals(Optional.of("слушай юра привет"), parser.question("слушай юра привет", ALIASES));
+        assertEquals(Optional.of("ну что, юрец?"), parser.question("ну что, юрец?", ALIASES));
+    }
+
+    @Test
+    void questionKeepsTheOriginalText() {
+        assertEquals(Optional.of("Юра, как дела?"), parser.question("Юра, как дела?", ALIASES));
+        assertEquals(Optional.of("юра   ты тут"), parser.question("  юра   ты тут  ", ALIASES));
     }
 
     @Test
     void addressWithoutQuestionGivesEmptyQuestion() {
-        assertEquals(Optional.of(""), parser.question("юр"));
-        assertEquals(Optional.of(""), parser.question("Юрий!"));
-        assertEquals(Optional.of(""), parser.question("Юра,   "));
-        assertEquals(Optional.of(""), parser.question("юрец"));
+        assertEquals(Optional.of(""), parser.question("юр", ALIASES));
+        assertEquals(Optional.of(""), parser.question("Юрий!", ALIASES));
+        assertEquals(Optional.of(""), parser.question("Юра,   ", ALIASES));
+        assertEquals(Optional.of(""), parser.question("юрец", ALIASES));
+        assertEquals(Optional.of(""), parser.question("юра?", List.of("юра")));
     }
 
     @Test
     void wordsStartingLikeAnAddressAreNotAnAddress() {
-        assertTrue(parser.question("юридический вопрос по договору").isEmpty());
-        assertTrue(parser.question("юрта стоит в степи").isEmpty());
-        assertTrue(parser.question("юркий парень").isEmpty());
+        assertTrue(parser.question("юридический вопрос по договору", ALIASES).isEmpty());
+        assertTrue(parser.question("юрта стоит в степи", ALIASES).isEmpty());
+        assertTrue(parser.question("юркий парень", ALIASES).isEmpty());
     }
 
     @Test
-    void addressInTheMiddleIsNotAnAddress() {
-        assertTrue(parser.question("как дела, юра?").isEmpty());
-        assertTrue(parser.question("слушай юра привет").isEmpty());
+    void wordContainingAnAddressIsNotAnAddress() {
+        assertTrue(parser.question("плюрализм мнений", ALIASES).isEmpty());
+        assertTrue(parser.question("неюра", ALIASES).isEmpty());
     }
 
     @Test
-    void plainTextIsNotAnAddress() {
-        assertTrue(parser.question("привет всем").isEmpty());
-        assertTrue(parser.question("").isEmpty());
-        assertTrue(parser.question(null).isEmpty());
+    void aliasesComeFromTheDatabase() {
+        assertEquals(Optional.of("бот привет"), parser.question("бот привет", List.of("бот")));
+        assertTrue(parser.question("юра привет", List.of("бот")).isEmpty());
+    }
+
+    @Test
+    void plainTextWithoutAliasesIsNotAnAddress() {
+        assertTrue(parser.question("привет всем", ALIASES).isEmpty());
+        assertTrue(parser.question("", ALIASES).isEmpty());
+        assertTrue(parser.question(null, ALIASES).isEmpty());
+        assertTrue(parser.question("юра привет", List.of()).isEmpty());
+        assertTrue(parser.question("юра привет", null).isEmpty());
     }
 }

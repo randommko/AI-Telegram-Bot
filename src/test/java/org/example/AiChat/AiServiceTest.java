@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.telegram.telegrambots.meta.api.objects.Message;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.example.Settings.Settings.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,18 +39,21 @@ class AiServiceTest {
     private DeepSeekClient deepSeekClient;
     @Mock
     private AiChatRepository repository;
+    @Mock
+    private PersonaService personaService;
 
     private AiService aiService;
 
     @BeforeEach
     void setUp() {
         when(settings.getSettingValue(AI_ANSWER_TEMPERATURE)).thenReturn("1.0");
-        aiService = new AiService(settings, sender, deepSeekClient, repository);
+        aiService = new AiService(settings, sender, deepSeekClient, repository, personaService);
     }
 
     @Test
     void systemPromptGoesFirstAndResetCounterIsIncluded() {
-        when(settings.getSettingValue(AI_CONTEXT)).thenReturn("Ты кот из чата");
+        when(personaService.resolvePrompt(7L)).thenReturn(Optional.of(
+                new PersonaService.ResolvedPrompt("Ты кот из чата", "setting:aiPromtContext")));
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("50");
         when(repository.getResets(7L)).thenReturn(2);
         when(repository.findLastMessages(7L, 50)).thenReturn(List.of(new AiMessage(USER_ROLE, "привет")));
@@ -72,7 +76,9 @@ class AiServiceTest {
 
     @Test
     void promptChangeIsVisibleInNextRequest() {
-        when(settings.getSettingValue(AI_CONTEXT)).thenReturn("Первый промпт", "Второй промпт");
+        when(personaService.resolvePrompt(anyLong()))
+                .thenReturn(Optional.of(new PersonaService.ResolvedPrompt("Первый промпт", "setting:aiPromtContext")))
+                .thenReturn(Optional.of(new PersonaService.ResolvedPrompt("Второй промпт", "persona:Юра")));
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
         when(repository.getResets(anyLong())).thenReturn(0);
         when(repository.findLastMessages(anyLong(), anyInt())).thenReturn(List.of());
@@ -90,7 +96,7 @@ class AiServiceTest {
 
     @Test
     void fallbackPromptIsUsedWhenSettingIsEmpty() {
-        when(settings.getSettingValue(AI_CONTEXT)).thenReturn(null);
+        when(personaService.resolvePrompt(anyLong())).thenReturn(Optional.empty());
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
         when(repository.getResets(anyLong())).thenReturn(0);
         when(repository.findLastMessages(anyLong(), anyInt())).thenReturn(List.of());
@@ -103,6 +109,22 @@ class AiServiceTest {
         JsonNode prompt = payload.getValue().get(0);
         assertEquals(AI_SYSTEM_ROLE, prompt.get("role").asText());
         assertFalse(prompt.get("content").asText().isBlank());
+    }
+
+    @Test
+    void personaPromptIsPreferredOverSettings() {
+        when(personaService.resolvePrompt(23L)).thenReturn(Optional.of(
+                new PersonaService.ResolvedPrompt("Ты Юра", "persona:Юра")));
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(repository.getResets(23L)).thenReturn(0);
+        when(repository.findLastMessages(23L, 100)).thenReturn(List.of());
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(23L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        assertEquals("Ты Юра", payload.getValue().get(0).get("content").asText());
     }
 
     @Test
@@ -163,7 +185,8 @@ class AiServiceTest {
 
     @Test
     void assistantAnswerIsSavedToHistory() {
-        when(settings.getSettingValue(AI_CONTEXT)).thenReturn("промпт");
+        when(personaService.resolvePrompt(anyLong()))
+                .thenReturn(Optional.of(new PersonaService.ResolvedPrompt("промпт", "setting:aiPromtContext")));
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
         when(repository.getResets(anyLong())).thenReturn(0);
         when(repository.findLastMessages(anyLong(), anyInt())).thenReturn(List.of());
@@ -177,7 +200,8 @@ class AiServiceTest {
 
     @Test
     void questionCanBeAskedWithoutAMessage() {
-        when(settings.getSettingValue(AI_CONTEXT)).thenReturn("промпт");
+        when(personaService.resolvePrompt(anyLong()))
+                .thenReturn(Optional.of(new PersonaService.ResolvedPrompt("промпт", "setting:aiPromtContext")));
         when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
         when(repository.getResets(17L)).thenReturn(0);
         when(repository.findLastMessages(17L, 100)).thenReturn(List.of(new AiMessage(USER_ROLE, "как дела?")));
