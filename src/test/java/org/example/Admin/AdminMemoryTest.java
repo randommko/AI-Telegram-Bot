@@ -84,6 +84,19 @@ class AdminMemoryTest {
     }
 
     @Test
+    void rendersPeopleAsCheckboxesToUnlink() throws Exception {
+        when(memories.findDetails(5)).thenReturn(java.util.Optional.of(new MemoryRepository.MemoryDetails(
+                5, 1, "семья", "день рождения 1 января", 10, false, null, "manual", List.of(7L))));
+        when(memories.allUsers()).thenReturn(List.of(new MemoryRepository.PersonRef(7L, "@nick")));
+
+        mockMvc.perform(get("/admin/memories/5").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"people\"")))
+                .andExpect(content().string(containsString("type=\"checkbox\"")))
+                .andExpect(content().string(containsString("checked=\"checked\"")));
+    }
+
+    @Test
     void passesFiltersToRepository() throws Exception {
         when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
 

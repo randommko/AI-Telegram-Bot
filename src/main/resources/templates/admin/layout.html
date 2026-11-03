@@ -51,6 +51,7 @@
         table.list th, table.list td { text-align: left; padding: 8px 10px;
                                        border-bottom: 1px solid #eef0f3; font-size: 14px; }
         table.list th { background: #f0f2f5; font-weight: 600; }
+        table.list tr.group-title td { background: #e8eaed; font-weight: 600; color: #1d2129; }
         .hint { font-size: 13px; color: #3b4a5f; }
         fieldset { border: 1px solid #dcdfe4; border-radius: 6px; padding: 12px 16px; margin: 0 0 16px; }
         legend { font-size: 13px; color: #3b4a5f; padding: 0 6px; }
@@ -68,7 +69,12 @@
         .tabs a { padding: 8px 14px; font-size: 14px; color: #3b4a5f; text-decoration: none;
                   border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; }
         .tabs a.active { background: #fff; border-color: #dcdfe4; color: #1d2129; font-weight: 600; }
-        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 16px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 32px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 32px; }
+        .range-row { display: flex; align-items: center; gap: 10px; }
+        .range-row output { min-width: 4ch; font-variant-numeric: tabular-nums; font-size: 13px; color: #3b4a5f; }
+        .checkbox-line { flex-direction: row; align-items: center; gap: 8px; }
+        h2.section { font-size: 16px; margin: 24px 0 8px; }
         .field label { display: flex; align-items: center; }
         .tip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
                margin-left: 6px; border-radius: 50%; background: #e8eaed; color: #3b4a5f; font-size: 11px;

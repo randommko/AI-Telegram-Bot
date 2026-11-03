@@ -39,10 +39,26 @@ public class AdminChatController {
         this.sender = sender;
     }
 
+    /** Чаты с персоной идут первыми: администратор чаще приходит менять именно их. */
+    public record ChatGroup(String title, java.util.List<PersonaRepository.ChatSummary> chats) {
+    }
+
     @GetMapping("/admin/chats")
     String list(Model model) {
+        java.util.List<PersonaRepository.ChatSummary> chats = personas.findAllChats();
+        java.util.List<PersonaRepository.ChatSummary> withPersona = chats.stream()
+                .filter(chat -> chat.personaId() != null).toList();
+        java.util.List<PersonaRepository.ChatSummary> withoutPersona = chats.stream()
+                .filter(chat -> chat.personaId() == null).toList();
+
+        java.util.List<ChatGroup> groups = new java.util.ArrayList<>();
+        if (!withPersona.isEmpty())
+            groups.add(new ChatGroup("С персоной", withPersona));
+        if (!withoutPersona.isEmpty())
+            groups.add(new ChatGroup("Без персоны", withoutPersona));
+
         model.addAttribute("title", "Чаты");
-        model.addAttribute("chats", personas.findAllChats());
+        model.addAttribute("groups", groups);
         model.addAttribute("personas", personas.findAllWithCounts());
         return "admin/chats";
     }

@@ -47,4 +47,5 @@ src/main/resources/config.json
 
 ### Qwen temp ###
 .qwen/tmp/
+.qwen/settings.json
 .gitignore

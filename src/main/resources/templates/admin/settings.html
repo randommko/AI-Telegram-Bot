@@ -36,12 +36,14 @@
                             th:selected="${option == field.value}"></option>
                 </select>
 
-                <input th:if="${field.kind == 'range'}" type="range"
-                       th:id="${field.key}" th:name="${field.key}"
-                       th:min="${field.min}" th:max="${field.max}" th:step="${field.step}"
-                       th:value="${field.value}"/>
-                <span class="hint" th:if="${field.kind == 'range'}"
-                      th:text="'сейчас сохранено: ' + ${field.value}"></span>
+                <div class="range-row" th:if="${field.kind == 'range'}">
+                    <input type="range"
+                           th:id="${field.key}" th:name="${field.key}"
+                           th:min="${field.min}" th:max="${field.max}" th:step="${field.step}"
+                           th:value="${field.value}"
+                           oninput="this.parentNode.querySelector('output').value = this.value"/>
+                    <output th:text="${field.value}">0</output>
+                </div>
 
                 <input th:if="${field.kind == 'text'}" type="text"
                        th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>

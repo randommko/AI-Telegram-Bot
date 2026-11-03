@@ -73,6 +73,23 @@ class AdminChatTest {
     }
 
     @Test
+    void putsChatsWithPersonaFirstAndSeparatesTheRest() throws Exception {
+        when(personas.findAllChats()).thenReturn(List.of(
+                new PersonaRepository.ChatSummary(2L, "Рабочий чат", null, null, null),
+                new PersonaRepository.ChatSummary(CHAT, "Синий чат", 1, "Юра",
+                        OffsetDateTime.parse("2026-11-02T12:00:00Z"))));
+
+        String body = mockMvc.perform(get("/admin/chats").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        org.junit.jupiter.api.Assertions.assertTrue(body.indexOf("С персоной") < body.indexOf("Без персоны"),
+                "группа с персоной идёт первой");
+        org.junit.jupiter.api.Assertions.assertTrue(body.indexOf("Синий чат") < body.indexOf("Рабочий чат"),
+                "чат с персоной идёт выше чата без персоны");
+    }
+
+    @Test
     void firstAssignmentSendsOnlyJoin() throws Exception {
         when(personas.findForChat(CHAT)).thenReturn(Optional.empty());
         when(personas.findAllWithCounts()).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));

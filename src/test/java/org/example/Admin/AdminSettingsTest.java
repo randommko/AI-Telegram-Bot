@@ -86,6 +86,16 @@ class AdminSettingsTest {
     }
 
     @Test
+    void sliderShowsChosenValueInOutput() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("oninput=")))
+                .andExpect(content().string(containsString("<output")));
+    }
+
+    @Test
     void savesValidForm() throws Exception {
         mockMvc.perform(formWith(Map.of()))
                 .andExpect(redirectedUrl("/admin/settings?tab=model&saved"));

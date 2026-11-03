@@ -48,7 +48,7 @@
             <fieldset>
                 <legend>Эмоциональность</legend>
                 <p class="hint">
-                    Базовые значения 0..10 — это характер персоны: к ним возвращается настроение.
+                    Базовые значения 0..10 — это характер персоны: настроение возвращается к ним с течением времени.
                     Уровень агрессии вычисляется из эмоций и отдельно не хранится, поэтому его здесь нет.
                 </p>
 
@@ -60,80 +60,117 @@
                                th:if="${emotion.description != null and emotion.description != ''}"
                                th:attr="data-tip=${emotion.description}">i</i>
                         </label>
-                        <input type="range" min="0" max="10" step="1"
-                               th:id="${'emotion-' + emotion.code}"
-                               th:name="${'emotionValues[' + emotion.code + ']'}"
-                               th:value="${form.emotionValues[emotion.code]}"/>
-                        <span class="hint"
-                              th:text="'сохранено: ' + ${form.emotionValues[emotion.code]}"></span>
+                        <div class="range-row">
+                            <input type="range" min="0" max="10" step="1"
+                                   th:id="${'emotion-' + emotion.code}"
+                                   th:name="${'emotionValues[' + emotion.code + ']'}"
+                                   th:value="${form.emotionValues[emotion.code]}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.emotionValues[emotion.code]}">0</output>
+                        </div>
                         <span class="error" th:if="${errors['emotion.' + emotion.code]}"
                               th:text="${errors['emotion.' + emotion.code]}"></span>
                     </div>
                 </div>
+            </fieldset>
 
-                <h2>Срыв и ответы</h2>
+            <fieldset>
+                <legend>Срыв и ответы</legend>
 
-                <div class="field">
-                    <label for="aggressionThreshold">
-                        <span>Порог срыва, агрессия (1..10)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['aggressionThreshold']}"
-                           th:attr="data-tip=${fieldNotes['aggressionThreshold']}">i</i>
-                    </label>
-                    <input type="range" min="1" max="10" step="1"
-                           th:field="*{aggressionThreshold}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.aggressionThreshold}"></span>
-                    <span class="error" th:if="${errors['aggressionThreshold']}"
-                          th:text="${errors['aggressionThreshold']}"></span>
-                </div>
+                <div class="grid-3">
+                    <div class="field">
+                        <label for="aggressionThreshold">
+                            <span>Порог срыва, агрессия (1..10)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['aggressionThreshold']}"
+                               th:attr="data-tip=${fieldNotes['aggressionThreshold']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="1" max="10" step="1"
+                                   th:field="*{aggressionThreshold}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.aggressionThreshold}">8</output>
+                        </div>
+                        <span class="error" th:if="${errors['aggressionThreshold']}"
+                              th:text="${errors['aggressionThreshold']}"></span>
+                    </div>
 
-                <div class="field">
-                    <label for="hysteriaReplies">
-                        <span>Ответов при срыве (3..5)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaReplies']}"
-                           th:attr="data-tip=${fieldNotes['hysteriaReplies']}">i</i>
-                    </label>
-                    <input type="range" min="3" max="5" step="1"
-                           th:field="*{hysteriaReplies}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.hysteriaReplies}"></span>
-                    <span class="error" th:if="${errors['hysteriaReplies']}"
-                          th:text="${errors['hysteriaReplies']}"></span>
-                </div>
+                    <div class="field">
+                        <label for="hysteriaReplies">
+                            <span>Ответов при срыве (3..5)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaReplies']}"
+                               th:attr="data-tip=${fieldNotes['hysteriaReplies']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="3" max="5" step="1"
+                                   th:field="*{hysteriaReplies}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.hysteriaReplies}">4</output>
+                        </div>
+                        <span class="error" th:if="${errors['hysteriaReplies']}"
+                              th:text="${errors['hysteriaReplies']}"></span>
+                    </div>
 
-                <div class="field">
-                    <label for="hysteriaCooldownHours">
-                        <span>Пауза срыва, часов (0..168)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaCooldownHours']}"
-                           th:attr="data-tip=${fieldNotes['hysteriaCooldownHours']}">i</i>
-                    </label>
-                    <input type="range" min="0" max="168" step="1"
-                           th:field="*{hysteriaCooldownHours}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.hysteriaCooldownHours}"></span>
-                    <span class="error" th:if="${errors['hysteriaCooldownHours']}"
-                          th:text="${errors['hysteriaCooldownHours']}"></span>
-                </div>
+                    <div class="field">
+                        <label for="hysteriaCooldownHours">
+                            <span>Пауза срыва, часов (0..168)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaCooldownHours']}"
+                               th:attr="data-tip=${fieldNotes['hysteriaCooldownHours']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="0" max="168" step="1"
+                                   th:field="*{hysteriaCooldownHours}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.hysteriaCooldownHours}">6</output>
+                        </div>
+                        <span class="error" th:if="${errors['hysteriaCooldownHours']}"
+                              th:text="${errors['hysteriaCooldownHours']}"></span>
+                    </div>
 
-                <div class="field">
-                    <label for="maxReplies">
-                        <span>Максимум ответов (1..6)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['maxReplies']}"
-                           th:attr="data-tip=${fieldNotes['maxReplies']}">i</i>
-                    </label>
-                    <input type="range" min="1" max="6" step="1"
-                           th:field="*{maxReplies}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.maxReplies}"></span>
-                    <span class="error" th:if="${errors['maxReplies']}" th:text="${errors['maxReplies']}"></span>
-                </div>
+                    <div class="field">
+                        <label for="maxReplies">
+                            <span>Максимум ответов (1..6)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['maxReplies']}"
+                               th:attr="data-tip=${fieldNotes['maxReplies']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="1" max="6" step="1"
+                                   th:field="*{maxReplies}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.maxReplies}">4</output>
+                        </div>
+                        <span class="error" th:if="${errors['maxReplies']}" th:text="${errors['maxReplies']}"></span>
+                    </div>
 
-                <div class="field">
-                    <label for="replyDelayMs">
-                        <span>Задержка ответа, мс (500..5000)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['replyDelayMs']}"
-                           th:attr="data-tip=${fieldNotes['replyDelayMs']}">i</i>
-                    </label>
-                    <input type="range" min="500" max="5000" step="100"
-                           th:field="*{replyDelayMs}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.replyDelayMs}"></span>
-                    <span class="error" th:if="${errors['replyDelayMs']}" th:text="${errors['replyDelayMs']}"></span>
+                    <div class="field">
+                        <label for="replyDelayMs">
+                            <span>Задержка ответа, мс (500..5000)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['replyDelayMs']}"
+                               th:attr="data-tip=${fieldNotes['replyDelayMs']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="500" max="5000" step="100"
+                                   th:field="*{replyDelayMs}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.replyDelayMs}">1500</output>
+                        </div>
+                        <span class="error" th:if="${errors['replyDelayMs']}" th:text="${errors['replyDelayMs']}"></span>
+                    </div>
+
+                    <div class="field">
+                        <label for="initiativeCooldownMessages">
+                            <span>Пауза инициативы, сообщений (1..1000)</span>
+                            <i class="tip" tabindex="0" th:if="${fieldNotes['initiativeCooldownMessages']}"
+                               th:attr="data-tip=${fieldNotes['initiativeCooldownMessages']}">i</i>
+                        </label>
+                        <div class="range-row">
+                            <input type="range" min="1" max="1000" step="1"
+                                   th:field="*{initiativeCooldownMessages}"
+                                   oninput="this.parentNode.querySelector('output').value = this.value"/>
+                            <output th:text="${form.initiativeCooldownMessages}">20</output>
+                        </div>
+                        <span class="error" th:if="${errors['initiativeCooldownMessages']}"
+                              th:text="${errors['initiativeCooldownMessages']}"></span>
+                    </div>
                 </div>
 
                 <div class="field">
@@ -141,19 +178,6 @@
                         <input type="checkbox" th:field="*{initiativeEnabled}"/>
                         Может заговорить первой
                     </label>
-                </div>
-
-                <div class="field">
-                    <label for="initiativeCooldownMessages">
-                        <span>Пауза инициативы, сообщений (1..1000)</span>
-                        <i class="tip" tabindex="0" th:if="${fieldNotes['initiativeCooldownMessages']}"
-                           th:attr="data-tip=${fieldNotes['initiativeCooldownMessages']}">i</i>
-                    </label>
-                    <input type="range" min="1" max="1000" step="1"
-                           th:field="*{initiativeCooldownMessages}"/>
-                    <span class="hint" th:text="'сохранено: ' + ${form.initiativeCooldownMessages}"></span>
-                    <span class="error" th:if="${errors['initiativeCooldownMessages']}"
-                          th:text="${errors['initiativeCooldownMessages']}"></span>
                 </div>
             </fieldset>
         </section>

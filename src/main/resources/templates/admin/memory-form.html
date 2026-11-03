@@ -46,13 +46,13 @@
         </div>
 
         <div class="field">
-            <label for="people">Люди</label>
-            <select id="people" name="people" multiple>
-                <option th:each="person : ${allPeople}" th:value="${person.userId}"
-                        th:selected="${#lists.contains(people, person.userId)}"
-                        th:text="${person.title}">Человек</option>
-            </select>
-            <span class="hint">Ctrl — выбрать несколько.</span>
+            <span class="hint">Люди</span>
+            <label class="checkbox-line" th:each="person : ${allPeople}">
+                <input type="checkbox" name="people" th:value="${person.userId}"
+                       th:checked="${#lists.contains(people, person.userId)}"/>
+                <span th:text="${person.title}">Человек</span>
+            </label>
+            <span class="hint">Снимите галочку и сохраните, чтобы убрать связь воспоминания с человеком.</span>
         </div>
 
         <div class="field">

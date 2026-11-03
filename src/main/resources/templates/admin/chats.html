@@ -14,7 +14,7 @@
         история при этом остаётся.
     </p>
 
-    <table class="list" th:unless="${#lists.isEmpty(chats)}">
+    <table class="list" th:unless="${#lists.isEmpty(groups)}">
         <thead>
         <tr>
             <th>Чат</th>
@@ -24,8 +24,11 @@
             <th>Назначить</th>
         </tr>
         </thead>
-        <tbody>
-        <tr th:each="chat : ${chats}">
+        <tbody th:each="group : ${groups}">
+        <tr class="group-title">
+            <td colspan="5" th:text="${group.title}">С персоной</td>
+        </tr>
+        <tr th:each="chat : ${group.chats}">
             <td th:text="${chat.chatId}">0</td>
             <td th:text="${chat.title != null ? chat.title : '—'}">—</td>
             <td th:text="${chat.personaName != null ? chat.personaName : 'без персоны'}">без персоны</td>
@@ -45,7 +48,7 @@
         </tr>
         </tbody>
     </table>
-    <p class="hint" th:if="${#lists.isEmpty(chats)}">Чатов пока нет — бот ещё не видел сообщений.</p>
+    <p class="hint" th:if="${#lists.isEmpty(groups)}">Чатов пока нет — бот ещё не видел сообщений.</p>
 </main>
 </body>
 </html>

@@ -132,6 +132,17 @@ class AdminPersonaTest {
     }
 
     @Test
+    void slidersShowChosenValueAndSecondBlockIsSeparate() throws Exception {
+        mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("oninput=")))
+                .andExpect(content().string(containsString("<output")))
+                .andExpect(content().string(containsString("class=\"grid-3\"")))
+                .andExpect(content().string(containsString("<legend>Срыв и ответы</legend>")))
+                .andExpect(content().string(containsString("возвращается к ним с течением времени")));
+    }
+
+    @Test
     void showsTipsFromCatalogAndFieldNotes() throws Exception {
         mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
