@@ -49,6 +49,15 @@ public class AnswerGenerator {
         String raw = deepSeekClient.sendJsonRequestToAi(messages, temperature);
         List<String> result = parser.parse(raw, replies);
 
+        if (result.isEmpty()) {
+            // Провайдер иногда возвращает пустой content при finish_reason=stop: один повтор дешевле фолбэка.
+            logger.warn("Генерация вернула пустой ответ, повтор с уточнением");
+            messages.add(history.message(USER_ROLE,
+                    "Предыдущий ответ пустой. Верни JSON-объект {\"replies\": [\"реплика\"]} с репликами."));
+            raw = deepSeekClient.sendJsonRequestToAi(messages, 0.2f);
+            result = parser.parse(raw, replies);
+        }
+
         long millis = (System.nanoTime() - started) / 1_000_000;
         logger.info("Шаг генерации за {} мс: реплик {}{}", millis, result.size(),
                 hysteria ? " (срыв)" : "");

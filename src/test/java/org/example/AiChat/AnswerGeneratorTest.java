@@ -92,6 +92,18 @@ class AnswerGeneratorTest {
     }
 
     @Test
+    void emptyGenerationIsRetriedOnce() {
+        when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat()))
+                .thenReturn(null)
+                .thenReturn("{\"replies\":[\"раз\"]}");
+
+        List<String> replies = generator.generate(CHAT_ID, PLAN, 3, List.of(), false, 1.0f);
+
+        assertEquals(List.of("раз"), replies);
+        verify(deepSeekClient, org.mockito.Mockito.times(2)).sendJsonRequestToAi(any(), anyFloat());
+    }
+
+    @Test
     void emptyAnswerGivesNoReplies() {
         when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn(null);
 
