@@ -67,7 +67,6 @@ class PromptComposerTest {
                 .thenReturn(List.of(new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of())));
         when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
                 userMessage("привет", 111L, "@nick", "Ник")));
-        when(aiChatRepository.getResets(CHAT_ID)).thenReturn(1);
 
         List<PromptSection> order = composer.compose(CHAT_ID).sections().stream()
                 .map(PromptComposer.Section::spec)
@@ -80,8 +79,7 @@ class PromptComposerTest {
                 PromptSection.MEMORY,
                 PromptSection.PEOPLE,
                 PromptSection.TIME,
-                PromptSection.ANSWER_FORMAT,
-                PromptSection.SERVICE), order);
+                PromptSection.ANSWER_FORMAT), order);
     }
 
     @Test
@@ -204,16 +202,6 @@ class PromptComposerTest {
         String emotions = section(composer.compose(CHAT_ID), PromptSection.EMOTIONS);
 
         assertEquals(EmotionService.CALM_LINE, emotions);
-    }
-
-    @Test
-    void serviceLineAppearsAfterResets() {
-        when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
-        when(aiChatRepository.getResets(CHAT_ID)).thenReturn(2);
-
-        String prompt = composer.compose(CHAT_ID).text();
-
-        assertTrue(prompt.contains("Тебе обнуляли память уже 2 раз"), prompt);
     }
 
     @Test

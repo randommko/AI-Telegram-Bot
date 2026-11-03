@@ -92,7 +92,7 @@ public class AdminPromptController {
                 .orElse(chats.isEmpty() ? null : chats.get(0).chatId());
 
         model.addAttribute("title", "Предпросмотр промпта");
-        model.addAttribute("chats", chats);
+        chatsModel(model, chats);
         model.addAttribute("chatId", selected);
         model.addAttribute("question", question == null || question.isBlank() ? DEFAULT_QUESTION : question);
         model.addAttribute("prompt", selected == null ? "" : composer.compose(selected, true).text());
@@ -116,9 +116,15 @@ public class AdminPromptController {
 
         model.addAttribute("title", "Промпт");
         model.addAttribute("sections", sections);
-        model.addAttribute("chats", chats());
+        chatsModel(model, chats());
         model.addAttribute("saved", saved);
         return "admin/prompt";
+    }
+
+    /** Список чатов делится на две группы: с персоной и без — так выбирать понятнее. */
+    private void chatsModel(Model model, List<ChatView> chats) {
+        model.addAttribute("chatsWithPersona", chats.stream().filter(ChatView::hasPersona).toList());
+        model.addAttribute("chatsWithoutPersona", chats.stream().filter(chat -> !chat.hasPersona()).toList());
     }
 
     private Map<String, String> storedValues() {

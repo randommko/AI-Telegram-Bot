@@ -32,7 +32,6 @@ public class Settings {
     public static final String AI_PROMPT_TIME_TEMPLATE = "aiPromptTimeTemplate";
     public static final String AI_PROMPT_TIME_ZONE = "aiPromptTimeZone";
     public static final String AI_PROMPT_ANSWER_FORMAT = "aiPromptAnswerFormat";
-    public static final String AI_PROMPT_SERVICE_TEMPLATE = "aiPromptServiceTemplate";
     public static final Long BOT_ID_PROD = 7332966399L;
     public static final Long BOT_ID_TEST = 7712595730L;
     public static final Long MY_CHAT_ID = -1001347887839L;

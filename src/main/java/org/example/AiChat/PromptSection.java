@@ -8,7 +8,6 @@ import static org.example.Settings.Settings.AI_PROMPT_GRUDGES_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_MEMORY_CORE_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_MEMORY_REGULAR_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_PEOPLE_HEADER;
-import static org.example.Settings.Settings.AI_PROMPT_SERVICE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PROMPT_TECHNICAL;
 import static org.example.Settings.Settings.AI_PROMPT_TIME_TEMPLATE;
 import static org.example.Settings.Settings.AI_PROMPT_TIME_ZONE;
@@ -34,9 +33,7 @@ public enum PromptSection {
             field(AI_PROMPT_TIME_TEMPLATE, "Строка времени", PromptDefaults.TIME_TEMPLATE, true),
             field(AI_PROMPT_TIME_ZONE, "Часовой пояс", PromptDefaults.TIME_ZONE, false))),
     ANSWER_FORMAT("Формат ответа", "## Как отвечать", 300, List.of(
-            field(AI_PROMPT_ANSWER_FORMAT, "Текст раздела", PromptDefaults.ANSWER_FORMAT, true))),
-    SERVICE("Служебное", "## Служебное", 200, List.of(
-            field(AI_PROMPT_SERVICE_TEMPLATE, "Строка про сбросы", PromptDefaults.SERVICE_TEMPLATE, true)));
+            field(AI_PROMPT_ANSWER_FORMAT, "Текст раздела", PromptDefaults.ANSWER_FORMAT, true)));
 
     /** Редактируемое поле раздела: ключ настройки, подпись, текст по умолчанию. */
     public record Template(String key, String label, String defaultText, boolean multiline) {

@@ -13,9 +13,16 @@
     <form class="filters" method="get" th:action="@{/admin/prompt/preview}">
         <label>Чат
             <select name="chatId">
-                <option th:each="chat : ${chats}" th:value="${chat.chatId()}"
-                        th:selected="${chat.chatId() == chatId}"
-                        th:text="${chat.title() + (chat.hasPersona() ? ' — с персоной' : ' — без персоны')}"></option>
+                <optgroup label="С персоной" th:if="${not #lists.isEmpty(chatsWithPersona)}">
+                    <option th:each="chat : ${chatsWithPersona}" th:value="${chat.chatId()}"
+                            th:selected="${chat.chatId() == chatId}"
+                            th:text="${chat.title()}"></option>
+                </optgroup>
+                <optgroup label="Без персоны" th:if="${not #lists.isEmpty(chatsWithoutPersona)}">
+                    <option th:each="chat : ${chatsWithoutPersona}" th:value="${chat.chatId()}"
+                            th:selected="${chat.chatId() == chatId}"
+                            th:text="${chat.title()}"></option>
+                </optgroup>
             </select>
         </label>
         <label>Тестовый вопрос

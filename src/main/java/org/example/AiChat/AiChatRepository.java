@@ -134,23 +134,6 @@ public class AiChatRepository {
         return 0;
     }
 
-    public int getResets(Long chatId) {
-        String query = "SELECT resets FROM " + AI_CHAT_STATE_TABLE + " WHERE chat_id = ?";
-
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setLong(1, chatId);
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next())
-                    return resultSet.getInt("resets");
-            }
-        } catch (Exception e) {
-            logger.error("Ошибка чтения счётчика сбросов AI в чате {}: ", chatId, e);
-        }
-        return 0;
-    }
-
     /** Автор пишется тремя полями: ID для связей, ник и имя для подписи в промпте. */
     private void setAuthor(PreparedStatement statement, int firstIndex, MessageAuthor author) throws Exception {
         MessageAuthor value = author == null ? MessageAuthor.none() : author;

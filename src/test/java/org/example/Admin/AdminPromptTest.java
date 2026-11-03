@@ -59,7 +59,9 @@ class AdminPromptTest {
     void pageShowsSectionsInAssemblyOrderWithCounter() throws Exception {
         when(settings.listAll()).thenReturn(List.of(
                 new SettingsService.Setting(AI_PROMPT_TECHNICAL, "Техника из базы", "Описание")));
-        when(personas.findAllChats()).thenReturn(List.of());
+        when(personas.findAllChats()).thenReturn(List.of(
+                new PersonaRepository.ChatSummary(5L, "Чат с Юрой", 2, "Юра", OffsetDateTime.now()),
+                new PersonaRepository.ChatSummary(6L, "Чат без персоны", null, null, OffsetDateTime.now())));
 
         mockMvc.perform(get("/admin/prompt").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -67,6 +69,10 @@ class AdminPromptTest {
                 .andExpect(content().string(containsString("Кто ты")))
                 .andExpect(content().string(containsString("символов")))
                 .andExpect(content().string(containsString("Вернуть по умолчанию")))
+                .andExpect(content().string(containsString("С персоной")))
+                .andExpect(content().string(containsString("Без персоны")))
+                .andExpect(content().string(containsString("Чат с Юрой")))
+                .andExpect(content().string(containsString("Чат без персоны")))
                 .andExpect(content().string(containsString("Промпт")))
                 .andExpect(content().string(containsString("Эмоции")));
     }

@@ -37,7 +37,6 @@ public final class PromptDefaults {
     public static final String TIME_ZONE = "Europe/Moscow";
     public static final String ANSWER_FORMAT =
             "Живой речью, 1-3 фразы, без списков и markdown. Длина реплики — до {maxLength} символов.";
-    public static final String SERVICE_TEMPLATE = "Тебе обнуляли память уже {resets} раз";
 
     private PromptDefaults() {
     }

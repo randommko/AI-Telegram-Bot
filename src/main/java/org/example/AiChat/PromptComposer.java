@@ -23,7 +23,6 @@ import static org.example.Settings.Settings.AI_PROMPT_EMOTIONS_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_MEMORY_CORE_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_MEMORY_REGULAR_HEADER;
 import static org.example.Settings.Settings.AI_PROMPT_PEOPLE_HEADER;
-import static org.example.Settings.Settings.AI_PROMPT_SERVICE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PROMPT_TECHNICAL;
 import static org.example.Settings.Settings.AI_PROMPT_TIME_TEMPLATE;
 import static org.example.Settings.Settings.AI_PROMPT_TIME_ZONE;
@@ -44,7 +43,8 @@ public class PromptComposer {
     static final int DEFAULT_MEMORY_PROMPT_SIZE = 30;
     /** Предупреждение, а не обрезка: резать правила поведения опаснее, чем передать их целиком. */
     static final int TECHNICAL_BUDGET = 800;
-    static final int PERSONA_BUDGET = 6000;
+    /** Промпт Юры с примерами — 7,2k символов, поэтому бюджет поднят, чтобы не писать WARN на каждый ответ. */
+    static final int PERSONA_BUDGET = 8000;
 
     private static final Locale RU = Locale.forLanguageTag("ru");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", RU);
@@ -95,7 +95,6 @@ public class PromptComposer {
         add(sections, PromptSection.TIME, time());
         add(sections, PromptSection.ANSWER_FORMAT,
                 applyLength(text(AI_PROMPT_ANSWER_FORMAT, PromptDefaults.ANSWER_FORMAT)));
-        add(sections, PromptSection.SERVICE, service(chatId));
 
         String prompt = String.join("\n\n", sections.stream().map(PromptComposer::render).toList());
         logger.info("Системный промпт чата {}: разделов {}, символов {}", chatId, sections.size(), prompt.length());
@@ -243,15 +242,6 @@ public class PromptComposer {
             logger.warn("Некорректный часовой пояс '{}': используется {}", configured, PromptDefaults.TIME_ZONE);
             return ZoneId.of(PromptDefaults.TIME_ZONE);
         }
-    }
-
-    private String service(long chatId) {
-        int resets = aiChatRepository.getResets(chatId);
-        if (resets <= 0)
-            return "";
-
-        return text(AI_PROMPT_SERVICE_TEMPLATE, PromptDefaults.SERVICE_TEMPLATE)
-                .replace("{resets}", String.valueOf(resets));
     }
 
     private static boolean same(MessageAuthor left, MessageAuthor right) {
