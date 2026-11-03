@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.AI_SYSTEM_ROLE;
+import static org.example.Settings.Settings.USER_ROLE;
 
 /**
  * Первый шаг ответа: модель получает собранный промпт и историю, а возвращает
@@ -46,7 +47,10 @@ public class AnswerPlanner {
 
         ArrayNode messages = history.messages(chatId);
         messages.insert(0, history.message(AI_SYSTEM_ROLE, planInstruction(chatId, maxReplies)));
-        messages.insert(0, history.message(AI_SYSTEM_ROLE, composer.compose(chatId).text()));
+        messages.insert(0, history.message(AI_SYSTEM_ROLE, composer.composeForPlan(chatId).text()));
+        // Инструкция последним сообщением: модель отвечает на неё, а не продолжает беседу.
+        messages.add(history.message(USER_ROLE,
+                "Составь план ответа на последнее сообщение собеседника. Верни только JSON."));
 
         String raw = deepSeekClient.sendRequestToAi(messages, PLAN_TEMPERATURE, planMaxTokens());
         Optional<AnswerPlan> plan = parser.parse(raw, maxReplies);
@@ -65,7 +69,8 @@ public class AnswerPlanner {
     }
 
     private String planInstruction(long chatId, int maxReplies) {
-        return "Сначала спланируй ответ. Верни ТОЛЬКО JSON-объект без пояснений:\n"
+        return "Ты планировщик ответа, а не персона. Не отвечай собеседнику и не пиши в его стиле.\n"
+                + "Верни ТОЛЬКО JSON-объект без пояснений и без текста вокруг:\n"
                 + "{\"topic\": \"тема короткой фразой\", \"intent\": \"question|remark|insult|apology|ignore\","
                 + " \"memory_ids\": [1, 2], \"emotion\": {\"гнев\": 2, \"радость\": -1},"
                 + " \"emotion_reason\": \"почему так\", \"replies\": 1, \"targets\": [\"@ник\"]}\n"

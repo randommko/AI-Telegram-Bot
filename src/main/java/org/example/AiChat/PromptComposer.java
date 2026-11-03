@@ -132,6 +132,24 @@ public class PromptComposer {
         }
     }
 
+    /**
+     * Контекст для шага «план»: без характера, техники и формата ответа.
+     * Полный промпт персоны заставляет модель отвечать в роли вместо JSON.
+     */
+    public ComposedPrompt composeForPlan(long chatId) {
+        Optional<Persona> persona = personaFor(chatId);
+
+        List<Section> sections = new ArrayList<>();
+        add(sections, PromptSection.EMOTIONS, emotions(persona, true));
+        add(sections, PromptSection.MEMORY, memories(persona, null));
+        add(sections, PromptSection.PEOPLE, people(chatId));
+        add(sections, PromptSection.TIME, time());
+
+        String prompt = String.join("\n\n", sections.stream().map(PromptComposer::render).toList());
+        logger.info("Контекст плана чата {}: разделов {}, символов {}", chatId, sections.size(), prompt.length());
+        return new ComposedPrompt(List.copyOf(sections), prompt);
+    }
+
     private static String render(Section section) {
         String heading = section.spec().heading();
         return heading == null ? section.body() : heading + "\n" + section.body();

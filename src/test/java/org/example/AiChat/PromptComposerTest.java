@@ -287,6 +287,26 @@ class PromptComposerTest {
         assertEquals(2, pool.regular().get(0).id());
     }
 
+    @Test
+    void planContextOmitsPersonaAndAnswerFormat() {
+        withPersona();
+        when(emotionService.bodyFor(PERSONA_ID, true)).thenReturn("- Гнев 8/10: орёшь");
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(memory(1, "ядро")));
+        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
+                userMessage("привет", 1L, "@nick", "Ник")));
+
+        PromptComposer.ComposedPrompt context = composer.composeForPlan(CHAT_ID);
+
+        List<PromptSection> keys = context.sections().stream()
+                .map(PromptComposer.Section::spec)
+                .toList();
+        assertEquals(List.of(PromptSection.EMOTIONS, PromptSection.MEMORY,
+                PromptSection.PEOPLE, PromptSection.TIME), keys);
+        assertFalse(context.text().contains("Ты Юра"), "характер в план не попадает");
+        assertFalse(context.text().contains("Ты участник этого чата"), "техника в план не попадает");
+        assertFalse(context.text().contains("## Как отвечать"), context.text());
+    }
+
     private static MemoryRecord memory(int id, String content) {
         return new MemoryRecord(id, "другое", content, 5, false, null, List.of());
     }

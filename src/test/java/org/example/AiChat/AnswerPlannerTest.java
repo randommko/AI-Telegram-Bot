@@ -52,7 +52,8 @@ class AnswerPlannerTest {
     void setUp() {
         planner = new AnswerPlanner(composer, history, deepSeekClient, settings, grudges, new AnswerPlanParser());
 
-        when(composer.compose(CHAT_ID)).thenReturn(new PromptComposer.ComposedPrompt(List.of(), "СИСТЕМА"));
+        when(composer.composeForPlan(CHAT_ID)).thenReturn(
+                new PromptComposer.ComposedPrompt(List.of(), "КОНТЕКСТ БЕЗ ПЕРСОНЫ"));
         when(composer.memoryPool(CHAT_ID)).thenReturn(new PromptComposer.MemoryPool(
                 List.of(),
                 List.of(new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of()))));
@@ -84,11 +85,15 @@ class AnswerPlannerTest {
         ArrayNode messages = payload.getValue();
 
         assertEquals(AI_SYSTEM_ROLE, messages.get(0).get("role").asText());
-        assertEquals("СИСТЕМА", messages.get(0).get("content").asText());
+        assertEquals("КОНТЕКСТ БЕЗ ПЕРСОНЫ", messages.get(0).get("content").asText());
         String instruction = messages.get(1).get("content").asText();
+        assertTrue(instruction.contains("Ты планировщик"), instruction);
         assertTrue(instruction.contains("2 | хобби | шахматы"), instruction);
         assertTrue(instruction.contains("@nick (Ник), сила 6"), instruction);
         assertEquals("@nick (Ник): привет", messages.get(2).get("content").asText());
+        assertEquals(USER_ROLE, messages.get(messages.size() - 1).get("role").asText());
+        assertTrue(messages.get(messages.size() - 1).get("content").asText().contains("Составь план"),
+                messages.get(messages.size() - 1).get("content").asText());
     }
 
     @Test
