@@ -20,14 +20,14 @@ public class AnswerGenerator {
 
     private final PromptComposer composer;
     private final AiHistory history;
-    private final DeepSeekClient deepSeekClient;
+    private final LlmClient llmClient;
     private final ReplyParser parser;
 
-    public AnswerGenerator(PromptComposer composer, AiHistory history, DeepSeekClient deepSeekClient,
+    public AnswerGenerator(PromptComposer composer, AiHistory history, LlmClient llmClient,
                            ReplyParser parser) {
         this.composer = composer;
         this.history = history;
-        this.deepSeekClient = deepSeekClient;
+        this.llmClient = llmClient;
         this.parser = parser;
     }
 
@@ -46,7 +46,7 @@ public class AnswerGenerator {
         messages.add(history.message(USER_ROLE,
                 "Верни только JSON-объект с полем replies. Никакого текста до или после него."));
 
-        String raw = deepSeekClient.sendJsonRequestToAi(messages, temperature);
+        String raw = llmClient.sendJsonRequestToAi(messages, temperature);
         List<String> result = parser.parse(raw, replies);
 
         if (result.isEmpty()) {
@@ -54,7 +54,7 @@ public class AnswerGenerator {
             logger.warn("Генерация вернула пустой ответ, повтор с уточнением");
             messages.add(history.message(USER_ROLE,
                     "Предыдущий ответ пустой. Верни JSON-объект {\"replies\": [\"реплика\"]} с репликами."));
-            raw = deepSeekClient.sendJsonRequestToAi(messages, 0.2f);
+            raw = llmClient.sendJsonRequestToAi(messages, 0.2f);
             result = parser.parse(raw, replies);
         }
 

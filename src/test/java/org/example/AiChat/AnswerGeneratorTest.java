@@ -39,13 +39,13 @@ class AnswerGeneratorTest {
     @Mock
     private AiHistory history;
     @Mock
-    private DeepSeekClient deepSeekClient;
+    private LlmClient llmClient;
 
     private AnswerGenerator generator;
 
     @BeforeEach
     void setUp() {
-        generator = new AnswerGenerator(composer, history, deepSeekClient, new ReplyParser());
+        generator = new AnswerGenerator(composer, history, llmClient, new ReplyParser());
 
         when(composer.compose(CHAT_ID, List.of(2))).thenReturn(
                 new PromptComposer.ComposedPrompt(List.of(), "СИСТЕМА"));
@@ -60,14 +60,14 @@ class AnswerGeneratorTest {
 
     @Test
     void generationRequestContainsPlanAndTargets() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn("[\"раз\",\"два\",\"три\"]");
+        when(llmClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn("[\"раз\",\"два\",\"три\"]");
 
         List<String> replies = generator.generate(CHAT_ID, PLAN, 3, List.of("@nick"), false, 1.0f);
 
         assertEquals(List.of("раз", "два", "три"), replies);
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendJsonRequestToAi(payload.capture(), eq(1.0f));
+        verify(llmClient).sendJsonRequestToAi(payload.capture(), eq(1.0f));
         ArrayNode messages = payload.getValue();
         assertEquals(AI_SYSTEM_ROLE, messages.get(0).get("role").asText());
         assertEquals("СИСТЕМА", messages.get(0).get("content").asText());
@@ -82,30 +82,30 @@ class AnswerGeneratorTest {
 
     @Test
     void hysteriaIsMentionedInInstruction() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn("[\"раз\"]");
+        when(llmClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn("[\"раз\"]");
 
         generator.generate(CHAT_ID, PLAN, 4, List.of("@nick"), true, 1.0f);
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendJsonRequestToAi(payload.capture(), eq(1.0f));
+        verify(llmClient).sendJsonRequestToAi(payload.capture(), eq(1.0f));
         assertTrue(payload.getValue().get(1).get("content").asText().contains("срыв"));
     }
 
     @Test
     void emptyGenerationIsRetriedOnce() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat()))
+        when(llmClient.sendJsonRequestToAi(any(), anyFloat()))
                 .thenReturn(null)
                 .thenReturn("{\"replies\":[\"раз\"]}");
 
         List<String> replies = generator.generate(CHAT_ID, PLAN, 3, List.of(), false, 1.0f);
 
         assertEquals(List.of("раз"), replies);
-        verify(deepSeekClient, org.mockito.Mockito.times(2)).sendJsonRequestToAi(any(), anyFloat());
+        verify(llmClient, org.mockito.Mockito.times(2)).sendJsonRequestToAi(any(), anyFloat());
     }
 
     @Test
     void emptyAnswerGivesNoReplies() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn(null);
+        when(llmClient.sendJsonRequestToAi(any(), anyFloat())).thenReturn(null);
 
         assertTrue(generator.generate(CHAT_ID, PLAN, 3, List.of(), false, 1.0f).isEmpty());
     }
@@ -113,6 +113,6 @@ class AnswerGeneratorTest {
     @Test
     void zeroRepliesDoNotCallModel() {
         assertTrue(generator.generate(CHAT_ID, PLAN, 0, List.of(), false, 1.0f).isEmpty());
-        verify(deepSeekClient, org.mockito.Mockito.never()).sendJsonRequestToAi(any(), anyFloat());
+        verify(llmClient, org.mockito.Mockito.never()).sendJsonRequestToAi(any(), anyFloat());
     }
 }

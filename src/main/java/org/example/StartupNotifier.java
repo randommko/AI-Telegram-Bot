@@ -1,5 +1,6 @@
 package org.example;
 
+import org.example.AiChat.LlmCatalog;
 import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
 import org.slf4j.Logger;
@@ -12,9 +13,11 @@ import java.net.InetAddress;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 @Component
@@ -46,7 +49,7 @@ public class StartupNotifier {
                 + "Время: " + LocalDateTime.now().format(TIME_FORMAT)
                 + " (" + ZoneId.systemDefault().getId() + ")\n"
                 + "Хост: " + hostName() + "\n"
-                + "Модель: " + settings.getModel() + "\n"
+                + "Модель: " + modelLine() + "\n"
                 + "Температура: " + temperature() + "\n"
                 + "Максимум токенов: " + maxTokens()
                 + adminLine();
@@ -55,6 +58,22 @@ public class StartupNotifier {
             logger.info("Уведомление о запуске отправлено в чат {}", chatId);
         else
             logger.warn("Уведомление о запуске не отправлено в чат {}", chatId);
+    }
+
+    /** Модель, её поставщик и наличие ключа: при пяти провайдерах одного имени модели мало. */
+    private String modelLine() {
+        String configured = settings.getModel();
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(configured);
+        if (found.isEmpty())
+            return configured == null || configured.isBlank() ? DEFAULT_AI_MODEL : configured;
+
+        LlmCatalog.Model model = found.get();
+        Optional<LlmCatalog.Provider> provider = LlmCatalog.providerOf(model);
+        if (provider.isEmpty())
+            return model.id();
+
+        String line = model.id() + " (" + provider.get().title() + ")";
+        return properties.ai().keyFor(provider.get().id()) == null ? line + ", ключа нет" : line;
     }
 
     /** Ссылка на админку — только если она включена паролем. Доступна через SSH-туннель. */

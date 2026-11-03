@@ -31,9 +31,13 @@
 
                 <select th:if="${field.kind == 'select'}"
                         th:id="${field.key}" th:name="${field.key}">
-                    <option th:each="option : ${field.options}"
-                            th:value="${option}" th:text="${option}"
-                            th:selected="${option == field.value}"></option>
+                    <optgroup th:each="group : ${field.options}"
+                              th:label="${group.hasKey} ? ${group.title} : ${group.title + ' — нет ключа ' + group.envName}">
+                        <option th:each="option : ${group.options}"
+                                th:value="${option.value}" th:text="${option.value}"
+                                th:title="${option.title}"
+                                th:selected="${option.value == field.value}"></option>
+                    </optgroup>
                 </select>
 
                 <div class="range-row" th:if="${field.kind == 'range'}">

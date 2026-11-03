@@ -50,7 +50,7 @@ class AiServiceTest {
     @Mock
     private MessageSender sender;
     @Mock
-    private DeepSeekClient deepSeekClient;
+    private LlmClient llmClient;
     @Mock
     private AiChatRepository repository;
     @Mock
@@ -76,7 +76,7 @@ class AiServiceTest {
 
     @BeforeEach
     void setUp() {
-        aiService = new AiService(settings, sender, deepSeekClient, repository, promptComposer, history,
+        aiService = new AiService(settings, sender, llmClient, repository, promptComposer, history,
                 planner, generator, personaRepository, grudges, emotionService, hysteriaService, delay);
 
         when(settings.getFloat(AI_ANSWER_TEMPERATURE, 1.0f)).thenReturn(1.0f);
@@ -133,11 +133,11 @@ class AiServiceTest {
     @Test
     void planFailureFallsBackToOneRequest() {
         when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
-        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
-        verify(deepSeekClient).sendRequestToAi(any(), eq(1.0f));
+        verify(llmClient).sendRequestToAi(any(), eq(1.0f));
         verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
         verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "ответ фолбэка", 100);
     }
@@ -148,7 +148,7 @@ class AiServiceTest {
         when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of());
-        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
@@ -158,7 +158,7 @@ class AiServiceTest {
     @Test
     void chatWithoutPersonaUsesFallback() {
         when(personaRepository.findSettingsForChat(CHAT_ID)).thenReturn(Optional.empty());
-        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ");
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ");
 
         aiService.askAi(CHAT_ID, "привет");
 
@@ -217,7 +217,7 @@ class AiServiceTest {
     void blankQuestionIsNotSentToAi() {
         aiService.askAi(CHAT_ID, " ");
 
-        verifyNoInteractions(planner, generator, deepSeekClient);
+        verifyNoInteractions(planner, generator, llmClient);
         verify(sender).sendMessage(CHAT_ID, "Напиши свой вопрос после команды /ai");
     }
 

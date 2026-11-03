@@ -87,13 +87,39 @@ class BotPropertiesBindingTest {
                 .run(context -> assertThat(context).hasFailed());
     }
 
+    @Test
+    void bindsProviderKeysById() {
+        runner.withPropertyValues(validProperties())
+                .withPropertyValues("bot.ai.key.grok=sk-grok", "bot.ai.key.openai=")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    BotProperties.Ai ai = context.getBean(BotProperties.class).ai();
+                    assertThat(ai.keyFor("deepseek")).isEqualTo("sk-test");
+                    assertThat(ai.keyFor("grok")).isEqualTo("sk-grok");
+                    assertThat(ai.keyFor("openai")).isNull();
+                    assertThat(ai.keyFor("mistral")).isNull();
+                });
+    }
+
+    @Test
+    void startsWithoutAnyProviderKey() {
+        String[] properties = validProperties();
+        properties[4] = "bot.ai.key.deepseek=";
+
+        runner.withPropertyValues(properties)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(BotProperties.class).ai().keyFor("deepseek")).isNull();
+                });
+    }
+
     private String[] validProperties() {
         return new String[]{
                 "bot.token=123:token",
                 "bot.db.url=jdbc:postgresql://db-host:5432/telegram_bot_db",
                 "bot.db.user=app_user",
                 "bot.db.password=secret",
-                "bot.ai.key=sk-test"
+                "bot.ai.key.deepseek=sk-test"
         };
     }
 

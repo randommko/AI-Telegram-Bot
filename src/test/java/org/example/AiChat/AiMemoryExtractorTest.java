@@ -46,7 +46,7 @@ class AiMemoryExtractorTest {
     @Mock
     private MemoryRepository memoryRepository;
     @Mock
-    private DeepSeekClient deepSeekClient;
+    private LlmClient llmClient;
     @Mock
     private SettingsService settings;
 
@@ -55,7 +55,7 @@ class AiMemoryExtractorTest {
     @BeforeEach
     void setUp() {
         extractor = new AiMemoryExtractor(personaRepository, memoryRepository,
-                new MemoryExtractionParser(), deepSeekClient, settings);
+                new MemoryExtractionParser(), llmClient, settings);
 
         lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MESSAGES)).thenReturn("50");
         lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MAX_TOKENS)).thenReturn("8000");
@@ -71,7 +71,7 @@ class AiMemoryExtractorTest {
 
         extractor.analyzeDueChats();
 
-        verifyNoInteractions(deepSeekClient);
+        verifyNoInteractions(llmClient);
         verify(memoryRepository, never()).apply(anyLong(), anyInt(), any(), anyLong(), anySet(), anyMap());
     }
 
@@ -90,7 +90,7 @@ class AiMemoryExtractorTest {
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
         when(memoryRepository.categories()).thenReturn(Set.of("хобби", "другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of("nick", 111L));
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[{\"category\":\"хобби\",\"content\":\"играет в шахматы\","
                         + "\"importance\":6,\"event_date\":null,\"people\":[\"nick\"]}],"
                         + "\"update\":[],\"delete\":[]}");
@@ -114,13 +114,13 @@ class AiMemoryExtractorTest {
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
 
         extractor.analyzeChat(CHAT, 100);
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any(Float.class), anyInt());
+        verify(llmClient).sendRequestToAi(payload.capture(), any(Float.class), anyInt());
         String user = payload.getValue().get(1).get("content").asText();
         assertTrue(user.contains("] @nick (Ник): привет"), user);
     }
@@ -139,7 +139,7 @@ class AiMemoryExtractorTest {
                 new MemoryRecord(3, "работа", "старая работа", 4, false, null, List.of(), "auto", Instant.EPOCH)));
         when(memoryRepository.categories()).thenReturn(Set.of("хобби", "другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[{\"category\":\"хобби\",\"content\":\"играет в шахматы\","
                         + "\"importance\":6,\"event_date\":null,\"people\":[]}],"
                         + "\"update\":[],\"delete\":[1,2,3]}");
@@ -162,7 +162,7 @@ class AiMemoryExtractorTest {
         AiMemoryExtractor.AnalysisResult result = extractor.analyzeChat(CHAT, 100);
 
         assertEquals(0, result.messages());
-        verifyNoInteractions(deepSeekClient);
+        verifyNoInteractions(llmClient);
     }
 
     @Test
@@ -176,14 +176,14 @@ class AiMemoryExtractorTest {
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
 
         extractor.analyzeChat(CHAT, 300);
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
         ArgumentCaptor<Integer> maxTokens = ArgumentCaptor.forClass(Integer.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any(Float.class), maxTokens.capture());
+        verify(llmClient).sendRequestToAi(payload.capture(), any(Float.class), maxTokens.capture());
         String sent = payload.getValue().get(1).get("content").asText();
         assertTrue(sent.contains("msg-130 от @nick"), "граница задаётся настройкой");
         assertFalse(sent.contains("msg-129 от @nick"));
@@ -202,13 +202,13 @@ class AiMemoryExtractorTest {
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
 
         extractor.analyzeChat(CHAT, 300);
 
         ArgumentCaptor<Integer> maxTokens = ArgumentCaptor.forClass(Integer.class);
-        verify(deepSeekClient).sendRequestToAi(any(ArrayNode.class), any(Float.class), maxTokens.capture());
+        verify(llmClient).sendRequestToAi(any(ArrayNode.class), any(Float.class), maxTokens.capture());
         assertEquals(8000, maxTokens.getValue(), "вне диапазона — берётся значение по умолчанию");
     }
 
@@ -231,7 +231,7 @@ class AiMemoryExtractorTest {
         when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
                 new MemoryRepository.MessageRow(60L, "Сообщение от: @nick: привет")));
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt())).thenReturn(null);
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt())).thenReturn(null);
 
         extractor.analyzeDueChats();
 
@@ -254,7 +254,7 @@ class AiMemoryExtractorTest {
                 new MemoryRecord(6, "хобби", "шахматы", 5, false, null, List.of(), "auto", Instant.EPOCH)));
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[{\"id\":5},{\"id\":6}]}");
 
         extractor.analyzeDueChats();
@@ -280,7 +280,7 @@ class AiMemoryExtractorTest {
                         "manual", Instant.EPOCH)));
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
-        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[{\"id\":7}]}");
 
         extractor.analyzeDueChats();

@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "bot.db.url=jdbc:postgresql://localhost:5432/telegram_bot_db",
                 "bot.db.user=app_user",
                 "bot.db.password=secret",
-                "bot.ai.key=sk-test"
+                "bot.ai.key.deepseek=sk-test"
         })
 @Import(AdminSecurityConfig.class)
 @EnableConfigurationProperties(BotProperties.class)

@@ -1,5 +1,6 @@
 package org.example.Admin;
 
+import org.example.Config.BotProperties;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -27,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdminSettingsValidatorTest {
 
-    private final AdminSettingsValidator validator = new AdminSettingsValidator();
+    private final AdminSettingsValidator validator = new AdminSettingsValidator(new BotProperties(
+            "1:dummy", null, new BotProperties.Ai(Map.of("deepseek", "sk-deep")), null, null));
 
     @Test
     void acceptsValidForm() {
@@ -112,6 +114,25 @@ class AdminSettingsValidatorTest {
         form.put(AI_MODEL_KEY, "gpt-4");
 
         assertTrue(validator.validate(form).containsKey(AI_MODEL_KEY));
+    }
+
+    @Test
+    void rejectsSwitchToProviderWithoutKey() {
+        Map<String, String> form = validForm();
+        form.put(AI_MODEL_KEY, "grok-4.7");
+
+        Map<String, String> errors = validator.validate(form, Map.of(AI_MODEL_KEY, "deepseek-flash"));
+
+        assertTrue(errors.get(AI_MODEL_KEY).contains("BOT_AI_KEY_GROK"), errors.get(AI_MODEL_KEY));
+    }
+
+    @Test
+    void keepsCurrentModelWithoutKeyWhenOtherFieldsChange() {
+        Map<String, String> form = validForm();
+        form.put(AI_MODEL_KEY, "grok-4.7");
+        form.put(AI_ANSWER_TEMPERATURE, "1.2");
+
+        assertTrue(validator.validate(form, Map.of(AI_MODEL_KEY, "grok-4.7")).isEmpty());
     }
 
     @Test

@@ -1,10 +1,12 @@
 package org.example.Admin;
 
-import org.example.Settings.Settings;
+import org.example.AiChat.LlmCatalog;
+import org.example.Config.BotProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_GRUDGE_ANGER_DELTA;
@@ -32,11 +34,25 @@ public class AdminSettingsValidator {
     static final int MAX_ANALYSIS_MESSAGES = 1000;
     static final String NAME_PLACEHOLDER = "{name}";
 
+    private final BotProperties properties;
+
+    public AdminSettingsValidator(BotProperties properties) {
+        this.properties = properties;
+    }
+
     public Map<String, String> validate(Map<String, String> values) {
+        return validate(values, Map.of());
+    }
+
+    /**
+     * Сохранённые значения нужны из-за правила ключа: переключиться на поставщика без ключа
+     * нельзя, а уже выбранная модель без ключа не должна блокировать остальные поля вкладки.
+     */
+    public Map<String, String> validate(Map<String, String> values, Map<String, String> stored) {
         Map<String, String> errors = new LinkedHashMap<>();
 
         requireText(values, AI_MODEL_KEY, "Модель не может быть пустой", errors);
-        modelFromList(values, errors);
+        modelFromCatalog(values, stored, errors);
         requireText(values, AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа не может быть пустым", errors);
         decimalInRange(values, AI_ANSWER_TEMPERATURE, 0f, MAX_TEMPERATURE,
                 "Температура должна быть числом от 0 до 2", errors);
@@ -69,13 +85,25 @@ public class AdminSettingsValidator {
         return errors;
     }
 
-    /** Модель должна быть из списка, который умеет клиент. */
-    private void modelFromList(Map<String, String> values, Map<String, String> errors) {
+    /** Модель должна быть в каталоге, а её поставщик — с ключом, если модель меняется. */
+    private void modelFromCatalog(Map<String, String> values, Map<String, String> stored,
+                                  Map<String, String> errors) {
         String value = values.get(AI_MODEL_KEY);
         if (value == null || value.isBlank())
             return;
-        if (!Settings.AVAILABLE_AI_MODELS.contains(value.trim()))
+
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(value);
+        if (found.isEmpty()) {
             errors.put(AI_MODEL_KEY, "Модели «" + value.trim() + "» нет в списке доступных");
+            return;
+        }
+        if (value.trim().equals(stored.getOrDefault(AI_MODEL_KEY, "").trim()))
+            return;
+
+        LlmCatalog.Provider provider = LlmCatalog.providerOf(found.get()).orElse(null);
+        if (provider != null && properties.ai().keyFor(provider.id()) == null)
+            errors.put(AI_MODEL_KEY, "У поставщика " + provider.title() + " нет ключа в окружении ("
+                    + provider.envName() + "): выберите модель другого поставщика");
     }
 
     private void requireText(Map<String, String> values, String key, String message, Map<String, String> errors) {

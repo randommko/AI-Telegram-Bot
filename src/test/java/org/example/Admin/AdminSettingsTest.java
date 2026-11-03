@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "bot.db.url=jdbc:postgresql://localhost:5432/telegram_bot_db",
                 "bot.db.user=app_user",
                 "bot.db.password=secret",
-                "bot.ai.key=sk-test"
+                "bot.ai.key.deepseek=sk-test"
         })
 @Import({AdminSecurityConfig.class, AdminSettingsValidator.class})
 @EnableConfigurationProperties(BotProperties.class)
@@ -65,15 +65,51 @@ class AdminSettingsTest {
     @Test
     void rendersStoredValues() throws Exception {
         when(settings.listAll()).thenReturn(List.of(
-                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-chat", "Модель для ответов")));
+                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-flash", "Модель для ответов")));
 
         mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("deepseek-chat")))
+                .andExpect(content().string(containsString("deepseek-flash")))
                 .andExpect(content().string(containsString("Модель")))
                 .andExpect(content().string(containsString("Настройки")))
                 .andExpect(content().string(containsString("data-tip=\"Модель для ответов\"")))
                 .andExpect(content().string(containsString("перезапуск не нужен")));
+    }
+
+    @Test
+    void groupsModelsByProviderAndMarksMissingKeys() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<optgroup")))
+                .andExpect(content().string(containsString("label=\"DeepSeek\"")))
+                .andExpect(content().string(containsString("label=\"OpenAI — нет ключа BOT_AI_KEY_OPENAI\"")))
+                .andExpect(content().string(containsString("label=\"Grok — нет ключа BOT_AI_KEY_GROK\"")));
+    }
+
+    @Test
+    void rejectsSwitchToProviderWithoutKey() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-flash", null)));
+
+        mockMvc.perform(formWith(Map.of(AI_MODEL_KEY, "grok-4.7")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("BOT_AI_KEY_GROK")));
+
+        verify(settings, never()).save(anyString(), anyString());
+    }
+
+    @Test
+    void savesOtherFieldsWhenStoredModelHasNoKey() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MODEL_KEY, "grok-4.7", null)));
+
+        mockMvc.perform(formWith(Map.of(AI_MODEL_KEY, "grok-4.7", AI_ANSWER_TEMPERATURE, "1.2")))
+                .andExpect(redirectedUrl("/admin/settings?tab=model&saved"));
+
+        verify(settings).save(AI_MODEL_KEY, "grok-4.7");
+        verify(settings).save(AI_ANSWER_TEMPERATURE, "1.2");
     }
 
     @Test

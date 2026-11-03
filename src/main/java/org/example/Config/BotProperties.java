@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.Map;
+
 /**
  * Конфигурация запуска из переменных окружения BOT_*.
  * Группы вложенные, потому что релаксированный биндинг отображает BOT_DB_URL в bot.db.url.
@@ -45,7 +47,24 @@ public record BotProperties(
     public record Db(@NotBlank String url, @NotBlank String user, @NotBlank String password) {
     }
 
-    public record Ai(@NotBlank String key) {
+    /**
+     * Ключи провайдеров ИИ: bot.ai.key.deepseek ← BOT_AI_KEY_DEEPSEEK и так далее.
+     * Ключ не обязателен: без него провайдер просто считается недоступным.
+     */
+    public record Ai(Map<String, String> key) {
+
+        public Ai {
+            key = key == null ? Map.of() : Map.copyOf(key);
+        }
+
+        /** Ключ провайдера по идентификатору из каталога; пустое значение означает «ключа нет». */
+        public String keyFor(String providerId) {
+            if (providerId == null)
+                return null;
+
+            String value = key.get(providerId);
+            return value == null || value.isBlank() ? null : value.trim();
+        }
     }
 
     public record Proxy(String type, String host, Integer port, String user, String pass) {

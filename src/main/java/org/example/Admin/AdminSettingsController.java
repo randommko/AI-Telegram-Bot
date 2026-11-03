@@ -1,6 +1,7 @@
 package org.example.Admin;
 
-import org.example.Settings.Settings;
+import org.example.AiChat.LlmCatalog;
+import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,49 +50,31 @@ public class AdminSettingsController {
     private static final Logger logger = LoggerFactory.getLogger(AdminSettingsController.class);
     private static final String DEFAULT_TAB = "model";
 
-    /** Поле формы: ключ настройки, подпись, вид ввода и границы для ползунка. */
-    record Field(String key, String title, String kind, String min, String max, String step, List<String> options) {
+    /** Опция списка моделей: значение — идентификатор модели, title — описание для подсказки. */
+    public record Option(String value, String title) {
+    }
+
+    /** Группа опций — поставщик; hasKey=false добавляет к заголовку имя недостающей переменной. */
+    public record OptionGroup(String title, boolean hasKey, String envName, List<Option> options) {
     }
 
     /** Поле с текущим значением, описанием из базы и ошибкой. */
     public record FieldView(String key, String title, String kind, String value, String error, String note,
-                            List<String> options, String min, String max, String step) {
+                            List<OptionGroup> options, String min, String max, String step) {
     }
 
     public record TabView(String id, String title, boolean active, List<FieldView> fields) {
     }
 
-    private static final List<TabView> TABS = List.of(
-            new TabView("model", "Модель", false, List.of(
-                    select(AI_MODEL_KEY, "Модель", Settings.AVAILABLE_AI_MODELS),
-                    range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
-                    range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
-                    range(AI_PLAN_MAX_TOKENS, "Лимит токенов плана", "1", "8192", "64"),
-                    range(AI_MEMORY_ANALYSIS_MAX_TOKENS, "Лимит токенов анализа памяти", "1", "8192", "64"),
-                    range(AI_MEMORY_ANALYSIS_MESSAGES, "Сообщений в анализе памяти", "1", "1000", "10"),
-                    range(AI_HISTORY_SIZE, "Сообщений в истории чата", "1", "1000", "10"))),
-            new TabView("memory", "Память", false, List.of(
-                    range(AI_MEMORY_PROMPT_SIZE, "Обычных воспоминаний в промпте", "0", "100", "1"),
-                    range(AI_MEMORY_ANALYZE_EVERY, "Порог анализа переписки", "1", "1000", "1"),
-                    area(AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа переписки"),
-                    range(AI_GRUDGE_INSULT_STRENGTH, "Обида за оскорбление", "0", "10", "1"),
-                    range(AI_GRUDGE_ANGER_DELTA, "Гнев за оскорбление", "0", "10", "1"),
-                    range(AI_GRUDGE_DECAY_PER_HOUR, "Затухание обиды в час", "0", "10", "1"),
-                    range(AI_GRUDGE_THRESHOLD, "Порог адресата колкостей", "0", "10", "1"))),
-            new TabView("prompts", "Промты", false, List.of(
-                    area(AI_CONTEXT, "Промпт чата без персоны"))),
-            new TabView("templates", "Шаблоны", false, List.of(
-                    text(AI_PERSONA_JOIN_TEMPLATE, "Вход персоны в чат"),
-                    text(AI_PERSONA_LEAVE_TEMPLATE, "Выход персоны из чата"))),
-            new TabView("notifications", "Уведомления", false, List.of(
-                    text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"))));
-
     private final SettingsService settings;
     private final AdminSettingsValidator validator;
+    private final BotProperties properties;
 
-    public AdminSettingsController(SettingsService settings, AdminSettingsValidator validator) {
+    public AdminSettingsController(SettingsService settings, AdminSettingsValidator validator,
+                                   BotProperties properties) {
         this.settings = settings;
         this.validator = validator;
+        this.properties = properties;
     }
 
     @GetMapping("/admin/settings")
@@ -105,12 +88,12 @@ public class AdminSettingsController {
     String save(@RequestParam Map<String, String> params, Model model) {
         String tab = tabId(params.get("tab"));
         Map<String, String> values = submitted(params, tab);
-        Map<String, String> errors = validator.validate(values);
+        Map<String, String> stored = storedValues();
+        Map<String, String> errors = validator.validate(values, stored);
 
         if (!errors.isEmpty())
-            return render(model, storedValues(), errors, tab, false, values);
+            return render(model, stored, errors, tab, false, values);
 
-        Map<String, String> stored = storedValues();
         for (Map.Entry<String, String> entry : values.entrySet()) {
             settings.save(entry.getKey(), entry.getValue());
             if (!Objects.equals(stored.get(entry.getKey()), entry.getValue()))
@@ -130,11 +113,11 @@ public class AdminSettingsController {
     }
 
     private List<FieldView> fields(String tab) {
-        for (TabView tabView : TABS) {
+        for (TabView tabView : tabs()) {
             if (tabView.id().equals(tab))
                 return tabView.fields();
         }
-        return TABS.get(0).fields();
+        return tabs().get(0).fields();
     }
 
     private Map<String, String> storedValues() {
@@ -159,7 +142,7 @@ public class AdminSettingsController {
                 .collect(Collectors.toMap(SettingsService.Setting::key, SettingsService.Setting::description));
 
         List<TabView> tabs = new ArrayList<>();
-        for (TabView tabView : TABS) {
+        for (TabView tabView : tabs()) {
             List<FieldView> fields = new ArrayList<>();
             for (FieldView field : tabView.fields()) {
                 String value = values.getOrDefault(field.key(), stored.getOrDefault(field.key(), ""));
@@ -177,12 +160,53 @@ public class AdminSettingsController {
         return "admin/settings";
     }
 
-    private static String tabId(String tab) {
-        for (TabView tabView : TABS) {
+    private String tabId(String tab) {
+        for (TabView tabView : tabs()) {
             if (tabView.id().equals(tab))
                 return tab;
         }
         return DEFAULT_TAB;
+    }
+
+    /** Вкладки собираются на каждый запрос: у групп моделей признак ключа меняется вместе с окружением. */
+    private List<TabView> tabs() {
+        return List.of(
+                new TabView("model", "Модель", false, List.of(
+                        select(AI_MODEL_KEY, "Модель", modelGroups()),
+                        range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
+                        range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
+                        range(AI_PLAN_MAX_TOKENS, "Лимит токенов плана", "1", "8192", "64"),
+                        range(AI_MEMORY_ANALYSIS_MAX_TOKENS, "Лимит токенов анализа памяти", "1", "8192", "64"),
+                        range(AI_MEMORY_ANALYSIS_MESSAGES, "Сообщений в анализе памяти", "1", "1000", "10"),
+                        range(AI_HISTORY_SIZE, "Сообщений в истории чата", "1", "1000", "10"))),
+                new TabView("memory", "Память", false, List.of(
+                        range(AI_MEMORY_PROMPT_SIZE, "Обычных воспоминаний в промпте", "0", "100", "1"),
+                        range(AI_MEMORY_ANALYZE_EVERY, "Порог анализа переписки", "1", "1000", "1"),
+                        area(AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа переписки"),
+                        range(AI_GRUDGE_INSULT_STRENGTH, "Обида за оскорбление", "0", "10", "1"),
+                        range(AI_GRUDGE_ANGER_DELTA, "Гнев за оскорбление", "0", "10", "1"),
+                        range(AI_GRUDGE_DECAY_PER_HOUR, "Затухание обиды в час", "0", "10", "1"),
+                        range(AI_GRUDGE_THRESHOLD, "Порог адресата колкостей", "0", "10", "1"))),
+                new TabView("prompts", "Промты", false, List.of(
+                        area(AI_CONTEXT, "Промпт чата без персоны"))),
+                new TabView("templates", "Шаблоны", false, List.of(
+                        text(AI_PERSONA_JOIN_TEMPLATE, "Вход персоны в чат"),
+                        text(AI_PERSONA_LEAVE_TEMPLATE, "Выход персоны из чата"))),
+                new TabView("notifications", "Уведомления", false, List.of(
+                        text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"))));
+    }
+
+    /** Модели каталога, сгруппированные по поставщику; у поставщика без ключа группа помечается. */
+    private List<OptionGroup> modelGroups() {
+        List<OptionGroup> groups = new ArrayList<>();
+        for (LlmCatalog.Provider provider : LlmCatalog.providers()) {
+            List<Option> options = LlmCatalog.modelsOf(provider.id()).stream()
+                    .map(model -> new Option(model.id(), model.title()))
+                    .toList();
+            groups.add(new OptionGroup(provider.title(),
+                    properties.ai().keyFor(provider.id()) != null, provider.envName(), options));
+        }
+        return groups;
     }
 
     private static FieldView text(String key, String title) {
@@ -193,7 +217,7 @@ public class AdminSettingsController {
         return new FieldView(key, title, "textarea", "", null, "", List.of(), null, null, null);
     }
 
-    private static FieldView select(String key, String title, List<String> options) {
+    private static FieldView select(String key, String title, List<OptionGroup> options) {
         return new FieldView(key, title, "select", "", null, "", options, null, null, null);
     }
 

@@ -40,7 +40,7 @@ class AnswerPlannerTest {
     @Mock
     private AiHistory history;
     @Mock
-    private DeepSeekClient deepSeekClient;
+    private LlmClient llmClient;
     @Mock
     private SettingsService settings;
     @Mock
@@ -50,7 +50,7 @@ class AnswerPlannerTest {
 
     @BeforeEach
     void setUp() {
-        planner = new AnswerPlanner(composer, history, deepSeekClient, settings, grudges, new AnswerPlanParser());
+        planner = new AnswerPlanner(composer, history, llmClient, settings, grudges, new AnswerPlanParser());
 
         when(composer.composeForPlan(CHAT_ID)).thenReturn(
                 new PromptComposer.ComposedPrompt(List.of(), "КОНТЕКСТ БЕЗ ПЕРСОНЫ"));
@@ -71,7 +71,7 @@ class AnswerPlannerTest {
 
     @Test
     void planRequestContainsPromptMemoryAndGrudges() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), eq(0.2f), eq(1500))).thenReturn(
+        when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), eq(1500))).thenReturn(
                 "{\"topic\":\"приветствие\",\"intent\":\"remark\",\"replies\":2}");
 
         Optional<AnswerPlan> plan = planner.plan(CHAT_ID, 4);
@@ -81,7 +81,7 @@ class AnswerPlannerTest {
         assertEquals(2, plan.get().replies());
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendJsonRequestToAi(payload.capture(), eq(0.2f), eq(1500));
+        verify(llmClient).sendJsonRequestToAi(payload.capture(), eq(0.2f), eq(1500));
         ArrayNode messages = payload.getValue();
 
         assertEquals(AI_SYSTEM_ROLE, messages.get(0).get("role").asText());
@@ -98,14 +98,14 @@ class AnswerPlannerTest {
 
     @Test
     void emptyModelAnswerGivesEmptyPlan() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(null);
+        when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(null);
 
         assertTrue(planner.plan(CHAT_ID, 4).isEmpty());
     }
 
     @Test
     void brokenPlanGivesEmptyPlan() {
-        when(deepSeekClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn("не json");
+        when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn("не json");
 
         assertTrue(planner.plan(CHAT_ID, 4).isEmpty());
     }
@@ -113,11 +113,11 @@ class AnswerPlannerTest {
     @Test
     void planTokenLimitFallsBackWhenSettingIsBroken() {
         when(settings.getInt(AI_PLAN_MAX_TOKENS, AnswerPlanner.DEFAULT_PLAN_MAX_TOKENS)).thenReturn(0);
-        when(deepSeekClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(
+        when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(
                 "{\"intent\":\"remark\",\"replies\":1}");
 
         planner.plan(CHAT_ID, 4);
 
-        verify(deepSeekClient).sendJsonRequestToAi(any(), eq(0.2f), eq(AnswerPlanner.DEFAULT_PLAN_MAX_TOKENS));
+        verify(llmClient).sendJsonRequestToAi(any(), eq(0.2f), eq(AnswerPlanner.DEFAULT_PLAN_MAX_TOKENS));
     }
 }

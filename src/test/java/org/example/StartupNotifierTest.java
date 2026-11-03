@@ -2,7 +2,10 @@ package org.example;
 
 import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
@@ -20,6 +23,11 @@ class StartupNotifierTest {
     private final SettingsService settings = mock(SettingsService.class);
     private final MessageSender sender = mock(MessageSender.class);
     private final BotProperties properties = mock(BotProperties.class);
+
+    @BeforeEach
+    void deepSeekKeyPresent() {
+        when(properties.ai()).thenReturn(new BotProperties.Ai(Map.of("deepseek", "sk-deep")));
+    }
 
     @Test
     void addsAdminLinkWhenAdminIsEnabled() {
@@ -87,6 +95,31 @@ class StartupNotifierTest {
         new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), argThat(text -> text.contains("Модель: deepseek-chat")));
+    }
+
+    @Test
+    void namesProviderOfConfiguredModel() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("deepseek-flash");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Модель: deepseek-flash (DeepSeek)") && !text.contains("ключа нет")));
+    }
+
+    @Test
+    void marksMissingKeyOfConfiguredModel() {
+        when(properties.ai()).thenReturn(new BotProperties.Ai(Map.of()));
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("grok-4.7");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Модель: grok-4.7 (Grok), ключа нет")));
     }
 
     @Test

@@ -27,16 +27,16 @@ public class AnswerPlanner {
 
     private final PromptComposer composer;
     private final AiHistory history;
-    private final DeepSeekClient deepSeekClient;
+    private final LlmClient llmClient;
     private final SettingsService settings;
     private final PersonaGrudgeService grudges;
     private final AnswerPlanParser parser;
 
-    public AnswerPlanner(PromptComposer composer, AiHistory history, DeepSeekClient deepSeekClient,
+    public AnswerPlanner(PromptComposer composer, AiHistory history, LlmClient llmClient,
                          SettingsService settings, PersonaGrudgeService grudges, AnswerPlanParser parser) {
         this.composer = composer;
         this.history = history;
-        this.deepSeekClient = deepSeekClient;
+        this.llmClient = llmClient;
         this.settings = settings;
         this.grudges = grudges;
         this.parser = parser;
@@ -52,7 +52,7 @@ public class AnswerPlanner {
         messages.add(history.message(USER_ROLE,
                 "Составь план ответа на последнее сообщение собеседника. Верни только JSON."));
 
-        String raw = deepSeekClient.sendJsonRequestToAi(messages, PLAN_TEMPERATURE, planMaxTokens());
+        String raw = llmClient.sendJsonRequestToAi(messages, PLAN_TEMPERATURE, planMaxTokens());
         Optional<AnswerPlan> plan = parser.parse(raw, maxReplies);
 
         long millis = (System.nanoTime() - started) / 1_000_000;

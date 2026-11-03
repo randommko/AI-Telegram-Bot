@@ -31,7 +31,7 @@ public class AiService {
 
     private final SettingsService settings;
     private final MessageSender sender;
-    private final DeepSeekClient deepSeekClient;
+    private final LlmClient llmClient;
     private final AiChatRepository repository;
     private final PromptComposer promptComposer;
     private final AiHistory history;
@@ -43,14 +43,14 @@ public class AiService {
     private final HysteriaService hysteriaService;
     private final Delay delay;
 
-    public AiService(SettingsService settings, MessageSender sender, DeepSeekClient deepSeekClient,
+    public AiService(SettingsService settings, MessageSender sender, LlmClient llmClient,
                      AiChatRepository repository, PromptComposer promptComposer, AiHistory history,
                      AnswerPlanner planner, AnswerGenerator generator, PersonaRepository personaRepository,
                      PersonaGrudgeService grudges, EmotionService emotionService,
                      HysteriaService hysteriaService, Delay delay) {
         this.settings = settings;
         this.sender = sender;
-        this.deepSeekClient = deepSeekClient;
+        this.llmClient = llmClient;
         this.repository = repository;
         this.promptComposer = promptComposer;
         this.history = history;
@@ -133,7 +133,7 @@ public class AiService {
         ArrayNode messages = history.messages(chatId);
         messages.insert(0, history.message(AI_SYSTEM_ROLE, promptComposer.compose(chatId).text()));
 
-        String answer = deepSeekClient.sendRequestToAi(messages, answerTemperature());
+        String answer = llmClient.sendRequestToAi(messages, answerTemperature());
         if (answer == null)
             return;
 

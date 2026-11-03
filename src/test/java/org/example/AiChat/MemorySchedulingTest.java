@@ -53,8 +53,8 @@ class MemorySchedulingTest {
         }
 
         @Bean
-        DeepSeekClient deepSeekClient() {
-            return mock(DeepSeekClient.class);
+        LlmClient llmClient() {
+            return mock(LlmClient.class);
         }
 
         @Bean
@@ -64,9 +64,9 @@ class MemorySchedulingTest {
 
         @Bean
         AiMemoryExtractor aiMemoryExtractor(PersonaRepository personaRepository, MemoryRepository memoryRepository,
-                                           DeepSeekClient deepSeekClient, SettingsService settingsService) {
+                                           LlmClient llmClient, SettingsService settingsService) {
             return new AiMemoryExtractor(personaRepository, memoryRepository,
-                    new MemoryExtractionParser(), deepSeekClient, settingsService);
+                    new MemoryExtractionParser(), llmClient, settingsService);
         }
     }
 }

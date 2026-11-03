@@ -50,19 +50,19 @@ public class AiMemoryExtractor {
     private final PersonaRepository personaRepository;
     private final MemoryRepository memoryRepository;
     private final MemoryExtractionParser parser;
-    private final DeepSeekClient deepSeekClient;
+    private final LlmClient llmClient;
     private final SettingsService settings;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicBoolean warnedAboutThreshold = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public AiMemoryExtractor(PersonaRepository personaRepository, MemoryRepository memoryRepository,
-                             MemoryExtractionParser parser, DeepSeekClient deepSeekClient,
+                             MemoryExtractionParser parser, LlmClient llmClient,
                              SettingsService settings) {
         this.personaRepository = personaRepository;
         this.memoryRepository = memoryRepository;
         this.parser = parser;
-        this.deepSeekClient = deepSeekClient;
+        this.llmClient = llmClient;
         this.settings = settings;
     }
 
@@ -112,7 +112,7 @@ public class AiMemoryExtractor {
 
         int maxTokens = readBoundedInt(AI_MEMORY_ANALYSIS_MAX_TOKENS, DEFAULT_ANALYSIS_MAX_TOKENS,
                 1, MAX_ANALYSIS_TOKENS);
-        String answer = deepSeekClient.sendRequestToAi(payload, ANALYSIS_TEMPERATURE, maxTokens);
+        String answer = llmClient.sendRequestToAi(payload, ANALYSIS_TEMPERATURE, maxTokens);
         if (answer == null || answer.isBlank())
             throw new IllegalStateException("Модель не вернула ответ анализа памяти");
 
