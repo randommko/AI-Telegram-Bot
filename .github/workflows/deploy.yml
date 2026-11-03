@@ -47,9 +47,6 @@ jobs:
           BOT_AI_KEY_OPENAI=${{ secrets.OPENAI_API_KEY }}
           BOT_AI_KEY_GEMINI=${{ secrets.GEMINI_API_KEY }}
           BOT_AI_KEY_MISTRAL=${{ secrets.MISTRAL_API_KEY }}
-          # Временно, на один релиз: старый jar понимает только это имя, и без него
-          # упавший между scp env и scp jar деплой оставит прод без ключа.
-          BOT_AI_KEY=${{ secrets.DEEPSEEK_API_KEY }}
           BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}
           # Админку открывает VPN-подсеть 10.8.0.0/24, порт ограничен правилом ufw.
           # Локально без этой строки админка остаётся на 127.0.0.1.
