@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 class EmotionServiceTest {
 
     private static final List<Emotion> CATALOG = List.of(
-            new Emotion("радость", "Радость", "", "плюс", -0.25, 1.00, 5, false, 10),
+            new Emotion("радость", "Радость", "", "плюс", 0, 1.00, 5, false, 10),
             new Emotion("печаль", "Печаль", "", "минус", 0, 0.50, 2, false, 20),
             new Emotion("гнев", "Гнев", "", "минус", 0.55, 1.50, 2, false, 30),
             new Emotion("страх", "Страх", "", "минус", 0, 1.00, 2, false, 40),
@@ -59,8 +59,10 @@ class EmotionServiceTest {
     }
 
     @Test
-    void calmPersonaOnItsBaseHasNoAggression() {
-        assertEquals(0, EmotionService.aggression(baseValues(), CATALOG));
+    void calmPersonaStaysInTheLowestAggressionBand() {
+        // Радость больше не вычитается постоянно, поэтому у спокойной персоны остаётся
+        // небольшой фон от сарказма и брезгливости — это нижняя полоса «агрессии нет».
+        assertTrue(EmotionService.aggression(baseValues(), CATALOG) <= 1);
     }
 
     @Test
