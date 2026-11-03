@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
@@ -53,6 +56,9 @@ class AiMemoryExtractorTest {
     void setUp() {
         extractor = new AiMemoryExtractor(personaRepository, memoryRepository,
                 new MemoryExtractionParser(), deepSeekClient, settings);
+
+        lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MESSAGES)).thenReturn("50");
+        lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MAX_TOKENS)).thenReturn("8000");
     }
 
     @Test
@@ -138,33 +144,57 @@ class AiMemoryExtractorTest {
     }
 
     @Test
-    void onlyTheLastHundredMessagesAreAnalyzed() throws Exception {
-        when(settings.getSettingValue(AI_MEMORY_ANALYZE_EVERY)).thenReturn("50");
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("300");
+    void analysisLimitsAreReadFromSettings() throws Exception {
         when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
-        when(personaRepository.findAssignedChats()).thenReturn(List.of(CHAT));
+        when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MESSAGES)).thenReturn("20");
+        when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MAX_TOKENS)).thenReturn("6000");
         when(memoryRepository.watermark(1L)).thenReturn(10L);
-        when(memoryRepository.countNewMessages(1L, 10L)).thenReturn(150);
-        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(424L, 300));
-
-        List<MemoryRepository.MessageRow> rows = new ArrayList<>();
-        for (int i = 0; i < 150; i++)
-            rows.add(new MemoryRepository.MessageRow(1000 + i, "msg-" + i + " от @nick"));
-        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(rows);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 150));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(messages(150));
         when(memoryRepository.findByPersona(7)).thenReturn(List.of());
         when(memoryRepository.categories()).thenReturn(Set.of("другое"));
         when(memoryRepository.userIds(any())).thenReturn(Map.of());
         when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
                 .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
 
-        extractor.analyzeDueChats();
+        extractor.analyzeChat(CHAT, 300);
 
         ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any(Float.class), anyInt());
+        ArgumentCaptor<Integer> maxTokens = ArgumentCaptor.forClass(Integer.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any(Float.class), maxTokens.capture());
         String sent = payload.getValue().get(1).get("content").asText();
-        assertTrue(sent.contains("msg-149 от @nick"), "последнее сообщение должно уйти в анализ");
-        assertFalse(sent.contains("msg-49 от @nick"), "старое сообщение должно быть отрезано");
+        assertTrue(sent.contains("msg-130 от @nick"), "граница задаётся настройкой");
+        assertFalse(sent.contains("msg-129 от @nick"));
+        assertEquals(6000, maxTokens.getValue());
         verify(memoryRepository).apply(eq(1L), eq(7), any(), eq(1149L), anySet(), anyMap());
+    }
+
+    @Test
+    void invalidAnalysisLimitsFallBackToDefault() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MESSAGES)).thenReturn("0");
+        when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MAX_TOKENS)).thenReturn("20000");
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 3));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(messages(3));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of());
+        when(memoryRepository.categories()).thenReturn(Set.of("другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
+
+        extractor.analyzeChat(CHAT, 300);
+
+        ArgumentCaptor<Integer> maxTokens = ArgumentCaptor.forClass(Integer.class);
+        verify(deepSeekClient).sendRequestToAi(any(ArrayNode.class), any(Float.class), maxTokens.capture());
+        assertEquals(8000, maxTokens.getValue(), "вне диапазона — берётся значение по умолчанию");
+    }
+
+    private static List<MemoryRepository.MessageRow> messages(int count) {
+        List<MemoryRepository.MessageRow> rows = new ArrayList<>();
+        for (int i = 0; i < count; i++)
+            rows.add(new MemoryRepository.MessageRow(1000 + i, "msg-" + i + " от @nick"));
+        return rows;
     }
 
     @Test

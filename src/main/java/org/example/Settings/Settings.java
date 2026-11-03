@@ -10,6 +10,10 @@ public class Settings {
     public static final String AI_MEMORY_PROMPT_SIZE = "aiMemoryPromptSize";
     public static final String AI_MEMORY_ANALYZE_EVERY = "aiMemoryAnalyzeEvery";
     public static final String AI_MEMORY_EXTRACT_PROMPT = "aiMemoryExtractPrompt";
+    /** Сколько последних новых сообщений уходит в один запрос анализа памяти. */
+    public static final String AI_MEMORY_ANALYSIS_MESSAGES = "aiMemoryAnalysisMessages";
+    /** Бюджет токенов на ответ анализа памяти: reasoning-модель тратит его и на размышления. */
+    public static final String AI_MEMORY_ANALYSIS_MAX_TOKENS = "aiMemoryAnalysisMaxTokens";
     public static final String OWNER_CHAT_ID = "ownerChatId";
     /** Ключ настройки с именем модели; значение по умолчанию — DEFAULT_AI_MODEL. */
     public static final String AI_MODEL_KEY = "aiModel";

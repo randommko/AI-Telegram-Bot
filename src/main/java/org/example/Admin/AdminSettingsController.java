@@ -23,6 +23,8 @@ import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_CONTEXT;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
@@ -59,6 +61,8 @@ public class AdminSettingsController {
                     select(AI_MODEL_KEY, "Модель", Settings.AVAILABLE_AI_MODELS),
                     range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
                     range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
+                    range(AI_MEMORY_ANALYSIS_MAX_TOKENS, "Лимит токенов анализа памяти", "1", "8192", "64"),
+                    range(AI_MEMORY_ANALYSIS_MESSAGES, "Сообщений в анализе памяти", "1", "1000", "10"),
                     range(AI_HISTORY_SIZE, "Сообщений в истории чата", "1", "1000", "10"))),
             new TabView("memory", "Память", false, List.of(
                     range(AI_MEMORY_PROMPT_SIZE, "Обычных воспоминаний в промпте", "0", "100", "1"),

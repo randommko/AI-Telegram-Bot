@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 
@@ -31,8 +33,10 @@ public class AiMemoryExtractor {
     private static final Logger logger = LoggerFactory.getLogger(AiMemoryExtractor.class);
     private static final int DEFAULT_ANALYZE_EVERY = 50;
     private static final int DEFAULT_HISTORY_SIZE = 100;
-    private static final int MAX_MESSAGES_PER_ANALYSIS = 100;
-    private static final int ANALYSIS_MAX_TOKENS = 2000;
+    private static final int DEFAULT_ANALYSIS_MESSAGES = 50;
+    private static final int DEFAULT_ANALYSIS_MAX_TOKENS = 8000;
+    private static final int MAX_ANALYSIS_MESSAGES = 1000;
+    private static final int MAX_ANALYSIS_TOKENS = 8192;
     private static final float ANALYSIS_TEMPERATURE = 0.2f;
     private static final DateTimeFormatter MESSAGE_TIME =
             DateTimeFormatter.ofPattern("dd.MM HH:mm").withZone(ZoneId.systemDefault());
@@ -94,16 +98,21 @@ public class AiMemoryExtractor {
         List<MemoryRepository.MessageRow> messages = memoryRepository.findNewMessages(chat.chatId(), watermark);
         if (messages.isEmpty())
             return new AnalysisResult(0, 0, 0, 0, 0);
-        if (messages.size() > MAX_MESSAGES_PER_ANALYSIS) {
+
+        int messageLimit = readBoundedInt(AI_MEMORY_ANALYSIS_MESSAGES, DEFAULT_ANALYSIS_MESSAGES,
+                1, MAX_ANALYSIS_MESSAGES);
+        if (messages.size() > messageLimit) {
             logger.info("Анализ памяти в чате {}: берём последние {} из {} новых сообщений",
-                    chat.chatId(), MAX_MESSAGES_PER_ANALYSIS, messages.size());
-            messages = messages.subList(messages.size() - MAX_MESSAGES_PER_ANALYSIS, messages.size());
+                    chat.chatId(), messageLimit, messages.size());
+            messages = messages.subList(messages.size() - messageLimit, messages.size());
         }
 
         List<MemoryRecord> existing = memoryRepository.findByPersona(chat.personaId());
         ArrayNode payload = buildMessages(extractPrompt(), existing, messages);
 
-        String answer = deepSeekClient.sendRequestToAi(payload, ANALYSIS_TEMPERATURE, ANALYSIS_MAX_TOKENS);
+        int maxTokens = readBoundedInt(AI_MEMORY_ANALYSIS_MAX_TOKENS, DEFAULT_ANALYSIS_MAX_TOKENS,
+                1, MAX_ANALYSIS_TOKENS);
+        String answer = deepSeekClient.sendRequestToAi(payload, ANALYSIS_TEMPERATURE, maxTokens);
         if (answer == null || answer.isBlank())
             throw new IllegalStateException("Модель не вернула ответ анализа памяти");
 
@@ -195,15 +204,20 @@ public class AiMemoryExtractor {
     }
 
     private int readInt(String key, int defaultValue) {
+        return readBoundedInt(key, defaultValue, 1, Integer.MAX_VALUE);
+    }
+
+    private int readBoundedInt(String key, int defaultValue, int min, int max) {
         String configured = settings.getSettingValue(key);
         if (configured == null)
             return defaultValue;
 
         try {
             int parsed = Integer.parseInt(configured.trim());
-            if (parsed > 0)
+            if (parsed >= min && parsed <= max)
                 return parsed;
-            logger.warn("Некорректное значение настройки {} '{}': используется {}", key, configured, defaultValue);
+            logger.warn("Значение настройки {} '{}' вне диапазона {}..{}: используется {}",
+                    key, configured, min, max, defaultValue);
         } catch (NumberFormatException e) {
             logger.warn("Некорректное значение настройки {} '{}': используется {}", key, configured, defaultValue);
         }

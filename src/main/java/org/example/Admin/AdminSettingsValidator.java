@@ -9,6 +9,8 @@ import java.util.Map;
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
@@ -22,6 +24,7 @@ import static org.example.Settings.Settings.OWNER_CHAT_ID;
 public class AdminSettingsValidator {
     static final float MAX_TEMPERATURE = 2f;
     static final int MAX_TOKENS_LIMIT = 8192;
+    static final int MAX_ANALYSIS_MESSAGES = 1000;
     static final String NAME_PLACEHOLDER = "{name}";
 
     public Map<String, String> validate(Map<String, String> values) {
@@ -34,6 +37,10 @@ public class AdminSettingsValidator {
                 "Температура должна быть числом от 0 до 2", errors);
         integerInRange(values, AI_MAX_TOKENS_ANSWER_QUESTION, 1, MAX_TOKENS_LIMIT,
                 "Лимит токенов должен быть целым от 1 до 8192", errors);
+        integerInRange(values, AI_MEMORY_ANALYSIS_MAX_TOKENS, 1, MAX_TOKENS_LIMIT,
+                "Лимит токенов анализа должен быть целым от 1 до 8192", errors);
+        integerInRange(values, AI_MEMORY_ANALYSIS_MESSAGES, 1, MAX_ANALYSIS_MESSAGES,
+                "Число сообщений анализа должно быть целым от 1 до 1000", errors);
         integerInRange(values, AI_HISTORY_SIZE, 1, Integer.MAX_VALUE,
                 "Размер истории должен быть целым больше нуля", errors);
         integerInRange(values, AI_MEMORY_PROMPT_SIZE, 0, Integer.MAX_VALUE,

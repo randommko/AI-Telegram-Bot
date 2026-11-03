@@ -8,6 +8,8 @@ import java.util.Map;
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
@@ -61,6 +63,18 @@ class AdminSettingsValidatorTest {
 
         form.put(AI_MAX_TOKENS_ANSWER_QUESTION, "9000");
         assertTrue(validator.validate(form).containsKey(AI_MAX_TOKENS_ANSWER_QUESTION));
+    }
+
+    @Test
+    void rejectsAnalysisLimitsOutsideRange() {
+        Map<String, String> form = validForm();
+        form.put(AI_MEMORY_ANALYSIS_MAX_TOKENS, "9000");
+        form.put(AI_MEMORY_ANALYSIS_MESSAGES, "0");
+
+        Map<String, String> errors = validator.validate(form);
+
+        assertTrue(errors.containsKey(AI_MEMORY_ANALYSIS_MAX_TOKENS));
+        assertTrue(errors.containsKey(AI_MEMORY_ANALYSIS_MESSAGES));
     }
 
     @Test
@@ -132,6 +146,8 @@ class AdminSettingsValidatorTest {
         form.put(AI_HISTORY_SIZE, "100");
         form.put(AI_MEMORY_PROMPT_SIZE, "30");
         form.put(AI_MEMORY_ANALYZE_EVERY, "50");
+        form.put(AI_MEMORY_ANALYSIS_MESSAGES, "50");
+        form.put(AI_MEMORY_ANALYSIS_MAX_TOKENS, "8000");
         form.put(AI_MEMORY_EXTRACT_PROMPT, "Ты пополняешь память персоны");
         form.put(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит {name}");
         form.put(AI_PERSONA_LEAVE_TEMPLATE, "{name} покинул чат");
