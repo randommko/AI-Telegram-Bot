@@ -1,24 +1,30 @@
 package org.example.AiChat;
 
+import org.example.Admin.Actor;
+import org.example.Admin.ChangeJournal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.example.Settings.TablesDB.AI_MESSAGES_TABLE;
 import static org.example.Settings.TablesDB.CHAT_PERSONAS_TABLE;
 import static org.example.Settings.TablesDB.PERSONAS_TABLE;
 import static org.example.Settings.TablesDB.PERSONA_ALIASES_TABLE;
+import static org.example.Settings.TablesDB.PERSONA_EMOTIONS_TABLE;
 import static org.example.Settings.TablesDB.PERSONA_MEMORIES_TABLE;
 import static org.example.Settings.TablesDB.TG_CHATS_TABLE;
 
@@ -27,10 +33,12 @@ public class PersonaRepository {
     private static final Logger logger = LoggerFactory.getLogger(PersonaRepository.class);
     private final DataSource dataSource;
     private final EmotionRepository emotions;
+    private final ChangeJournal journal;
 
-    public PersonaRepository(DataSource dataSource, EmotionRepository emotions) {
+    public PersonaRepository(DataSource dataSource, EmotionRepository emotions, ChangeJournal journal) {
         this.dataSource = dataSource;
         this.emotions = emotions;
+        this.journal = journal;
     }
 
     public Optional<Persona> findForChat(long chatId) {
@@ -138,30 +146,84 @@ public class PersonaRepository {
     }
 
     /** Строки списка персон с числом алиасов, воспоминаний и привязанными чатами. */
-    public List<PersonaSummary> findAllWithCounts() {
+    public List<PersonaSummary> findAllWithCounts(Optional<List<Long>> visibleChats) {
         String query = "SELECT p.id, p.name,"
                 + " (SELECT count(*) FROM " + PERSONA_ALIASES_TABLE + " a WHERE a.persona_id = p.id),"
-                + " (SELECT count(*) FROM " + PERSONA_MEMORIES_TABLE + " m WHERE m.persona_id = p.id),"
+                + " (SELECT count(*) FROM " + PERSONA_MEMORIES_TABLE
+                + " m WHERE m.persona_id = p.id AND m.deleted_at IS NULL),"
                 + " (SELECT string_agg(cp.chat_id::text, ', ' ORDER BY cp.chat_id) FROM " + CHAT_PERSONAS_TABLE
                 + " cp WHERE cp.persona_id = p.id)"
-                + " FROM " + PERSONAS_TABLE + " p ORDER BY lower(p.name)";
+                + " FROM " + PERSONAS_TABLE + " p"
+                + visibleChats.map(chats -> " WHERE EXISTS (SELECT 1 FROM " + CHAT_PERSONAS_TABLE
+                + " cp2 WHERE cp2.persona_id = p.id AND cp2.chat_id = ANY(?))").orElse("")
+                + " ORDER BY lower(p.name)";
 
         List<PersonaSummary> personas = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(query);
-             ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next())
-                personas.add(new PersonaSummary(
-                        resultSet.getInt("id"),
-                        resultSet.getString("name"),
-                        resultSet.getInt(3),
-                        resultSet.getInt(4),
-                        resultSet.getString(5)));
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            if (visibleChats.isPresent())
+                statement.setArray(1, longArray(connection, visibleChats.get()));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    personas.add(new PersonaSummary(
+                            resultSet.getInt("id"),
+                            resultSet.getString("name"),
+                            resultSet.getInt(3),
+                            resultSet.getInt(4),
+                            resultSet.getString(5)));
+            }
         } catch (Exception e) {
             logger.error("Ошибка чтения списка персон: ", e);
             return Collections.emptyList();
         }
         return personas;
+    }
+
+    /** Сколько привязок у персоны и сколько из них чужие для набора видимых чатов. */
+    public record PersonaPermission(int total, int foreign) {
+    }
+
+    public PersonaPermission permission(int personaId, List<Long> chatIds) {
+        String query = "SELECT count(*) AS total, count(*) FILTER (WHERE chat_id <> ALL(?)) AS foreign_count"
+                + " FROM " + CHAT_PERSONAS_TABLE + " WHERE persona_id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setArray(1, longArray(connection, chatIds));
+            statement.setInt(2, personaId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return new PersonaPermission(resultSet.getInt("total"), resultSet.getInt("foreign_count"));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка проверки прав на персону {}: ", personaId, e);
+        }
+        return new PersonaPermission(0, 1);
+    }
+
+    /** Персоны, все чаты которых входят в набор: ровно те, что модератор вправе править. */
+    public List<Integer> editablePersonaIds(List<Long> chatIds) {
+        String query = "SELECT persona_id FROM " + CHAT_PERSONAS_TABLE
+                + " GROUP BY persona_id HAVING bool_and(chat_id = ANY(?))";
+
+        List<Integer> ids = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setArray(1, longArray(connection, chatIds));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    ids.add(resultSet.getInt(1));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения доступных персон: ", e);
+        }
+        return ids;
+    }
+
+    private Array longArray(Connection connection, List<Long> ids) throws java.sql.SQLException {
+        return connection.createArrayOf("bigint", ids.toArray());
     }
 
     public Optional<PersonaDetails> findDetails(int id) {
@@ -182,63 +244,119 @@ public class PersonaRepository {
     }
 
     /** Создание персоны, её алиасов и базовых значений эмоций одной транзакцией. */
-    public void create(PersonaDetails details) {
-        String query = "INSERT INTO " + PERSONAS_TABLE + " (name, prompt, aggression_threshold, hysteria_replies,"
-                + " hysteria_cooldown_hours, max_replies, reply_delay_ms, initiative_enabled,"
-                + " initiative_cooldown_messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                + " RETURNING id";
-
+    public void create(PersonaDetails details, Actor actor) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                bindPersona(statement, details);
-                try (ResultSet resultSet = statement.executeQuery()) {
-                    resultSet.next();
-                    int personaId = resultSet.getInt("id");
-                    replaceAliases(connection, personaId, details.aliases());
-                    emotions.saveBaseValues(connection, personaId, details.emotionBaseValues());
-                }
+            try {
+                int personaId = insertPersona(connection, details);
+                journal.record(connection, actor, ChangeJournal.PERSONA, personaId, null, personaId,
+                        Map.of(), fieldsOf(details));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
                 throw e;
+            } finally {
+                connection.setAutoCommit(true);
             }
         } catch (Exception e) {
             logger.error("Ошибка создания персоны {}: ", details.name(), e);
         }
     }
 
+    /**
+     * Персона модератора: карточка и привязка к его чату одной транзакцией.
+     * Беспризорных персон у модератора не появляется.
+     */
+    public void createInChat(PersonaDetails details, long chatId, Actor actor) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                int personaId = insertPersona(connection, details);
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO " + CHAT_PERSONAS_TABLE + " (chat_id, persona_id, assigned_at)"
+                                + " VALUES (?, ?, now()) ON CONFLICT (chat_id) DO UPDATE"
+                                + " SET persona_id = EXCLUDED.persona_id, assigned_at = now()")) {
+                    statement.setLong(1, chatId);
+                    statement.setInt(2, personaId);
+                    statement.executeUpdate();
+                }
+
+                journal.record(connection, actor, ChangeJournal.PERSONA, personaId, null, personaId,
+                        Map.of(), fieldsOf(details));
+                journal.record(connection, actor, ChangeJournal.BINDING, personaId, chatId, personaId,
+                        Map.of("personaId", "без персоны"), Map.of("personaId", personaId));
+                connection.commit();
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка создания персоны {} в чате {}: ", details.name(), chatId, e);
+        }
+    }
+
     /** Обновление карточки, полная замена алиасов и базовых значений эмоций одной транзакцией. */
-    public void update(PersonaDetails details) {
+    public void update(PersonaDetails details, Actor actor) {
         String query = "UPDATE " + PERSONAS_TABLE + " SET name = ?, prompt = ?, aggression_threshold = ?,"
                 + " hysteria_replies = ?, hysteria_cooldown_hours = ?, max_replies = ?, reply_delay_ms = ?,"
                 + " initiative_enabled = ?, initiative_cooldown_messages = ?, updated_at = now() WHERE id = ?";
 
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                bindPersona(statement, details);
-                statement.setInt(10, details.id());
-                statement.executeUpdate();
+            try {
+                Optional<PersonaDetails> current = readDetails(connection, details.id());
+                Map<String, Object> before = new LinkedHashMap<>();
+                Map<String, Object> after = new LinkedHashMap<>();
+                current.ifPresent(previous -> diff(previous, details, before, after));
+
+                try (PreparedStatement statement = connection.prepareStatement(query)) {
+                    bindPersona(statement, details);
+                    statement.setInt(10, details.id());
+                    statement.executeUpdate();
+                }
                 replaceAliases(connection, details.id(), details.aliases());
                 emotions.saveBaseValues(connection, details.id(), details.emotionBaseValues());
+                journal.record(connection, actor, ChangeJournal.PERSONA, details.id(), null, details.id(),
+                        before, after);
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
                 throw e;
+            } finally {
+                connection.setAutoCommit(true);
             }
         } catch (Exception e) {
             logger.error("Ошибка обновления персоны {}: ", details.id(), e);
         }
     }
 
-    public void delete(int id) {
-        String query = "DELETE FROM " + PERSONAS_TABLE + " WHERE id = ?";
-
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setInt(1, id);
-            statement.executeUpdate();
+    public void delete(int id, Actor actor) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                Optional<PersonaDetails> current = readDetails(connection, id);
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM " + PERSONAS_TABLE + " WHERE id = ?")) {
+                    statement.setInt(1, id);
+                    statement.executeUpdate();
+                }
+                current.ifPresent(previous -> {
+                    try {
+                        journal.record(connection, actor, ChangeJournal.PERSONA, id, null, null,
+                                Map.of("name", previous.name()), Map.of());
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                });
+                connection.commit();
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         } catch (Exception e) {
             logger.error("Ошибка удаления персоны {}: ", id, e);
         }
@@ -366,6 +484,91 @@ public class PersonaRepository {
         return values;
     }
 
+    /** Базовые значения эмоций в чужом соединении: журнал и правка живут в одной транзакции. */
+    private Map<String, Integer> emotionValues(Connection connection, int personaId) throws Exception {
+        String query = "SELECT emotion_code, base_value FROM " + PERSONA_EMOTIONS_TABLE
+                + " WHERE persona_id = ? ORDER BY emotion_code";
+
+        Map<String, Integer> values = new LinkedHashMap<>();
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    values.put(resultSet.getString("emotion_code"), resultSet.getInt("base_value"));
+            }
+        }
+        return values;
+    }
+
+    private Optional<PersonaDetails> readDetails(Connection connection, int id) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM " + PERSONAS_TABLE + " WHERE id = ?")) {
+            statement.setInt(1, id);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return Optional.of(details(resultSet, aliases(connection, id), emotionValues(connection, id)));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private int insertPersona(Connection connection, PersonaDetails details) throws Exception {
+        String query = "INSERT INTO " + PERSONAS_TABLE + " (name, prompt, aggression_threshold, hysteria_replies,"
+                + " hysteria_cooldown_hours, max_replies, reply_delay_ms, initiative_enabled,"
+                + " initiative_cooldown_messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                + " RETURNING id";
+
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            bindPersona(statement, details);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                int personaId = resultSet.getInt("id");
+                replaceAliases(connection, personaId, details.aliases());
+                emotions.saveBaseValues(connection, personaId, details.emotionBaseValues());
+                return personaId;
+            }
+        }
+    }
+
+    private Map<String, Object> fieldsOf(PersonaDetails details) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("name", details.name());
+        fields.put("prompt", details.prompt());
+        fields.put("aliases", details.aliases());
+        fields.put("emotionValues", details.emotionBaseValues());
+        fields.put("aggressionThreshold", details.aggressionThreshold());
+        fields.put("hysteriaReplies", details.hysteriaReplies());
+        fields.put("hysteriaCooldownHours", details.hysteriaCooldownHours());
+        fields.put("maxReplies", details.maxReplies());
+        fields.put("replyDelayMs", details.replyDelayMs());
+        fields.put("initiativeEnabled", details.initiativeEnabled());
+        fields.put("initiativeCooldownMessages", details.initiativeCooldownMessages());
+        return fields;
+    }
+
+    /** Только изменившиеся поля: журнал не хранит копию карточки целиком. */
+    private void diff(PersonaDetails before, PersonaDetails after,
+                      Map<String, Object> changesBefore, Map<String, Object> changesAfter) {
+        ChangeJournal.diff(changesBefore, changesAfter, "name", before.name(), after.name());
+        ChangeJournal.diff(changesBefore, changesAfter, "prompt", before.prompt(), after.prompt());
+        ChangeJournal.diff(changesBefore, changesAfter, "aliases", before.aliases(), after.aliases());
+        ChangeJournal.diff(changesBefore, changesAfter, "emotionValues",
+                before.emotionBaseValues(), after.emotionBaseValues());
+        ChangeJournal.diff(changesBefore, changesAfter, "aggressionThreshold",
+                before.aggressionThreshold(), after.aggressionThreshold());
+        ChangeJournal.diff(changesBefore, changesAfter, "hysteriaReplies",
+                before.hysteriaReplies(), after.hysteriaReplies());
+        ChangeJournal.diff(changesBefore, changesAfter, "hysteriaCooldownHours",
+                before.hysteriaCooldownHours(), after.hysteriaCooldownHours());
+        ChangeJournal.diff(changesBefore, changesAfter, "maxReplies", before.maxReplies(), after.maxReplies());
+        ChangeJournal.diff(changesBefore, changesAfter, "replyDelayMs",
+                before.replyDelayMs(), after.replyDelayMs());
+        ChangeJournal.diff(changesBefore, changesAfter, "initiativeEnabled",
+                before.initiativeEnabled(), after.initiativeEnabled());
+        ChangeJournal.diff(changesBefore, changesAfter, "initiativeCooldownMessages",
+                before.initiativeCooldownMessages(), after.initiativeCooldownMessages());
+    }
+
     private PersonaDetails details(ResultSet resultSet, List<String> aliases,
                                    Map<String, Integer> emotionBaseValues) throws Exception {
         return new PersonaDetails(
@@ -385,29 +588,36 @@ public class PersonaRepository {
 
     /** Чат с текущей персоной — строка страницы привязки. */
     public record ChatSummary(long chatId, String title, Integer personaId, String personaName,
-                              java.time.OffsetDateTime assignedAt) {
+                              java.time.OffsetDateTime assignedAt, int messages) {
     }
 
     /** Все известные чаты и их персоны, включая чаты без привязки. */
-    public List<ChatSummary> findAllChats() {
-        String query = "SELECT c.chat_id, c.chat_title, cp.persona_id, p.name, cp.assigned_at"
+    public List<ChatSummary> findAllChats(Optional<List<Long>> visibleChats) {
+        String query = "SELECT c.chat_id, c.chat_title, cp.persona_id, p.name, cp.assigned_at,"
+                + " (SELECT count(*) FROM " + AI_MESSAGES_TABLE + " m WHERE m.chat_id = c.chat_id) AS messages"
                 + " FROM " + TG_CHATS_TABLE + " c"
                 + " LEFT JOIN " + CHAT_PERSONAS_TABLE + " cp ON cp.chat_id = c.chat_id"
                 + " LEFT JOIN " + PERSONAS_TABLE + " p ON p.id = cp.persona_id"
+                + visibleChats.map(chats -> " WHERE c.chat_id = ANY(?)").orElse("")
                 + " ORDER BY c.chat_id";
 
         List<ChatSummary> chats = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(query);
-             ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                Integer personaId = resultSet.getObject("persona_id", Integer.class);
-                chats.add(new ChatSummary(
-                        resultSet.getLong("chat_id"),
-                        resultSet.getString("chat_title"),
-                        personaId,
-                        resultSet.getString("name"),
-                        resultSet.getObject("assigned_at", java.time.OffsetDateTime.class)));
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            if (visibleChats.isPresent())
+                statement.setArray(1, longArray(connection, visibleChats.get()));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    Integer personaId = resultSet.getObject("persona_id", Integer.class);
+                    chats.add(new ChatSummary(
+                            resultSet.getLong("chat_id"),
+                            resultSet.getString("chat_title"),
+                            personaId,
+                            resultSet.getString("name"),
+                            resultSet.getObject("assigned_at", java.time.OffsetDateTime.class),
+                            resultSet.getInt("messages")));
+                }
             }
         } catch (Exception e) {
             logger.error("Ошибка чтения чатов с персонами: ", e);
@@ -419,10 +629,12 @@ public class PersonaRepository {
      * Смена персоны одной транзакцией: привязка, очистка истории и сообщение о входе.
      * Отметка анализа и счётчик сбросов не трогаются. personaId = null снимает привязку.
      */
-    public void switchPersona(long chatId, Integer personaId, String joinMessage) {
+    public void switchPersona(long chatId, Integer personaId, String joinMessage, Actor actor) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
+                Integer previousId = currentPersona(connection, chatId);
+
                 if (personaId == null) {
                     try (PreparedStatement statement = connection.prepareStatement(
                             "DELETE FROM " + CHAT_PERSONAS_TABLE + " WHERE chat_id = ?")) {
@@ -455,6 +667,11 @@ public class PersonaRepository {
                         statement.executeUpdate();
                     }
                 }
+
+                Integer journalPersona = personaId != null ? personaId : previousId;
+                journal.record(connection, actor, ChangeJournal.BINDING, journalPersona, chatId, journalPersona,
+                        Map.of("personaId", String.valueOf(previousId)),
+                        Map.of("personaId", String.valueOf(personaId)));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -465,5 +682,17 @@ public class PersonaRepository {
         } catch (Exception e) {
             logger.error("Ошибка смены персоны в чате {}: ", chatId, e);
         }
+    }
+
+    private Integer currentPersona(Connection connection, long chatId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT persona_id FROM " + CHAT_PERSONAS_TABLE + " WHERE chat_id = ?")) {
+            statement.setLong(1, chatId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getObject("persona_id", Integer.class);
+            }
+        }
+        return null;
     }
 }

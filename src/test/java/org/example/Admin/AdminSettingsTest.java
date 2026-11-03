@@ -2,6 +2,7 @@ package org.example.Admin;
 
 import org.example.Config.BotProperties;
 import org.example.Settings.SettingsService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -49,6 +50,17 @@ class AdminSettingsTest {
 
     @MockitoBean
     private SettingsService settings;
+
+    @MockitoBean
+    private AdminAccess access;
+
+    @MockitoBean
+    private AdminUserDetailsService adminUserDetailsService;
+
+    @BeforeEach
+    void ownerAccess() {
+        when(access.isOwner()).thenReturn(true);
+    }
 
     @Test
     void rendersStoredValues() throws Exception {

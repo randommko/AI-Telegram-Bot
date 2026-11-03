@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Модераторы</h1>
+    <p class="notice" th:if="${saved}" th:text="${saved}"></p>
+    <p class="error" th:if="${error}" th:text="${error}"></p>
+
+    <p class="hint">
+        Модератор входит по логину и паролю и видит только выданные чаты: правит их персоны,
+        не трогая «Настройки», «Эмоции», «Промпт» и эту страницу. Доступ в админку у модератора
+        появляется только через VPN или SSH-туннель — публичного входа нет.
+    </p>
+
+    <form class="setting" th:action="@{/admin/moderators}" method="post">
+        <h2 class="section">Новая учётка</h2>
+
+        <div class="field">
+            <label for="person">Человек — @ник из чата или Telegram id</label>
+            <input type="text" id="person" name="person" placeholder="@vajnaya_sobaka"/>
+            <span class="hint">Человек должен быть боту знаком: он появляется в tg_users после первого сообщения.</span>
+        </div>
+
+        <div class="field">
+            <label for="login">Логин</label>
+            <input type="text" id="login" name="login" autocomplete="off"/>
+            <span class="hint">Логин admin закреплён за владельцем.</span>
+        </div>
+
+        <div class="field">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" autocomplete="new-password"/>
+            <span class="hint">Не короче шести символов; передайте его лично, в чат пароль не уходит.</span>
+        </div>
+
+        <div class="toolbar">
+            <button class="primary" type="submit">Создать</button>
+        </div>
+    </form>
+
+    <table class="list" th:unless="${#lists.isEmpty(accounts)}">
+        <thead>
+        <tr>
+            <th>Логин</th>
+            <th>Человек</th>
+            <th>Чаты</th>
+            <th>Последний вход</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="account : ${accounts}">
+            <td th:text="${account.login}">login</td>
+            <td>
+                <span th:text="${account.name != null ? account.name : '—'}">Имя</span>
+                <span class="hint" th:text="${account.nick != null ? account.nick : ''}">@ник</span>
+            </td>
+            <td>
+                <span class="hint" th:if="${#lists.isEmpty(account.chatIds)}">нет</span>
+                <form th:each="chatId : ${account.chatIds}" style="display:inline"
+                      th:action="@{/admin/moderators/{id}/chats/{chatId}/delete(id=${account.id}, chatId=${chatId})}"
+                      method="post">
+                    <button class="danger" type="submit" th:text="${chatId} + ' ×'">-100 ×</button>
+                </form>
+            </td>
+            <td th:text="${account.lastLoginAt != null ? #temporals.format(account.lastLoginAt, 'dd.MM.yyyy HH:mm') : 'не входил'}">
+                не входил
+            </td>
+            <td>
+                <form class="toolbar" th:action="@{/admin/moderators/{id}/chats(id=${account.id})}" method="post">
+                    <select name="chatId">
+                        <option th:each="chat : ${chats}" th:value="${chat.chatId}"
+                                th:text="${chat.chatId} + ' · ' + ${chat.title != null ? chat.title : 'без названия'}">
+                            чат
+                        </option>
+                    </select>
+                    <button class="button secondary" type="submit">Выдать чат</button>
+                </form>
+
+                <form class="toolbar" th:action="@{/admin/moderators/{id}/password(id=${account.id})}" method="post">
+                    <input type="password" name="password" placeholder="Новый пароль"
+                           autocomplete="new-password"/>
+                    <button class="button secondary" type="submit">Сменить пароль</button>
+                </form>
+
+                <form style="display:inline" th:action="@{/admin/moderators/{id}/delete(id=${account.id})}"
+                      method="post" onsubmit="return confirm('Удалить учётку? Модератор потеряет доступ.')">
+                    <button class="danger" type="submit">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p class="hint" th:if="${#lists.isEmpty(accounts)}">Учёток пока нет.</p>
+</main>
+</body>
+</html>

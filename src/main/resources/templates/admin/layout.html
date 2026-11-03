@@ -92,9 +92,10 @@
         <a th:href="@{/admin/personas}">Персоны</a>
         <a th:href="@{/admin/memories}">Воспоминания</a>
         <a th:href="@{/admin/chats}">Чаты</a>
-        <a th:href="@{/admin/prompt}">Промпт</a>
-        <a th:href="@{/admin/emotions}">Эмоции</a>
-        <a th:href="@{/admin/settings}">Настройки</a>
+        <a th:if="${owner}" th:href="@{/admin/prompt}">Промпт</a>
+        <a th:if="${owner}" th:href="@{/admin/emotions}">Эмоции</a>
+        <a th:if="${owner}" th:href="@{/admin/settings}">Настройки</a>
+        <a th:if="${owner}" th:href="@{/admin/moderators}">Модераторы</a>
         <form th:action="@{/admin/logout}" method="post">
             <button type="submit">Выйти</button>
         </form>

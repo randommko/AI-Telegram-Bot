@@ -6,6 +6,10 @@
 <main>
     <h1 th:text="${title}">Персона</h1>
     <p th:replace="~{admin/layout :: liveData}"></p>
+    <p class="note" th:unless="${editable}">
+        Это общая персона: её чаты выданы не только вам, поэтому карточка открыта только для чтения.
+        Менять её может владелец.
+    </p>
 
     <form class="setting" th:action="@{/admin/personas}" th:object="${form}" method="post"
           th:attr="data-tab=${activeTab}">
@@ -23,7 +27,19 @@
                th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
         </nav>
 
+        <fieldset th:disabled="${!editable}" style="border:0;padding:0;margin:0">
         <section th:classappend="${activeTab != 'general'} ? 'hidden'">
+            <div class="field" th:if="${form.id == null and !owner and !#lists.isEmpty(chats)}">
+                <label for="chatId">Чат персоны</label>
+                <select id="chatId" name="chatId">
+                    <option th:each="chat : ${chats}" th:value="${chat.chatId}"
+                            th:text="${chat.chatId} + ' · ' + ${chat.title != null ? chat.title : 'без названия'}">
+                        -100 · чат
+                    </option>
+                </select>
+                <span class="hint">Персона создаётся сразу в этом чате: без чата она вам не видна.</span>
+            </div>
+
             <div class="field">
                 <label for="name">Имя</label>
                 <input type="text" id="name" th:field="*{name}"/>
@@ -181,12 +197,48 @@
                 </div>
             </fieldset>
         </section>
+        </fieldset>
 
-        <div class="toolbar">
+        <div class="toolbar" th:if="${editable}">
             <button class="primary" type="submit">Сохранить</button>
             <a class="button secondary" th:href="@{/admin/personas}">Отмена</a>
         </div>
+        <div class="toolbar" th:unless="${editable}">
+            <a class="button secondary" th:href="@{/admin/personas}">Назад</a>
+        </div>
     </form>
+
+    <section th:if="${!#lists.isEmpty(history)}">
+        <h2 class="section">История изменений</h2>
+        <table class="list">
+            <thead>
+            <tr>
+                <th>Когда</th>
+                <th>Кто</th>
+                <th>Что</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="entry : ${history}">
+                <td th:text="${#temporals.format(entry.at, 'dd.MM.yyyy HH:mm')}">—</td>
+                <td th:text="${entry.actorLogin}">admin</td>
+                <td>
+                    <span th:text="${entry.entityTitle()}">персона</span>:
+                    <span th:text="${entry.fieldsTitle()}">prompt</span>
+                    <span class="hint" th:if="${entry.entity == 'binding'}">(привязку возвращают только через «Чаты»)</span>
+                </td>
+                <td>
+                    <form th:if="${entry.restorable() and editable}"
+                          th:action="@{/admin/personas/{id}/restore/{changeId}(id=${form.id}, changeId=${entry.id})}"
+                          method="post">
+                        <button class="button secondary" type="submit">Вернуть</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
 </main>
 </body>
 </html>

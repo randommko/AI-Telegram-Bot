@@ -133,7 +133,7 @@ public class AdminPromptController {
     }
 
     private List<ChatView> chats() {
-        return personas.findAllChats().stream()
+        return personas.findAllChats(java.util.Optional.empty()).stream()
                 .map(chat -> new ChatView(chat.chatId(),
                         chat.title() == null || chat.title().isBlank() ? String.valueOf(chat.chatId()) : chat.title(),
                         chat.personaId() != null))

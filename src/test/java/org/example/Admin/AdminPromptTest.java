@@ -54,14 +54,18 @@ class AdminPromptTest {
     private PromptComposer composer;
     @MockitoBean
     private PersonaRepository personas;
+    @MockitoBean
+    private AdminAccess access;
+    @MockitoBean
+    private AdminUserDetailsService adminUserDetailsService;
 
     @Test
     void pageShowsSectionsInAssemblyOrderWithCounter() throws Exception {
         when(settings.listAll()).thenReturn(List.of(
                 new SettingsService.Setting(AI_PROMPT_TECHNICAL, "Техника из базы", "Описание")));
-        when(personas.findAllChats()).thenReturn(List.of(
-                new PersonaRepository.ChatSummary(5L, "Чат с Юрой", 2, "Юра", OffsetDateTime.now()),
-                new PersonaRepository.ChatSummary(6L, "Чат без персоны", null, null, OffsetDateTime.now())));
+        when(personas.findAllChats(any())).thenReturn(List.of(
+                new PersonaRepository.ChatSummary(5L, "Чат с Юрой", 2, "Юра", OffsetDateTime.now(), 0),
+                new PersonaRepository.ChatSummary(6L, "Чат без персоны", null, null, OffsetDateTime.now(), 0)));
 
         mockMvc.perform(get("/admin/prompt").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -114,8 +118,8 @@ class AdminPromptTest {
 
     @Test
     void previewShowsComposedPromptAndChangesNothing() throws Exception {
-        when(personas.findAllChats()).thenReturn(List.of(
-                new PersonaRepository.ChatSummary(5L, "Чат", 2, "Юра", OffsetDateTime.now())));
+        when(personas.findAllChats(any())).thenReturn(List.of(
+                new PersonaRepository.ChatSummary(5L, "Чат", 2, "Юра", OffsetDateTime.now(), 0)));
         when(composer.compose(5L, true)).thenReturn(
                 new PromptComposer.ComposedPrompt(List.of(), "СОБРАННЫЙ ПРОМПТ"));
 
@@ -130,7 +134,7 @@ class AdminPromptTest {
 
     @Test
     void previewOfEmptyDatabaseDoesNotCallComposer() throws Exception {
-        when(personas.findAllChats()).thenReturn(List.of());
+        when(personas.findAllChats(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/prompt/preview").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())

@@ -25,6 +25,7 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,8 +62,23 @@ class AdminPersonaTest {
     @MockitoBean
     private FieldNoteRepository fieldNotes;
 
+    @MockitoBean
+    private AdminAccess access;
+
+    @MockitoBean
+    private AdminUserDetailsService adminUserDetailsService;
+
+    @MockitoBean
+    private ChangeJournal journal;
+
     @BeforeEach
     void catalog() {
+        when(access.isOwner()).thenReturn(true);
+        when(access.canSeePersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
+        when(access.canEditPersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
+        when(access.visibleChats()).thenReturn(Optional.empty());
+        when(access.author()).thenReturn(Optional.of(
+                Actor.owner(270459384L, "@vajnaya_sobaka", "Алексей")));
         when(emotions.findCatalog()).thenReturn(CATALOG);
         when(fieldNotes.findAll()).thenReturn(Map.of(
                 "aggressionThreshold", "Порог, при котором персона срывается",
@@ -71,7 +87,7 @@ class AdminPersonaTest {
 
     @Test
     void rendersPersonaList() throws Exception {
-        when(personas.findAllWithCounts()).thenReturn(List.of(
+        when(personas.findAllWithCounts(any())).thenReturn(List.of(
                 new PersonaSummary(1, "Юра", 5, 26, "-1001347887839")));
 
         mockMvc.perform(get("/admin/personas").with(user("admin").roles("ADMIN")))
@@ -95,7 +111,7 @@ class AdminPersonaTest {
         mockMvc.perform(saveForm())
                 .andExpect(redirectedUrl("/admin/personas"));
 
-        verify(personas).create(any(PersonaDetails.class));
+        verify(personas).create(any(PersonaDetails.class), any());
     }
 
     @Test
@@ -104,7 +120,7 @@ class AdminPersonaTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Радость")));
 
-        verify(personas, never()).create(any());
+        verify(personas, never()).create(any(), any());
     }
 
     @Test
@@ -119,7 +135,7 @@ class AdminPersonaTest {
 
     @Test
     void showsLiveDataNoteOnCardButNotInList() throws Exception {
-        when(personas.findAllWithCounts()).thenReturn(List.of());
+        when(personas.findAllWithCounts(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -157,7 +173,7 @@ class AdminPersonaTest {
                 .andExpect(content().string(containsString("data-tab=\"emotions\"")))
                 .andExpect(content().string(containsString("Гнев: допустимо от 0 до 10")));
 
-        verify(personas, never()).create(any());
+        verify(personas, never()).create(any(), any());
     }
 
     @Test
@@ -167,7 +183,7 @@ class AdminPersonaTest {
                 .andExpect(content().string(containsString("data-tab=\"general\"")))
                 .andExpect(content().string(containsString("Имя не может быть пустым")));
 
-        verify(personas, never()).create(any());
+        verify(personas, never()).create(any(), any());
     }
 
     @Test
@@ -176,7 +192,47 @@ class AdminPersonaTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("командой")));
 
-        verify(personas, never()).create(any());
+        verify(personas, never()).create(any(), any());
+    }
+
+    @Test
+    void moderatorCannotSaveSharedPersona() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(1)).thenReturn(false);
+
+        mockMvc.perform(saveForm("id", "1"))
+                .andExpect(redirectedUrl("/admin/personas/1"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .flash().attribute("error", containsString("только смотреть")));
+
+        verify(personas, never()).update(any(), any());
+    }
+
+    @Test
+    void moderatorCreatesPersonaInHisChat() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.seesChat(-100200L)).thenReturn(true);
+
+        mockMvc.perform(saveForm("chatId", "-100200"))
+                .andExpect(redirectedUrl("/admin/personas"));
+
+        verify(personas).createInChat(any(PersonaDetails.class), eq(-100200L), any());
+        verify(personas, never()).create(any(PersonaDetails.class), any());
+    }
+
+    @Test
+    void restoresPersonaPromptFromJournal() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(journal.find(9)).thenReturn(Optional.of(new ChangeJournal.Entry(9,
+                java.time.OffsetDateTime.now(), "vasya", ChangeJournal.PERSONA, 1, null, 1,
+                Map.of("prompt", "Ты Юра старый"), Map.of("prompt", "Ты Юра"))));
+
+        mockMvc.perform(post("/admin/personas/1/restore/9")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/personas/1"));
+
+        verify(personas).update(org.mockito.ArgumentMatchers.argThat(
+                restored -> "Ты Юра старый".equals(restored.prompt())), any());
     }
 
     @Test
@@ -189,7 +245,7 @@ class AdminPersonaTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .flash().attributeExists("error"));
 
-        verify(personas, never()).delete(anyInt());
+        verify(personas, never()).delete(anyInt(), any());
     }
 
     @Test
@@ -200,7 +256,7 @@ class AdminPersonaTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/personas"));
 
-        verify(personas).delete(1);
+        verify(personas).delete(eq(1), any());
     }
 
     private MockHttpServletRequestBuilder saveForm(String... overrides) {

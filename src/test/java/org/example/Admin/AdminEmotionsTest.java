@@ -4,6 +4,7 @@ import org.example.AiChat.Emotion;
 import org.example.AiChat.EmotionPhrase;
 import org.example.AiChat.EmotionRepository;
 import org.example.Config.BotProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -55,6 +56,17 @@ class AdminEmotionsTest {
 
     @MockitoBean
     private EmotionRepository emotions;
+
+    @MockitoBean
+    private AdminAccess access;
+
+    @MockitoBean
+    private AdminUserDetailsService adminUserDetailsService;
+
+    @BeforeEach
+    void ownerAccess() {
+        when(access.isOwner()).thenReturn(true);
+    }
 
     @Test
     void pageShowsCatalogAndPhrases() throws Exception {

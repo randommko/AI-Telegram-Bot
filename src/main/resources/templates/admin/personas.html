@@ -31,7 +31,7 @@
             <td th:text="${persona.memoryCount}">0</td>
             <td th:text="${persona.chats != null ? persona.chats : '—'}">—</td>
             <td>
-                <form th:action="@{/admin/personas/{id}/delete(id=${persona.id})}" method="post"
+                <form th:if="${owner}" th:action="@{/admin/personas/{id}/delete(id=${persona.id})}" method="post"
                       style="display:inline" onsubmit="return confirm('Удалить персону и её память?')">
                     <button class="danger" type="submit">Удалить</button>
                 </form>

@@ -11,7 +11,7 @@
     <p class="hint">
         Смена персоны отправляет в чат сообщение о выходе и входе и очищает историю диалога:
         новая персона начинает разговор заново. Снятие персоны отправляет только сообщение о выходе,
-        история при этом остаётся.
+        история при этом остаётся. В сообщении о выходе видно, кто снял персону.
     </p>
 
     <table class="list" th:unless="${#lists.isEmpty(groups)}">
@@ -25,7 +25,7 @@
         </tr>
         </thead>
         <tbody th:each="group : ${groups}">
-        <tr class="group-title">
+        <tr class="group-title" th:if="${group.title != null}">
             <td colspan="5" th:text="${group.title}">С персоной</td>
         </tr>
         <tr th:each="chat : ${group.chats}">
@@ -36,19 +36,33 @@
             <td>
                 <form th:action="@{/admin/chats/assign}" method="post" class="toolbar">
                     <input type="hidden" name="chatId" th:value="${chat.chatId}"/>
-                    <select name="personaId">
+                    <select name="personaId" onchange="refreshHistoryWarning(this)"
+                            th:attr="data-current=${chat.personaId},data-messages=${chat.messages}">
                         <option value="" th:selected="${chat.personaId == null}">без персоны</option>
                         <option th:each="persona : ${personas}" th:value="${persona.id}"
                                 th:selected="${chat.personaId == persona.id}"
                                 th:text="${persona.name}">Персона</option>
                     </select>
                     <button class="button" type="submit">Сохранить</button>
+                    <p class="error hidden history-warning"></p>
                 </form>
             </td>
         </tr>
         </tbody>
     </table>
     <p class="hint" th:if="${#lists.isEmpty(groups)}">Чатов пока нет — бот ещё не видел сообщений.</p>
+
+    <script>
+        function refreshHistoryWarning(select) {
+            var note = select.form.querySelector('.history-warning');
+            var messages = parseInt(select.dataset.messages || '0', 10);
+            var current = select.dataset.current || '';
+            var replacing = select.value !== '' && select.value !== current;
+            note.textContent = 'Смена персоны очистит историю чата — ' + messages
+                + ' сообщений. Отменить это будет нельзя.';
+            note.classList.toggle('hidden', !(replacing && messages > 0));
+        }
+    </script>
 </main>
 </body>
 </html>
