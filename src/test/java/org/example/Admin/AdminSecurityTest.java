@@ -65,10 +65,10 @@ class AdminSecurityTest {
     }
 
     @Test
-    void opensOverviewAfterLogin() throws Exception {
+    void opensSettingsAfterLogin() throws Exception {
         mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Персоны")));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/settings"));
     }
 
     @Test

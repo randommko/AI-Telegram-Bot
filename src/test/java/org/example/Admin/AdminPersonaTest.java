@@ -2,6 +2,7 @@ package org.example.Admin;
 
 import org.example.AiChat.Emotion;
 import org.example.AiChat.EmotionRepository;
+import org.example.AiChat.FieldNoteRepository;
 import org.example.AiChat.PersonaDetails;
 import org.example.AiChat.PersonaRepository;
 import org.example.AiChat.PersonaSummary;
@@ -57,9 +58,15 @@ class AdminPersonaTest {
     @MockitoBean
     private EmotionRepository emotions;
 
+    @MockitoBean
+    private FieldNoteRepository fieldNotes;
+
     @BeforeEach
     void catalog() {
         when(emotions.findCatalog()).thenReturn(CATALOG);
+        when(fieldNotes.findAll()).thenReturn(Map.of(
+                "aggressionThreshold", "Порог, при котором персона срывается",
+                "replyDelayMs", "Пауза между репликами"));
     }
 
     @Test
@@ -106,7 +113,50 @@ class AdminPersonaTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Гнев (0..10)")))
                 .andExpect(content().string(containsString("emotionValues[гнев]")))
-                .andExpect(content().string(containsString("Злость и резкость")));
+                .andExpect(content().string(containsString("Злость и резкость")))
+                .andExpect(content().string(containsString("class=\"grid-2\"")));
+    }
+
+    @Test
+    void showsLiveDataNoteOnCardButNotInList() throws Exception {
+        when(personas.findAllWithCounts()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("перезапуск не нужен")));
+
+        mockMvc.perform(get("/admin/personas").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("перезапуск не нужен"))));
+    }
+
+    @Test
+    void showsTipsFromCatalogAndFieldNotes() throws Exception {
+        mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-tip=\"Злость и резкость\"")))
+                .andExpect(content().string(containsString("data-tip=\"Порог, при котором персона срывается\"")));
+    }
+
+    @Test
+    void emotionErrorOpensEmotionsTab() throws Exception {
+        mockMvc.perform(saveForm("emotionValues[гнев]", "11"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-tab=\"emotions\"")))
+                .andExpect(content().string(containsString("Гнев: допустимо от 0 до 10")));
+
+        verify(personas, never()).create(any());
+    }
+
+    @Test
+    void nameErrorOpensGeneralTab() throws Exception {
+        mockMvc.perform(saveForm("name", " "))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-tab=\"general\"")))
+                .andExpect(content().string(containsString("Имя не может быть пустым")));
+
+        verify(personas, never()).create(any());
     }
 
     @Test

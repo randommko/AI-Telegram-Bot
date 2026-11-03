@@ -20,5 +20,6 @@ public final class TablesDB {
     public static final String EMOTIONS_TABLE = "public.emotions";
     public static final String EMOTION_PHRASES_TABLE = "public.emotion_phrases";
     public static final String PERSONA_EMOTIONS_TABLE = "public.persona_emotions";
+    public static final String PERSONA_FIELD_NOTES_TABLE = "public.persona_field_notes";
     public  static final String SETTINGS_TABLE = "bot_settings";
 }

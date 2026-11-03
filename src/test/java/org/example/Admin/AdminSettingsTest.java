@@ -53,19 +53,42 @@ class AdminSettingsTest {
     @Test
     void rendersStoredValues() throws Exception {
         when(settings.listAll()).thenReturn(List.of(
-                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-chat", "Модель")));
+                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-chat", "Модель для ответов")));
 
         mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("deepseek-chat")))
                 .andExpect(content().string(containsString("Модель")))
-                .andExpect(content().string(containsString("Настройки")));
+                .andExpect(content().string(containsString("Настройки")))
+                .andExpect(content().string(containsString("data-tip=\"Модель для ответов\"")))
+                .andExpect(content().string(containsString("перезапуск не нужен")));
+    }
+
+    @Test
+    void hidesTooltipWhenDescriptionIsEmpty() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MODEL_KEY, "deepseek-chat", null)));
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("data-tip=\""))));
+    }
+
+    @Test
+    void showsOnlyFieldsOfTheOpenTab() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=notifications").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Уведомления")))
+                .andExpect(content().string(containsString(org.example.Settings.Settings.OWNER_CHAT_ID)))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Температура ответа"))));
     }
 
     @Test
     void savesValidForm() throws Exception {
         mockMvc.perform(formWith(Map.of()))
-                .andExpect(redirectedUrl("/admin/settings?saved"));
+                .andExpect(redirectedUrl("/admin/settings?tab=model&saved"));
 
         verify(settings).save(AI_MODEL_KEY, "deepseek-flash");
         verify(settings).save(AI_ANSWER_TEMPERATURE, "1.8");
@@ -81,8 +104,17 @@ class AdminSettingsTest {
     }
 
     @Test
+    void rejectsModelOutsideTheList() throws Exception {
+        mockMvc.perform(formWith(Map.of(AI_MODEL_KEY, "gpt-4")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("нет в списке доступных")));
+
+        verify(settings, never()).save(anyString(), anyString());
+    }
+
+    @Test
     void rejectsTemplateWithoutNamePlaceholder() throws Exception {
-        mockMvc.perform(formWith(Map.of(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость")))
+        mockMvc.perform(formWith(Map.of(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость", "tab", "templates")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Шаблон входа должен содержать {name}")));
 
@@ -91,6 +123,7 @@ class AdminSettingsTest {
 
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {
         Map<String, String> form = AdminSettingsValidatorTest.validForm();
+        form.put("tab", "model");
         form.putAll(overrides);
 
         MockHttpServletRequestBuilder builder = post("/admin/settings")

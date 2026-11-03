@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_CONTEXT;
-import static org.example.Settings.Settings.AI_CONTEXT_FOR_MY_CHAT;
-import static org.example.Settings.Settings.MY_CHAT_ID;
 
 /**
  * Персона и промпт чата. Читается из базы на каждый запрос: правки в админке
@@ -28,7 +26,7 @@ public class PersonaService {
         this.settings = settings;
     }
 
-    /** Промпт персоны или настройки, если промпта персоны нет. */
+    /** Промпт персоны или общий промпт чата без персоны. */
     public record ResolvedPrompt(String text, String source) {
     }
 
@@ -40,15 +38,18 @@ public class PersonaService {
         return repository.findAliasesForChat(chatId);
     }
 
+    /**
+     * Персона задаёт промпт чата; если персоны нет или её промпт пуст,
+     * работает один общий промпт чата без персоны — без особого случая для «синего» чата.
+     */
     public Optional<ResolvedPrompt> resolvePrompt(long chatId) {
         Optional<Persona> persona = repository.findForChat(chatId);
         if (persona.isPresent() && hasText(persona.get().prompt()))
             return Optional.of(new ResolvedPrompt(persona.get().prompt(), "persona:" + persona.get().name()));
 
-        String key = chatId == MY_CHAT_ID ? AI_CONTEXT_FOR_MY_CHAT : AI_CONTEXT;
-        String configured = settings.getSettingValue(key);
+        String configured = settings.getSettingValue(AI_CONTEXT);
         if (hasText(configured))
-            return Optional.of(new ResolvedPrompt(configured, "setting:" + key));
+            return Optional.of(new ResolvedPrompt(configured, "setting:" + AI_CONTEXT));
         return Optional.empty();
     }
 

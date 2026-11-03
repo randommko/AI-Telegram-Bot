@@ -1,8 +1,9 @@
 package org.example.Settings;
 
+import java.util.List;
+
 public class Settings {
     public static final String AI_CONTEXT = "aiPromtContext";
-    public static final String AI_CONTEXT_FOR_MY_CHAT = "aiPromtMyChatContext";
     public static final String AI_ANSWER_TEMPERATURE = "aiAnswerTemperature";
     public static final String AI_MAX_TOKENS_ANSWER_QUESTION = "maxTokensQuestion";
     public static final String AI_HISTORY_SIZE = "aiHistorySize";
@@ -13,6 +14,8 @@ public class Settings {
     /** Ключ настройки с именем модели; значение по умолчанию — DEFAULT_AI_MODEL. */
     public static final String AI_MODEL_KEY = "aiModel";
     public static final String DEFAULT_AI_MODEL = "deepseek-flash";
+    /** Модели, которые умеет клиент: список меняется вместе с кодом, а не с данными. */
+    public static final List<String> AVAILABLE_AI_MODELS = List.of("deepseek-chat", "deepseek-flash");
     public static final String AI_PERSONA_JOIN_TEMPLATE = "aiPersonaJoinTemplate";
     public static final String AI_PERSONA_LEAVE_TEMPLATE = "aiPersonaLeaveTemplate";
     public static final Long BOT_ID_PROD = 7332966399L;

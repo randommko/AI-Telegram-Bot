@@ -5,19 +5,51 @@
 <header th:replace="~{admin/layout :: menu}"></header>
 <main>
     <h1 th:text="${title}">Настройки</h1>
+    <p th:replace="~{admin/layout :: liveData}"></p>
     <p class="notice" th:if="${saved}">Сохранено. Новые значения применяются к следующему запросу бота.</p>
+
+    <nav class="tabs">
+        <a th:each="tab : ${tabs}"
+           th:href="@{/admin/settings(tab=${tab.id})}"
+           th:classappend="${tab.active} ? 'active'"
+           th:text="${tab.title}">Модель</a>
+    </nav>
+
     <form class="setting" th:action="@{/admin/settings}" method="post">
-        <section class="group" th:each="group : ${groups}">
-            <h2 th:text="${group.title}">Группа</h2>
-            <div class="field" th:each="field : ${group.fields}">
-                <label th:for="${field.key}" th:text="${field.title}">Поле</label>
+        <input type="hidden" name="tab" th:value="${activeTab}"/>
+
+        <section class="group" th:each="tab : ${tabs}" th:if="${tab.active}">
+            <div class="field" th:each="field : ${tab.fields}">
+                <label th:for="${field.key}">
+                    <span th:text="${field.title}">Поле</span>
+                    <i class="tip" th:if="${field.note != null and field.note != ''}"
+                       th:attr="data-tip=${field.note}" tabindex="0">i</i>
+                </label>
+
                 <textarea th:if="${field.kind == 'textarea'}"
                           th:id="${field.key}" th:name="${field.key}" th:text="${field.value}"></textarea>
-                <input th:unless="${field.kind == 'textarea'}" type="text"
+
+                <select th:if="${field.kind == 'select'}"
+                        th:id="${field.key}" th:name="${field.key}">
+                    <option th:each="option : ${field.options}"
+                            th:value="${option}" th:text="${option}"
+                            th:selected="${option == field.value}"></option>
+                </select>
+
+                <input th:if="${field.kind == 'range'}" type="range"
+                       th:id="${field.key}" th:name="${field.key}"
+                       th:min="${field.min}" th:max="${field.max}" th:step="${field.step}"
+                       th:value="${field.value}"/>
+                <span class="hint" th:if="${field.kind == 'range'}"
+                      th:text="'сейчас сохранено: ' + ${field.value}"></span>
+
+                <input th:if="${field.kind == 'text'}" type="text"
                        th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>
-                <span class="error" th:if="${field.error}" th:text="${field.error}">ошибка</span>
+
+                <span class="error" th:if="${field.error}" th:text="${field.error}"></span>
             </div>
         </section>
+
         <button class="primary" type="submit">Сохранить</button>
     </form>
 </main>

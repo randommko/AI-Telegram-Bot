@@ -88,6 +88,14 @@ class AdminSettingsValidatorTest {
     }
 
     @Test
+    void rejectsModelOutsideTheList() {
+        Map<String, String> form = validForm();
+        form.put(AI_MODEL_KEY, "gpt-4");
+
+        assertTrue(validator.validate(form).containsKey(AI_MODEL_KEY));
+    }
+
+    @Test
     void rejectsOwnerChatIdThatIsNotPositiveNumber() {
         Map<String, String> form = validForm();
         form.put(OWNER_CHAT_ID, "не-id");

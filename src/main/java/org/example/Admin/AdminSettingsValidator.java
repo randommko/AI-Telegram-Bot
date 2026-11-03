@@ -1,5 +1,6 @@
 package org.example.Admin;
 
+import org.example.Settings.Settings;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -27,6 +28,7 @@ public class AdminSettingsValidator {
         Map<String, String> errors = new LinkedHashMap<>();
 
         requireText(values, AI_MODEL_KEY, "Модель не может быть пустой", errors);
+        modelFromList(values, errors);
         requireText(values, AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа не может быть пустым", errors);
         decimalInRange(values, AI_ANSWER_TEMPERATURE, 0f, MAX_TEMPERATURE,
                 "Температура должна быть числом от 0 до 2", errors);
@@ -43,6 +45,15 @@ public class AdminSettingsValidator {
         requirePlaceholder(values, AI_PERSONA_LEAVE_TEMPLATE, "Шаблон выхода должен содержать {name}", errors);
 
         return errors;
+    }
+
+    /** Модель должна быть из списка, который умеет клиент. */
+    private void modelFromList(Map<String, String> values, Map<String, String> errors) {
+        String value = values.get(AI_MODEL_KEY);
+        if (value == null || value.isBlank())
+            return;
+        if (!Settings.AVAILABLE_AI_MODELS.contains(value.trim()))
+            errors.put(AI_MODEL_KEY, "Модели «" + value.trim() + "» нет в списке доступных");
     }
 
     private void requireText(Map<String, String> values, String key, String message, Map<String, String> errors) {

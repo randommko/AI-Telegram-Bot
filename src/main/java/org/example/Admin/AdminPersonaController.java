@@ -2,6 +2,7 @@ package org.example.Admin;
 
 import org.example.AiChat.Emotion;
 import org.example.AiChat.EmotionRepository;
+import org.example.AiChat.FieldNoteRepository;
 import org.example.AiChat.PersonaDetails;
 import org.example.AiChat.PersonaRepository;
 import org.springframework.context.annotation.Conditional;
@@ -11,24 +12,35 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
-/** Карточки персон: имя, промпт, алиасы и базовые значения эмоций из справочника. */
+/** Карточки персон: вкладки «Общее» и «Эмоции», значения эмоций из справочника. */
 @Controller
 @Conditional(AdminPasswordPresentCondition.class)
 public class AdminPersonaController {
+    static final String TAB_GENERAL = "general";
+    static final String TAB_EMOTIONS = "emotions";
+    private static final Set<String> EMOTION_TAB_FIELDS = Set.of(
+            "aggressionThreshold", "hysteriaReplies", "hysteriaCooldownHours",
+            "maxReplies", "replyDelayMs", "initiativeCooldownMessages", "initiativeEnabled");
+    private static final String EMOTION_ERROR_PREFIX = "emotion.";
 
     private final PersonaRepository personas;
     private final EmotionRepository emotions;
+    private final FieldNoteRepository fieldNotes;
     private final AdminPersonaValidator validator;
 
     public AdminPersonaController(PersonaRepository personas, EmotionRepository emotions,
-                                  AdminPersonaValidator validator) {
+                                  FieldNoteRepository fieldNotes, AdminPersonaValidator validator) {
         this.personas = personas;
         this.emotions = emotions;
+        this.fieldNotes = fieldNotes;
         this.validator = validator;
     }
 
@@ -40,27 +52,29 @@ public class AdminPersonaController {
     }
 
     @GetMapping("/admin/personas/new")
-    String create(Model model) {
+    String create(@RequestParam(required = false) String tab, Model model) {
         List<Emotion> catalog = emotions.findCatalog();
-        return form(model, PersonaForm.blank(catalog), null, catalog);
+        return form(model, PersonaForm.blank(catalog), null, catalog, tabId(tab));
     }
 
     @GetMapping("/admin/personas/{id}")
-    String edit(@PathVariable int id, Model model, RedirectAttributes redirect) {
+    String edit(@PathVariable int id, @RequestParam(required = false) String tab,
+                Model model, RedirectAttributes redirect) {
         Optional<PersonaDetails> details = personas.findDetails(id);
         if (details.isEmpty()) {
             redirect.addFlashAttribute("error", "Персона " + id + " не найдена");
             return "redirect:/admin/personas";
         }
         List<Emotion> catalog = emotions.findCatalog();
-        return form(model, PersonaForm.of(details.get(), catalog), null, catalog);
+        return form(model, PersonaForm.of(details.get(), catalog), null, catalog, tabId(tab));
     }
 
     @PostMapping("/admin/personas")
-    String save(@ModelAttribute PersonaForm form, Model model, RedirectAttributes redirect) {
+    String save(@ModelAttribute PersonaForm form, @RequestParam(required = false) String tab,
+                Model model, RedirectAttributes redirect) {
         AdminPersonaValidator.Result result = validator.validate(form);
         if (result.hasErrors())
-            return form(model, form, result.errors(), emotions.findCatalog());
+            return form(model, form, result.errors(), emotions.findCatalog(), tabFor(result.errors(), tab));
 
         PersonaDetails details = result.details();
         if (details.id() == null) {
@@ -87,12 +101,28 @@ public class AdminPersonaController {
         return "redirect:/admin/personas";
     }
 
-    private String form(Model model, PersonaForm form, java.util.Map<String, String> errors,
-                        List<Emotion> catalog) {
+    /** Вкладка ошибки: первая ошибка решает, какую вкладку показать. */
+    private String tabFor(Map<String, String> errors, String requested) {
+        for (String key : errors.keySet()) {
+            if (key.startsWith(EMOTION_ERROR_PREFIX) || EMOTION_TAB_FIELDS.contains(key))
+                return TAB_EMOTIONS;
+            return TAB_GENERAL;
+        }
+        return tabId(requested);
+    }
+
+    private String tabId(String tab) {
+        return TAB_EMOTIONS.equals(tab) ? TAB_EMOTIONS : TAB_GENERAL;
+    }
+
+    private String form(Model model, PersonaForm form, Map<String, String> errors,
+                        List<Emotion> catalog, String tab) {
         model.addAttribute("title", form.id() == null ? "Новая персона" : "Персона " + form.name());
         model.addAttribute("form", form);
         model.addAttribute("emotions", catalog);
-        model.addAttribute("errors", errors == null ? java.util.Map.of() : errors);
+        model.addAttribute("fieldNotes", fieldNotes.findAll());
+        model.addAttribute("activeTab", tab);
+        model.addAttribute("errors", errors == null ? Map.of() : errors);
         return "admin/persona-form";
     }
 }

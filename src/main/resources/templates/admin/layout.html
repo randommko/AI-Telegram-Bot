@@ -64,12 +64,25 @@
         form.analyze { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
         .badge { background: #fdecea; color: #b3261e; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
         select[multiple] { min-height: 120px; }
+        .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid #dcdfe4; }
+        .tabs a { padding: 8px 14px; font-size: 14px; color: #3b4a5f; text-decoration: none;
+                  border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; }
+        .tabs a.active { background: #fff; border-color: #dcdfe4; color: #1d2129; font-weight: 600; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 16px; }
+        .field label { display: flex; align-items: center; }
+        .tip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+               margin-left: 6px; border-radius: 50%; background: #e8eaed; color: #3b4a5f; font-size: 11px;
+               font-style: normal; cursor: help; position: relative; }
+        .tip:hover::after, .tip:focus::after { content: attr(data-tip); position: absolute; left: 0; top: 22px;
+               z-index: 10; width: 280px; background: #1d2129; color: #fff; font-size: 12px; line-height: 1.4;
+               padding: 8px 10px; border-radius: 4px; font-weight: 400; }
+        input[type="range"] { width: 100%; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 <header th:fragment="menu">
     <nav>
-        <a th:href="@{/admin}">Обзор</a>
         <a th:href="@{/admin/personas}">Персоны</a>
         <a th:href="@{/admin/memories}">Воспоминания</a>
         <a th:href="@{/admin/chats}">Чаты</a>
@@ -79,5 +92,8 @@
         </form>
     </nav>
 </header>
+<p th:fragment="liveData" class="note">
+    Админка работает с живыми данными бота: правки применяются к следующему запросу, перезапуск не нужен.
+</p>
 </body>
 </html>

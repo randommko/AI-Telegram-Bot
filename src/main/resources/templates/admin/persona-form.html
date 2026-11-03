@@ -5,87 +5,158 @@
 <header th:replace="~{admin/layout :: menu}"></header>
 <main>
     <h1 th:text="${title}">Персона</h1>
+    <p th:replace="~{admin/layout :: liveData}"></p>
 
-    <form class="setting" th:action="@{/admin/personas}" th:object="${form}" method="post">
+    <form class="setting" th:action="@{/admin/personas}" th:object="${form}" method="post"
+          th:attr="data-tab=${activeTab}">
         <input type="hidden" th:field="*{id}"/>
+        <input type="hidden" name="tab" th:value="${activeTab}"/>
 
-        <div class="field">
-            <label for="name">Имя</label>
-            <input type="text" id="name" th:field="*{name}"/>
-            <span class="error" th:if="${errors['name']}" th:text="${errors['name']}"></span>
-        </div>
+        <nav class="tabs">
+            <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='general')}"
+               th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
+            <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='emotions')}"
+               th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
+            <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='general')}"
+               th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
+            <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='emotions')}"
+               th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
+        </nav>
 
-        <div class="field">
-            <label for="prompt">Промпт — характер персоны</label>
-            <textarea id="prompt" th:field="*{prompt}"></textarea>
-            <span class="error" th:if="${errors['prompt']}" th:text="${errors['prompt']}"></span>
-        </div>
-
-        <div class="field">
-            <label for="aliases">Алиасы — по одному в строке или через запятую</label>
-            <textarea id="aliases" th:field="*{aliases}"></textarea>
-            <span class="hint">Одно слово, не команда бота и не занято другой персоной.</span>
-            <span class="error" th:if="${errors['aliases']}" th:text="${errors['aliases']}"></span>
-        </div>
-
-        <fieldset>
-            <legend>Эмоциональность</legend>
-            <p class="hint">
-                Базовые значения 0..10 — это характер персоны: к ним возвращается настроение.
-                Уровень агрессии вычисляется из эмоций и отдельно не хранится, поэтому его здесь нет.
-            </p>
-
-            <div class="field" th:each="emotion : ${emotions}" th:if="${!emotion.derived}"
-                 th:with="key=${'emotion.' + emotion.code}">
-                <label th:for="${'emotion-' + emotion.code}"
-                       th:text="${emotion.title} + ' (0..10)'">Радость (0..10)</label>
-                <input type="text" th:id="${'emotion-' + emotion.code}"
-                       th:name="${'emotionValues[' + emotion.code + ']'}"
-                       th:value="${form.emotionValues[emotion.code]}"/>
-                <span class="hint" th:text="${emotion.description}"></span>
-                <span class="error" th:if="${errors[key]}" th:text="${errors[key]}"></span>
+        <section th:classappend="${activeTab != 'general'} ? 'hidden'">
+            <div class="field">
+                <label for="name">Имя</label>
+                <input type="text" id="name" th:field="*{name}"/>
+                <span class="error" th:if="${errors['name']}" th:text="${errors['name']}"></span>
             </div>
 
             <div class="field">
-                <label for="aggressionThreshold">Порог срыва, агрессия (1..10)</label>
-                <input type="text" id="aggressionThreshold" th:field="*{aggressionThreshold}"/>
-                <span class="error" th:if="${errors['aggressionThreshold']}"
-                      th:text="${errors['aggressionThreshold']}"></span>
+                <label for="prompt">Промпт — характер персоны</label>
+                <textarea id="prompt" th:field="*{prompt}"></textarea>
+                <span class="error" th:if="${errors['prompt']}" th:text="${errors['prompt']}"></span>
             </div>
+
             <div class="field">
-                <label for="hysteriaReplies">Ответов при срыве (3..5)</label>
-                <input type="text" id="hysteriaReplies" th:field="*{hysteriaReplies}"/>
-                <span class="error" th:if="${errors['hysteriaReplies']}" th:text="${errors['hysteriaReplies']}"></span>
+                <label for="aliases">Алиасы — по одному в строке или через запятую</label>
+                <textarea id="aliases" th:field="*{aliases}"></textarea>
+                <span class="hint">Одно слово, не команда бота и не занято другой персоной.</span>
+                <span class="error" th:if="${errors['aliases']}" th:text="${errors['aliases']}"></span>
             </div>
-            <div class="field">
-                <label for="hysteriaCooldownHours">Пауза срыва, часов (0..168)</label>
-                <input type="text" id="hysteriaCooldownHours" th:field="*{hysteriaCooldownHours}"/>
-                <span class="error" th:if="${errors['hysteriaCooldownHours']}"
-                      th:text="${errors['hysteriaCooldownHours']}"></span>
-            </div>
-            <div class="field">
-                <label for="maxReplies">Максимум ответов (1..6)</label>
-                <input type="text" id="maxReplies" th:field="*{maxReplies}"/>
-                <span class="error" th:if="${errors['maxReplies']}" th:text="${errors['maxReplies']}"></span>
-            </div>
-            <div class="field">
-                <label for="replyDelayMs">Задержка ответа, мс (500..5000)</label>
-                <input type="text" id="replyDelayMs" th:field="*{replyDelayMs}"/>
-                <span class="error" th:if="${errors['replyDelayMs']}" th:text="${errors['replyDelayMs']}"></span>
-            </div>
-            <div class="field">
-                <label>
-                    <input type="checkbox" th:field="*{initiativeEnabled}"/>
-                    Может заговорить первой
-                </label>
-            </div>
-            <div class="field">
-                <label for="initiativeCooldownMessages">Пауза инициативы, сообщений (1..1000)</label>
-                <input type="text" id="initiativeCooldownMessages" th:field="*{initiativeCooldownMessages}"/>
-                <span class="error" th:if="${errors['initiativeCooldownMessages']}"
-                      th:text="${errors['initiativeCooldownMessages']}"></span>
-            </div>
-        </fieldset>
+        </section>
+
+        <section th:classappend="${activeTab != 'emotions'} ? 'hidden'">
+            <fieldset>
+                <legend>Эмоциональность</legend>
+                <p class="hint">
+                    Базовые значения 0..10 — это характер персоны: к ним возвращается настроение.
+                    Уровень агрессии вычисляется из эмоций и отдельно не хранится, поэтому его здесь нет.
+                </p>
+
+                <div class="grid-2">
+                    <div class="field" th:each="emotion : ${emotions}" th:if="${!emotion.derived}">
+                        <label th:for="${'emotion-' + emotion.code}">
+                            <span th:text="${emotion.title} + ' (0..10)'">Радость (0..10)</span>
+                            <i class="tip" tabindex="0"
+                               th:if="${emotion.description != null and emotion.description != ''}"
+                               th:attr="data-tip=${emotion.description}">i</i>
+                        </label>
+                        <input type="range" min="0" max="10" step="1"
+                               th:id="${'emotion-' + emotion.code}"
+                               th:name="${'emotionValues[' + emotion.code + ']'}"
+                               th:value="${form.emotionValues[emotion.code]}"/>
+                        <span class="hint"
+                              th:text="'сохранено: ' + ${form.emotionValues[emotion.code]}"></span>
+                        <span class="error" th:if="${errors['emotion.' + emotion.code]}"
+                              th:text="${errors['emotion.' + emotion.code]}"></span>
+                    </div>
+                </div>
+
+                <h2>Срыв и ответы</h2>
+
+                <div class="field">
+                    <label for="aggressionThreshold">
+                        <span>Порог срыва, агрессия (1..10)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['aggressionThreshold']}"
+                           th:attr="data-tip=${fieldNotes['aggressionThreshold']}">i</i>
+                    </label>
+                    <input type="range" min="1" max="10" step="1"
+                           th:field="*{aggressionThreshold}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.aggressionThreshold}"></span>
+                    <span class="error" th:if="${errors['aggressionThreshold']}"
+                          th:text="${errors['aggressionThreshold']}"></span>
+                </div>
+
+                <div class="field">
+                    <label for="hysteriaReplies">
+                        <span>Ответов при срыве (3..5)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaReplies']}"
+                           th:attr="data-tip=${fieldNotes['hysteriaReplies']}">i</i>
+                    </label>
+                    <input type="range" min="3" max="5" step="1"
+                           th:field="*{hysteriaReplies}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.hysteriaReplies}"></span>
+                    <span class="error" th:if="${errors['hysteriaReplies']}"
+                          th:text="${errors['hysteriaReplies']}"></span>
+                </div>
+
+                <div class="field">
+                    <label for="hysteriaCooldownHours">
+                        <span>Пауза срыва, часов (0..168)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['hysteriaCooldownHours']}"
+                           th:attr="data-tip=${fieldNotes['hysteriaCooldownHours']}">i</i>
+                    </label>
+                    <input type="range" min="0" max="168" step="1"
+                           th:field="*{hysteriaCooldownHours}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.hysteriaCooldownHours}"></span>
+                    <span class="error" th:if="${errors['hysteriaCooldownHours']}"
+                          th:text="${errors['hysteriaCooldownHours']}"></span>
+                </div>
+
+                <div class="field">
+                    <label for="maxReplies">
+                        <span>Максимум ответов (1..6)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['maxReplies']}"
+                           th:attr="data-tip=${fieldNotes['maxReplies']}">i</i>
+                    </label>
+                    <input type="range" min="1" max="6" step="1"
+                           th:field="*{maxReplies}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.maxReplies}"></span>
+                    <span class="error" th:if="${errors['maxReplies']}" th:text="${errors['maxReplies']}"></span>
+                </div>
+
+                <div class="field">
+                    <label for="replyDelayMs">
+                        <span>Задержка ответа, мс (500..5000)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['replyDelayMs']}"
+                           th:attr="data-tip=${fieldNotes['replyDelayMs']}">i</i>
+                    </label>
+                    <input type="range" min="500" max="5000" step="100"
+                           th:field="*{replyDelayMs}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.replyDelayMs}"></span>
+                    <span class="error" th:if="${errors['replyDelayMs']}" th:text="${errors['replyDelayMs']}"></span>
+                </div>
+
+                <div class="field">
+                    <label>
+                        <input type="checkbox" th:field="*{initiativeEnabled}"/>
+                        Может заговорить первой
+                    </label>
+                </div>
+
+                <div class="field">
+                    <label for="initiativeCooldownMessages">
+                        <span>Пауза инициативы, сообщений (1..1000)</span>
+                        <i class="tip" tabindex="0" th:if="${fieldNotes['initiativeCooldownMessages']}"
+                           th:attr="data-tip=${fieldNotes['initiativeCooldownMessages']}">i</i>
+                    </label>
+                    <input type="range" min="1" max="1000" step="1"
+                           th:field="*{initiativeCooldownMessages}"/>
+                    <span class="hint" th:text="'сохранено: ' + ${form.initiativeCooldownMessages}"></span>
+                    <span class="error" th:if="${errors['initiativeCooldownMessages']}"
+                          th:text="${errors['initiativeCooldownMessages']}"></span>
+                </div>
+            </fieldset>
+        </section>
 
         <div class="toolbar">
             <button class="primary" type="submit">Сохранить</button>
