@@ -44,9 +44,9 @@ public class AnswerGenerator {
                 composer.compose(chatId, plan.memoryIds()).text()));
         // Финальное требование отдельным сообщением: иначе персона отвечает прозой в чат.
         messages.add(history.message(USER_ROLE,
-                "Верни только JSON-массив строк с репликами. Никакого текста до или после массива."));
+                "Верни только JSON-объект с полем replies. Никакого текста до или после него."));
 
-        String raw = deepSeekClient.sendRequestToAi(messages, temperature);
+        String raw = deepSeekClient.sendJsonRequestToAi(messages, temperature);
         List<String> result = parser.parse(raw, replies);
 
         long millis = (System.nanoTime() - started) / 1_000_000;
@@ -60,7 +60,8 @@ public class AnswerGenerator {
         text.append("которые бот разошлёт от твоего имени.\n");
         text.append("JSON — это техническая обёртка. Правила стиля (живая речь, без markdown, ");
         text.append("короткие фразы) относятся к строкам внутри массива, а не к самому ответу.\n");
-        text.append("Верни ТОЛЬКО JSON-массив строк: от 1 до ").append(replies).append(" реплик.\n");
+        text.append("Верни ТОЛЬКО JSON-объект {\"replies\": [\"реплика\", \"реплика\"]}: от 1 до ")
+                .append(replies).append(" строк.\n");
         text.append("План: тема '").append(plan.topic()).append("', намерение ")
                 .append(plan.intent().code()).append(", реплик ").append(replies).append(".\n");
         if (!targets.isEmpty())

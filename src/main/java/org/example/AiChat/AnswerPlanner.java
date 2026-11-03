@@ -52,7 +52,7 @@ public class AnswerPlanner {
         messages.add(history.message(USER_ROLE,
                 "Составь план ответа на последнее сообщение собеседника. Верни только JSON."));
 
-        String raw = deepSeekClient.sendRequestToAi(messages, PLAN_TEMPERATURE, planMaxTokens());
+        String raw = deepSeekClient.sendJsonRequestToAi(messages, PLAN_TEMPERATURE, planMaxTokens());
         Optional<AnswerPlan> plan = parser.parse(raw, maxReplies);
 
         long millis = (System.nanoTime() - started) / 1_000_000;

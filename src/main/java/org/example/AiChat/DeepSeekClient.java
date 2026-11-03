@@ -46,15 +46,38 @@ public class DeepSeekClient {
     }
 
     public String sendRequestToAi(ArrayNode messages, Float temperature, int maxTokens) {
+        return send(messages, temperature, maxTokens, false);
+    }
+
+    /** Принудительный JSON-режим: провайдер сам гарантирует разбираемый ответ. */
+    public String sendJsonRequestToAi(ArrayNode messages, Float temperature) {
+        return send(messages, temperature, maxTokens(), true);
+    }
+
+    public String sendJsonRequestToAi(ArrayNode messages, Float temperature, int maxTokens) {
+        return send(messages, temperature, maxTokens, true);
+    }
+
+    private String send(ArrayNode messages, Float temperature, int maxTokens, boolean jsonMode) {
         try {
             ObjectNode request = objectMapper.createObjectNode();
             request.put("model", model());
-
             request.set("messages", messages);
             request.put("temperature", temperature);
             request.put("max_tokens", maxTokens);
+            if (jsonMode)
+                request.set("response_format", objectMapper.createObjectNode().put("type", "json_object"));
 
-            return sendHttpRequest(request);
+            HttpResponse<String> response = post(request);
+            if (response.statusCode() == 400 && jsonMode) {
+                logger.warn("JSON-режим отклонён моделью, повтор без него: {}", response.body());
+                return send(messages, temperature, maxTokens, false);
+            }
+            if (response.statusCode() != 200) {
+                logger.error("DeepSeek API error: {}", response.body());
+                return null;
+            }
+            return content(response.body());
         } catch (Exception e) {
             logger.error("AI не смог ответить: {}", e.getMessage());
             return null;
@@ -76,7 +99,7 @@ public class DeepSeekClient {
         return configured;
     }
 
-    private String sendHttpRequest(ObjectNode requestBody) throws IOException, InterruptedException {
+    private HttpResponse<String> post(ObjectNode requestBody) throws IOException, InterruptedException {
         String jsonBody = objectMapper.writeValueAsString(requestBody);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -87,14 +110,11 @@ public class DeepSeekClient {
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
 
-        if (response.statusCode() != 200) {
-            logger.error("DeepSeek API error: {}", response.body());
-            return null;
-        }
-
-        ObjectNode respNode = objectMapper.readValue(response.body(), ObjectNode.class);
+    private String content(String responseBody) throws IOException {
+        ObjectNode respNode = objectMapper.readValue(responseBody, ObjectNode.class);
         JsonNode choice = respNode.get("choices").get(0);
         String content = choice.get("message").get("content").asText("").trim();
 
