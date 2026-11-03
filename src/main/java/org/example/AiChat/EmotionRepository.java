@@ -134,8 +134,10 @@ public class EmotionRepository {
     }
 
     /**
-     * Базовые значения эмоций персоны. Текущее значение и updated_at не трогаются:
-     * поднятая база подтягивает настроение при чтении, а не сбрасывает его.
+     * Базовые значения эмоций персоны. Если базу подняли выше текущего значения,
+     * текущее поднимается вместе с ней сразу: выставленный в админке характер
+     * должен действовать со следующего ответа, а не через несколько часов.
+     * При понижении базы настроение остаётся и затухает вниз само.
      */
     public void saveBaseValues(Connection connection, int personaId, Map<String, Integer> baseValues) throws Exception {
         if (baseValues == null || baseValues.isEmpty())
@@ -144,7 +146,11 @@ public class EmotionRepository {
         String query = "INSERT INTO " + PERSONA_EMOTIONS_TABLE
                 + " (persona_id, emotion_code, base_value, value, updated_at)"
                 + " VALUES (?, ?, ?, ?, now())"
-                + " ON CONFLICT (persona_id, emotion_code) DO UPDATE SET base_value = EXCLUDED.base_value";
+                + " ON CONFLICT (persona_id, emotion_code) DO UPDATE SET"
+                + " base_value = EXCLUDED.base_value,"
+                + " value = GREATEST(" + PERSONA_EMOTIONS_TABLE + ".value, EXCLUDED.base_value),"
+                + " updated_at = CASE WHEN EXCLUDED.base_value > " + PERSONA_EMOTIONS_TABLE + ".value"
+                + " THEN now() ELSE " + PERSONA_EMOTIONS_TABLE + ".updated_at END";
 
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             for (Map.Entry<String, Integer> entry : baseValues.entrySet()) {

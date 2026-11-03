@@ -27,6 +27,8 @@ public class EmotionService {
     static final int JOY_SUPPRESSION_FROM = 7;
     /** Эмоция попадает в промпт, только если отошла от характера хотя бы на столько. */
     static final int DEVIATION_THRESHOLD = 2;
+    /** Сильная эмоция показывается и без отклонения: характер с гневом 9 обязан звучать. */
+    static final int STRONG_VALUE = 7;
     static final int MAX_LINES = 4;
     static final String CALM_LINE = "Твоё текущее состояние: ровное, без сильных эмоций.";
     static final String HEADER = "Твоё текущее состояние сейчас (это настроение момента, а не характер):";
@@ -132,15 +134,18 @@ public class EmotionService {
         return "";
     }
 
-    /** Текст блока: до четырёх эмоций, отошедших от характера, плюс уровень агрессии. */
+    /**
+     * Текст блока: до четырёх сильных или отошедших от характера эмоций плюс
+     * уровень агрессии. Агрессия идёт всегда, кроме полностью ровного состояния.
+     */
     static String blockText(EmotionState state) {
         List<EmotionState.Line> selected = state.lines().stream()
-                .filter(line -> line.deviation() >= DEVIATION_THRESHOLD)
-                .sorted(Comparator.comparingInt(EmotionState.Line::deviation).reversed())
+                .filter(line -> line.deviation() >= DEVIATION_THRESHOLD || line.value() >= STRONG_VALUE)
+                .sorted(Comparator.comparingInt(EmotionService::strength).reversed())
                 .limit(MAX_LINES)
                 .toList();
 
-        if (selected.isEmpty())
+        if (selected.isEmpty() && state.aggression() == 0)
             return CALM_LINE;
 
         StringBuilder block = new StringBuilder(HEADER);
@@ -153,6 +158,11 @@ public class EmotionService {
                 .append("- ").append(state.aggressionTitle()).append(' ').append(state.aggression()).append("/10: ")
                 .append(state.aggressionPhrase());
         return block.toString();
+    }
+
+    /** Насколько эмоция заметна для промпта: сильное значение важнее мелкого отклонения. */
+    private static int strength(EmotionState.Line line) {
+        return Math.max(line.deviation(), line.value());
     }
 
     private static Emotion byCode(List<Emotion> catalog, String code) {

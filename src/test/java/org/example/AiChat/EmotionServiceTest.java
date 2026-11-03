@@ -120,6 +120,31 @@ class EmotionServiceTest {
     }
 
     @Test
+    void strongEmotionIsShownEvenWhenEqualToBase() {
+        EmotionState state = new EmotionState(
+                List.of(new EmotionState.Line("гнев", "Гнев", 9, 9, 0, "оскорбляй")),
+                4, "Агрессия", "дави");
+
+        String block = EmotionService.blockText(state);
+
+        assertTrue(block.contains("- Гнев 9/10: оскорбляй"), block);
+        assertTrue(block.contains("- Агрессия 4/10: дави"), block);
+        assertFalse(block.contains(EmotionService.CALM_LINE), block);
+    }
+
+    @Test
+    void calmMoodKeepsAggressionLineWhenItIsNotZero() {
+        EmotionState state = new EmotionState(
+                List.of(new EmotionState.Line("гнев", "Гнев", 2, 3, 1, "суховато")),
+                3, "Агрессия", "дави");
+
+        String block = EmotionService.blockText(state);
+
+        assertTrue(block.contains("- Агрессия 3/10: дави"), block);
+        assertFalse(block.contains(EmotionService.CALM_LINE), block);
+    }
+
+    @Test
     void onlyFourStrongestEmotionsAndAggressionAreListed() {
         List<EmotionState.Line> lines = new ArrayList<>();
         for (int deviation = 2; deviation <= 7; deviation++)
