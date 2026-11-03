@@ -32,10 +32,12 @@ public class AiService {
     private final PersonaService personaService;
     private final MemoryRepository memoryRepository;
     private final MemoryPromptBuilder memoryPromptBuilder;
+    private final EmotionService emotionService;
 
     public AiService(SettingsService settings, MessageSender sender, DeepSeekClient deepSeekClient,
                      AiChatRepository repository, PersonaService personaService,
-                     MemoryRepository memoryRepository, MemoryPromptBuilder memoryPromptBuilder) {
+                     MemoryRepository memoryRepository, MemoryPromptBuilder memoryPromptBuilder,
+                     EmotionService emotionService) {
         this.settings = settings;
         this.sender = sender;
         this.deepSeekClient = deepSeekClient;
@@ -43,6 +45,7 @@ public class AiService {
         this.personaService = personaService;
         this.memoryRepository = memoryRepository;
         this.memoryPromptBuilder = memoryPromptBuilder;
+        this.emotionService = emotionService;
     }
 
     public void askAi(Message message) {
@@ -87,6 +90,7 @@ public class AiService {
         // Промпт и счётчик сбросов не хранятся сообщениями: так промпт всегда актуален
         // и не вытесняется лимитом истории.
         addMessage(messages, objectMapper, AI_SYSTEM_ROLE, getSystemPrompt(chatId));
+        addMood(messages, objectMapper, chatId);
         addMemories(messages, objectMapper, chatId);
 
         int resets = repository.getResets(chatId);
@@ -100,6 +104,24 @@ public class AiService {
         logger.info("Задаем вопрос AI. Подготовлена история сообщений в чате {}, всего сообщений в истории: {}",
                 chatId, messages.size());
         return messages;
+    }
+
+    /** Эмоциональное состояние персоны: блок фраз, только если оно отошло от характера. */
+    private void addMood(ArrayNode messages, ObjectMapper objectMapper, Long chatId) {
+        try {
+            var persona = personaService.personaForChat(chatId);
+            if (persona.isEmpty())
+                return;
+
+            String block = emotionService.blockFor(persona.get().id());
+            if (block == null || block.isBlank())
+                return;
+
+            addMessage(messages, objectMapper, AI_SYSTEM_ROLE, block);
+            logger.info("В чате {} добавлен блок настроения, символов {}", chatId, block.length());
+        } catch (Exception e) {
+            logger.error("Ошибка сборки настроения для чата {}: {}", chatId, String.valueOf(e));
+        }
     }
 
     private void addMemories(ArrayNode messages, ObjectMapper objectMapper, Long chatId) {

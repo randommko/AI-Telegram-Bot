@@ -1,9 +1,12 @@
 package org.example.Admin;
 
+import org.example.AiChat.Emotion;
+import org.example.AiChat.EmotionRepository;
 import org.example.AiChat.PersonaRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,21 +23,35 @@ import static org.mockito.Mockito.when;
 
 class AdminPersonaValidatorTest {
 
+    private static final List<Emotion> CATALOG = List.of(
+            new Emotion("радость", "Радость", "Подъём, желание шутить", "плюс", -0.25, 1.00, 5, false, 10),
+            new Emotion("гнев", "Гнев", "Злость и резкость", "минус", 0.55, 1.50, 2, false, 30),
+            new Emotion("сарказм", "Сарказм", "Ирония как манера речи", "стиль", 0.15, 0.50, 5, false, 110),
+            new Emotion("агрессия", "Агрессия", "Производная шкала", "стиль", 0, 0, 0, true, 999));
+
     private final PersonaRepository personas = mock(PersonaRepository.class);
-    private final AdminPersonaValidator validator = new AdminPersonaValidator(personas);
+    private final EmotionRepository emotions = mock(EmotionRepository.class);
+    private final AdminPersonaValidator validator = new AdminPersonaValidator(personas, emotions);
 
     @Test
     void acceptsValidCard() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         AdminPersonaValidator.Result result = validator.validate(form());
 
         assertFalse(result.hasErrors());
         assertEquals("Юра", result.details().name());
         assertEquals(List.of("юр", "юра"), result.details().aliases());
-        assertEquals(8, result.details().angerThreshold());
+        assertEquals(8, result.details().aggressionThreshold());
+        assertEquals(2, result.details().emotionBaseValues().get("гнев"));
+        assertFalse(result.details().emotionBaseValues().containsKey("агрессия"),
+                "производная шкала значения у персоны не имеет");
     }
 
     @Test
     void rejectsEmptyNameAndPrompt() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         Map<String, String> errors = validator.validate(form("name", " ", "prompt", "")).errors();
 
         assertTrue(errors.containsKey("name"));
@@ -44,12 +61,15 @@ class AdminPersonaValidatorTest {
     @Test
     void rejectsNameTakenByAnotherPersona() {
         when(personas.nameTaken(eq("Юра"), any())).thenReturn(true);
+        when(emotions.findCatalog()).thenReturn(CATALOG);
 
         assertTrue(validator.validate(form()).errors().containsKey("name"));
     }
 
     @Test
     void checksNameAgainstOwnIdWhenEditing() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         validator.validate(form("id", "7"));
 
         verify(personas).nameTaken("Юра", 7);
@@ -57,6 +77,8 @@ class AdminPersonaValidatorTest {
 
     @Test
     void rejectsAliasEqualToCommand() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertTrue(validator.validate(form("aliases", "юр\nclear")).errors().get("aliases")
                 .contains("командой"));
         assertTrue(validator.validate(form("aliases", "summary")).errors().containsKey("aliases"));
@@ -65,53 +87,98 @@ class AdminPersonaValidatorTest {
 
     @Test
     void acceptsPersonaAddressNameAsAlias() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertFalse(validator.validate(form("aliases", "юра")).hasErrors());
         assertFalse(validator.validate(form("aliases", "юрец")).hasErrors());
     }
 
     @Test
     void rejectsAliasWithSpaces() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertTrue(validator.validate(form("aliases", "юра великий")).errors().containsKey("aliases"));
     }
 
     @Test
     void rejectsAliasWithoutAnyAliases() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertTrue(validator.validate(form("aliases", " ")).errors().containsKey("aliases"));
     }
 
     @Test
     void rejectsAliasOwnedByAnotherPersona() {
         when(personas.aliasOwner(eq("юр"), any())).thenReturn(Optional.of(9));
+        when(emotions.findCatalog()).thenReturn(CATALOG);
 
         assertTrue(validator.validate(form("aliases", "юр")).errors().containsKey("aliases"));
     }
 
     @Test
     void rejectsScaleAboveTen() {
-        Map<String, String> errors = validator.validate(form("baseJoy", "11")).errors();
+        when(emotions.findCatalog()).thenReturn(CATALOG);
 
-        assertTrue(errors.containsKey("baseJoy"));
+        Map<String, String> errors = validator.validate(form("emotion.радость", "11")).errors();
+
+        assertTrue(errors.containsKey("emotion.радость"));
+        assertEquals("Радость: допустимо от 0 до 10", errors.get("emotion.радость"));
+    }
+
+    @Test
+    void acceptsZeroAndTen() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
+        assertFalse(validator.validate(form("emotion.радость", "0", "emotion.гнев", "10")).hasErrors());
+    }
+
+    @Test
+    void rejectsNonNumericScale() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
+        assertTrue(validator.validate(form("emotion.гнев", "злой")).errors().containsKey("emotion.гнев"));
+    }
+
+    @Test
+    void rejectsEmotionMissingFromTheForm() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
+        PersonaForm empty = form();
+        empty.emotionValues().remove("гнев");
+
+        assertTrue(validator.validate(empty).errors().containsKey("emotion.гнев"));
     }
 
     @Test
     void rejectsTooShortReplyDelay() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertTrue(validator.validate(form("replyDelayMs", "100")).errors().containsKey("replyDelayMs"));
     }
 
     @Test
     void rejectsRepliesOutsideHysteriaRange() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
         assertTrue(validator.validate(form("hysteriaReplies", "2")).errors().containsKey("hysteriaReplies"));
         assertTrue(validator.validate(form("maxReplies", "7")).errors().containsKey("maxReplies"));
     }
 
     @Test
-    void rejectsNonNumericScale() {
-        assertTrue(validator.validate(form("baseAnger", "злой")).errors().containsKey("baseAnger"));
+    void returnsNoDetailsWhenThereAreErrors() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+
+        assertNull(validator.validate(form("emotion.радость", "99")).details());
     }
 
     @Test
-    void returnsNoDetailsWhenThereAreErrors() {
-        assertNull(validator.validate(form("baseJoy", "99")).details());
+    void blankFormUsesCatalogDefaultsAndSkipsDerivedScales() {
+        PersonaForm blank = PersonaForm.blank(CATALOG);
+
+        assertEquals(3, blank.emotionValues().size());
+        assertEquals("5", blank.emotionValues().get("радость"));
+        assertEquals("2", blank.emotionValues().get("гнев"));
+        assertFalse(blank.emotionValues().containsKey("агрессия"));
     }
 
     @Test
@@ -131,17 +198,16 @@ class AdminPersonaValidatorTest {
 
     /** Карточка с валидными значениями; переопределения идут парами «поле, значение». */
     private PersonaForm form(String... overrides) {
+        Map<String, String> emotionValues = new LinkedHashMap<>();
+        emotionValues.put("радость", "5");
+        emotionValues.put("гнев", "2");
+        emotionValues.put("сарказм", "5");
+
         Map<String, String> values = new HashMap<>(Map.ofEntries(
                 Map.entry("name", "Юра"),
                 Map.entry("prompt", "Ты Юра"),
                 Map.entry("aliases", "юр, юра"),
-                Map.entry("baseJoy", "5"),
-                Map.entry("baseAnger", "2"),
-                Map.entry("baseOffence", "0"),
-                Map.entry("baseFatigue", "3"),
-                Map.entry("baseSarcasm", "5"),
-                Map.entry("offenceDecayPerHour", "1"),
-                Map.entry("angerThreshold", "8"),
+                Map.entry("aggressionThreshold", "8"),
                 Map.entry("hysteriaReplies", "4"),
                 Map.entry("hysteriaCooldownHours", "6"),
                 Map.entry("maxReplies", "4"),
@@ -149,8 +215,14 @@ class AdminPersonaValidatorTest {
                 Map.entry("initiativeEnabled", "true"),
                 Map.entry("initiativeCooldownMessages", "20")));
 
-        for (int i = 0; i + 1 < overrides.length; i += 2)
-            values.put(overrides[i], overrides[i + 1]);
+        for (int i = 0; i + 1 < overrides.length; i += 2) {
+            String field = overrides[i];
+            if (field.startsWith(AdminPersonaValidator.EMOTION_FIELD_PREFIX))
+                emotionValues.put(field.substring(AdminPersonaValidator.EMOTION_FIELD_PREFIX.length()),
+                        overrides[i + 1]);
+            else
+                values.put(field, overrides[i + 1]);
+        }
 
         String id = values.get("id");
         return new PersonaForm(
@@ -158,13 +230,8 @@ class AdminPersonaValidatorTest {
                 values.get("name"),
                 values.get("prompt"),
                 values.get("aliases"),
-                values.get("baseJoy"),
-                values.get("baseAnger"),
-                values.get("baseOffence"),
-                values.get("baseFatigue"),
-                values.get("baseSarcasm"),
-                values.get("offenceDecayPerHour"),
-                values.get("angerThreshold"),
+                emotionValues,
+                values.get("aggressionThreshold"),
                 values.get("hysteriaReplies"),
                 values.get("hysteriaCooldownHours"),
                 values.get("maxReplies"),

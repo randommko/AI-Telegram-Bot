@@ -17,5 +17,8 @@ public final class TablesDB {
     public static final String PERSONA_MEMORIES_TABLE = "public.persona_memories";
     public static final String MEMORY_PEOPLE_TABLE = "public.memory_people";
     public static final String MEMORY_ANALYSIS_STATE_TABLE = "public.memory_analysis_state";
+    public static final String EMOTIONS_TABLE = "public.emotions";
+    public static final String EMOTION_PHRASES_TABLE = "public.emotion_phrases";
+    public static final String PERSONA_EMOTIONS_TABLE = "public.persona_emotions";
     public  static final String SETTINGS_TABLE = "bot_settings";
 }

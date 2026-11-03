@@ -31,44 +31,26 @@
         <fieldset>
             <legend>Эмоциональность</legend>
             <p class="hint">
-                Шкалы 0..10. Эти значения начнут влиять на ответы после задачи #51 — сейчас они только хранятся.
+                Базовые значения 0..10 — это характер персоны: к ним возвращается настроение.
+                Уровень агрессии вычисляется из эмоций и отдельно не хранится, поэтому его здесь нет.
             </p>
 
-            <div class="field">
-                <label for="baseJoy">Базовая радость</label>
-                <input type="text" id="baseJoy" th:field="*{baseJoy}"/>
-                <span class="error" th:if="${errors['baseJoy']}" th:text="${errors['baseJoy']}"></span>
+            <div class="field" th:each="emotion : ${emotions}" th:if="${!emotion.derived}"
+                 th:with="key=${'emotion.' + emotion.code}">
+                <label th:for="${'emotion-' + emotion.code}"
+                       th:text="${emotion.title} + ' (0..10)'">Радость (0..10)</label>
+                <input type="text" th:id="${'emotion-' + emotion.code}"
+                       th:name="${'emotionValues[' + emotion.code + ']'}"
+                       th:value="${form.emotionValues[emotion.code]}"/>
+                <span class="hint" th:text="${emotion.description}"></span>
+                <span class="error" th:if="${errors[key]}" th:text="${errors[key]}"></span>
             </div>
+
             <div class="field">
-                <label for="baseAnger">Базовая злость</label>
-                <input type="text" id="baseAnger" th:field="*{baseAnger}"/>
-                <span class="error" th:if="${errors['baseAnger']}" th:text="${errors['baseAnger']}"></span>
-            </div>
-            <div class="field">
-                <label for="baseOffence">Базовая обида</label>
-                <input type="text" id="baseOffence" th:field="*{baseOffence}"/>
-                <span class="error" th:if="${errors['baseOffence']}" th:text="${errors['baseOffence']}"></span>
-            </div>
-            <div class="field">
-                <label for="baseFatigue">Базовая усталость</label>
-                <input type="text" id="baseFatigue" th:field="*{baseFatigue}"/>
-                <span class="error" th:if="${errors['baseFatigue']}" th:text="${errors['baseFatigue']}"></span>
-            </div>
-            <div class="field">
-                <label for="baseSarcasm">Базовый сарказм</label>
-                <input type="text" id="baseSarcasm" th:field="*{baseSarcasm}"/>
-                <span class="error" th:if="${errors['baseSarcasm']}" th:text="${errors['baseSarcasm']}"></span>
-            </div>
-            <div class="field">
-                <label for="offenceDecayPerHour">Затухание обиды в час (0..10)</label>
-                <input type="text" id="offenceDecayPerHour" th:field="*{offenceDecayPerHour}"/>
-                <span class="error" th:if="${errors['offenceDecayPerHour']}"
-                      th:text="${errors['offenceDecayPerHour']}"></span>
-            </div>
-            <div class="field">
-                <label for="angerThreshold">Порог срыва (1..10)</label>
-                <input type="text" id="angerThreshold" th:field="*{angerThreshold}"/>
-                <span class="error" th:if="${errors['angerThreshold']}" th:text="${errors['angerThreshold']}"></span>
+                <label for="aggressionThreshold">Порог срыва, агрессия (1..10)</label>
+                <input type="text" id="aggressionThreshold" th:field="*{aggressionThreshold}"/>
+                <span class="error" th:if="${errors['aggressionThreshold']}"
+                      th:text="${errors['aggressionThreshold']}"></span>
             </div>
             <div class="field">
                 <label for="hysteriaReplies">Ответов при срыве (3..5)</label>

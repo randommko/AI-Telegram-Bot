@@ -1,20 +1,16 @@
 package org.example.AiChat;
 
 import java.util.List;
+import java.util.Map;
 
-/** Полная карточка персоны для админки: промпт, алиасы и настройки эмоциональности. */
+/** Полная карточка персоны для админки: промпт, алиасы и базовые значения эмоций. */
 public record PersonaDetails(
         Integer id,
         String name,
         String prompt,
         List<String> aliases,
-        int baseJoy,
-        int baseAnger,
-        int baseOffence,
-        int baseFatigue,
-        int baseSarcasm,
-        int offenceDecayPerHour,
-        int angerThreshold,
+        Map<String, Integer> emotionBaseValues,
+        int aggressionThreshold,
         int hysteriaReplies,
         int hysteriaCooldownHours,
         int maxReplies,

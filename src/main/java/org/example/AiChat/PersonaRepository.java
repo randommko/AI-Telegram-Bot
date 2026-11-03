@@ -10,7 +10,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.example.Settings.TablesDB.AI_MESSAGES_TABLE;
@@ -24,9 +26,11 @@ import static org.example.Settings.TablesDB.TG_CHATS_TABLE;
 public class PersonaRepository {
     private static final Logger logger = LoggerFactory.getLogger(PersonaRepository.class);
     private final DataSource dataSource;
+    private final EmotionRepository emotions;
 
-    public PersonaRepository(DataSource dataSource) {
+    public PersonaRepository(DataSource dataSource, EmotionRepository emotions) {
         this.dataSource = dataSource;
+        this.emotions = emotions;
     }
 
     public Optional<Persona> findForChat(long chatId) {
@@ -125,7 +129,7 @@ public class PersonaRepository {
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next())
-                    return Optional.of(details(resultSet, aliases(connection, id)));
+                    return Optional.of(details(resultSet, aliases(connection, id), emotionBaseValues(id)));
             }
         } catch (Exception e) {
             logger.error("Ошибка чтения персоны {}: ", id, e);
@@ -133,21 +137,22 @@ public class PersonaRepository {
         return Optional.empty();
     }
 
-    /** Создание персоны и её алиасов одной транзакцией. */
+    /** Создание персоны, её алиасов и базовых значений эмоций одной транзакцией. */
     public void create(PersonaDetails details) {
-        String query = "INSERT INTO " + PERSONAS_TABLE + " (name, prompt, base_joy, base_anger, base_offence,"
-                + " base_fatigue, base_sarcasm, offence_decay_per_hour, anger_threshold, hysteria_replies,"
+        String query = "INSERT INTO " + PERSONAS_TABLE + " (name, prompt, aggression_threshold, hysteria_replies,"
                 + " hysteria_cooldown_hours, max_replies, reply_delay_ms, initiative_enabled,"
-                + " initiative_cooldown_messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                + " initiative_cooldown_messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 + " RETURNING id";
 
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement(query)) {
-                bindDetails(statement, details);
+                bindPersona(statement, details);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     resultSet.next();
-                    replaceAliases(connection, resultSet.getInt("id"), details.aliases());
+                    int personaId = resultSet.getInt("id");
+                    replaceAliases(connection, personaId, details.aliases());
+                    emotions.saveBaseValues(connection, personaId, details.emotionBaseValues());
                 }
                 connection.commit();
             } catch (Exception e) {
@@ -159,21 +164,20 @@ public class PersonaRepository {
         }
     }
 
-    /** Обновление карточки и полная замена алиасов одной транзакцией. */
+    /** Обновление карточки, полная замена алиасов и базовых значений эмоций одной транзакцией. */
     public void update(PersonaDetails details) {
-        String query = "UPDATE " + PERSONAS_TABLE + " SET name = ?, prompt = ?, base_joy = ?, base_anger = ?,"
-                + " base_offence = ?, base_fatigue = ?, base_sarcasm = ?, offence_decay_per_hour = ?,"
-                + " anger_threshold = ?, hysteria_replies = ?, hysteria_cooldown_hours = ?, max_replies = ?,"
-                + " reply_delay_ms = ?, initiative_enabled = ?, initiative_cooldown_messages = ?,"
-                + " updated_at = now() WHERE id = ?";
+        String query = "UPDATE " + PERSONAS_TABLE + " SET name = ?, prompt = ?, aggression_threshold = ?,"
+                + " hysteria_replies = ?, hysteria_cooldown_hours = ?, max_replies = ?, reply_delay_ms = ?,"
+                + " initiative_enabled = ?, initiative_cooldown_messages = ?, updated_at = now() WHERE id = ?";
 
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement(query)) {
-                bindDetails(statement, details);
-                statement.setInt(16, details.id());
+                bindPersona(statement, details);
+                statement.setInt(10, details.id());
                 statement.executeUpdate();
                 replaceAliases(connection, details.id(), details.aliases());
+                emotions.saveBaseValues(connection, details.id(), details.emotionBaseValues());
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -298,37 +302,35 @@ public class PersonaRepository {
         }
     }
 
-    private void bindDetails(PreparedStatement statement, PersonaDetails details) throws Exception {
+    private void bindPersona(PreparedStatement statement, PersonaDetails details) throws Exception {
         statement.setString(1, details.name());
         statement.setString(2, details.prompt());
-        statement.setInt(3, details.baseJoy());
-        statement.setInt(4, details.baseAnger());
-        statement.setInt(5, details.baseOffence());
-        statement.setInt(6, details.baseFatigue());
-        statement.setInt(7, details.baseSarcasm());
-        statement.setInt(8, details.offenceDecayPerHour());
-        statement.setInt(9, details.angerThreshold());
-        statement.setInt(10, details.hysteriaReplies());
-        statement.setInt(11, details.hysteriaCooldownHours());
-        statement.setInt(12, details.maxReplies());
-        statement.setInt(13, details.replyDelayMs());
-        statement.setBoolean(14, details.initiativeEnabled());
-        statement.setInt(15, details.initiativeCooldownMessages());
+        statement.setInt(3, details.aggressionThreshold());
+        statement.setInt(4, details.hysteriaReplies());
+        statement.setInt(5, details.hysteriaCooldownHours());
+        statement.setInt(6, details.maxReplies());
+        statement.setInt(7, details.replyDelayMs());
+        statement.setBoolean(8, details.initiativeEnabled());
+        statement.setInt(9, details.initiativeCooldownMessages());
     }
 
-    private PersonaDetails details(ResultSet resultSet, List<String> aliases) throws Exception {
+    /** Базовые значения эмоций персоны; недостающие строки создаются из умолчаний справочника. */
+    private Map<String, Integer> emotionBaseValues(int personaId) {
+        Map<String, Integer> values = new LinkedHashMap<>();
+        for (PersonaEmotion emotion : emotions.findForPersona(personaId))
+            values.put(emotion.emotionCode(), emotion.baseValue());
+        return values;
+    }
+
+    private PersonaDetails details(ResultSet resultSet, List<String> aliases,
+                                   Map<String, Integer> emotionBaseValues) throws Exception {
         return new PersonaDetails(
                 resultSet.getInt("id"),
                 resultSet.getString("name"),
                 resultSet.getString("prompt"),
                 aliases,
-                resultSet.getInt("base_joy"),
-                resultSet.getInt("base_anger"),
-                resultSet.getInt("base_offence"),
-                resultSet.getInt("base_fatigue"),
-                resultSet.getInt("base_sarcasm"),
-                resultSet.getInt("offence_decay_per_hour"),
-                resultSet.getInt("anger_threshold"),
+                emotionBaseValues,
+                resultSet.getInt("aggression_threshold"),
                 resultSet.getInt("hysteria_replies"),
                 resultSet.getInt("hysteria_cooldown_hours"),
                 resultSet.getInt("max_replies"),

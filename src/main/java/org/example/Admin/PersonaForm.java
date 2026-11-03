@@ -1,20 +1,23 @@
 package org.example.Admin;
 
+import org.example.AiChat.Emotion;
 import org.example.AiChat.PersonaDetails;
 
-/** Поля карточки персоны как строки: так ошибки ввода видны у конкретного поля. */
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Поля карточки персоны как строки: так ошибки ввода видны у конкретного поля.
+ * Значения эмоций идут картой «код эмоции → значение», набор кодов берётся из справочника.
+ */
 public record PersonaForm(
         Integer id,
         String name,
         String prompt,
         String aliases,
-        String baseJoy,
-        String baseAnger,
-        String baseOffence,
-        String baseFatigue,
-        String baseSarcasm,
-        String offenceDecayPerHour,
-        String angerThreshold,
+        Map<String, String> emotionValues,
+        String aggressionThreshold,
         String hysteriaReplies,
         String hysteriaCooldownHours,
         String maxReplies,
@@ -22,25 +25,32 @@ public record PersonaForm(
         Boolean initiativeEnabled,
         String initiativeCooldownMessages) {
 
-    /** Пустая карточка со значениями по умолчанию из схемы. */
-    public static PersonaForm blank() {
-        return new PersonaForm(null, "", "", "",
-                "5", "2", "0", "3", "5", "1", "8", "4", "6", "4", "1500", true, "20");
+    /** Пустая карточка со значениями по умолчанию из справочника. */
+    public static PersonaForm blank(List<Emotion> catalog) {
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Emotion emotion : catalog) {
+            if (!emotion.derived())
+                values.put(emotion.code(), String.valueOf(emotion.baseDefault()));
+        }
+        return new PersonaForm(null, "", "", "", values, "8", "4", "6", "4", "1500", true, "20");
     }
 
-    public static PersonaForm of(PersonaDetails details) {
+    public static PersonaForm of(PersonaDetails details, List<Emotion> catalog) {
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Emotion emotion : catalog) {
+            if (emotion.derived())
+                continue;
+            Integer base = details.emotionBaseValues().get(emotion.code());
+            values.put(emotion.code(), String.valueOf(base == null ? emotion.baseDefault() : base));
+        }
+
         return new PersonaForm(
                 details.id(),
                 details.name(),
                 details.prompt(),
                 String.join("\n", details.aliases()),
-                String.valueOf(details.baseJoy()),
-                String.valueOf(details.baseAnger()),
-                String.valueOf(details.baseOffence()),
-                String.valueOf(details.baseFatigue()),
-                String.valueOf(details.baseSarcasm()),
-                String.valueOf(details.offenceDecayPerHour()),
-                String.valueOf(details.angerThreshold()),
+                values,
+                String.valueOf(details.aggressionThreshold()),
                 String.valueOf(details.hysteriaReplies()),
                 String.valueOf(details.hysteriaCooldownHours()),
                 String.valueOf(details.maxReplies()),

@@ -1,9 +1,12 @@
 package org.example.Admin;
 
+import org.example.AiChat.Emotion;
+import org.example.AiChat.EmotionRepository;
 import org.example.AiChat.PersonaDetails;
 import org.example.AiChat.PersonaRepository;
 import org.example.AiChat.PersonaSummary;
 import org.example.Config.BotProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -51,6 +54,14 @@ class AdminPersonaTest {
     @MockitoBean
     private PersonaRepository personas;
 
+    @MockitoBean
+    private EmotionRepository emotions;
+
+    @BeforeEach
+    void catalog() {
+        when(emotions.findCatalog()).thenReturn(CATALOG);
+    }
+
     @Test
     void rendersPersonaList() throws Exception {
         when(personas.findAllWithCounts()).thenReturn(List.of(
@@ -82,11 +93,20 @@ class AdminPersonaTest {
 
     @Test
     void rejectsScaleOutOfRange() throws Exception {
-        mockMvc.perform(saveForm("baseJoy", "11"))
+        mockMvc.perform(saveForm("emotionValues[радость]", "11"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Радость")));
 
         verify(personas, never()).create(any());
+    }
+
+    @Test
+    void rendersEmotionFieldForEveryEditableScale() throws Exception {
+        mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Гнев (0..10)")))
+                .andExpect(content().string(containsString("emotionValues[гнев]")))
+                .andExpect(content().string(containsString("Злость и резкость")));
     }
 
     @Test
@@ -127,13 +147,10 @@ class AdminPersonaTest {
                 Map.entry("name", "Юра"),
                 Map.entry("prompt", "Ты Юра"),
                 Map.entry("aliases", "юр, юра"),
-                Map.entry("baseJoy", "5"),
-                Map.entry("baseAnger", "2"),
-                Map.entry("baseOffence", "0"),
-                Map.entry("baseFatigue", "3"),
-                Map.entry("baseSarcasm", "5"),
-                Map.entry("offenceDecayPerHour", "1"),
-                Map.entry("angerThreshold", "8"),
+                Map.entry("emotionValues[радость]", "5"),
+                Map.entry("emotionValues[гнев]", "2"),
+                Map.entry("emotionValues[сарказм]", "5"),
+                Map.entry("aggressionThreshold", "8"),
                 Map.entry("hysteriaReplies", "4"),
                 Map.entry("hysteriaCooldownHours", "6"),
                 Map.entry("maxReplies", "4"),
@@ -152,6 +169,12 @@ class AdminPersonaTest {
 
     private PersonaDetails details(int id) {
         return new PersonaDetails(id, "Юра", "Ты Юра", List.of("юр", "юра"),
-                5, 2, 0, 3, 5, 1, 8, 4, 6, 4, 1500, true, 20);
+                Map.of("радость", 5, "гнев", 2, "сарказм", 5), 8, 4, 6, 4, 1500, true, 20);
     }
+
+    private static final List<Emotion> CATALOG = List.of(
+            new Emotion("радость", "Радость", "Подъём, желание шутить", "плюс", -0.25, 1.00, 5, false, 10),
+            new Emotion("гнев", "Гнев", "Злость и резкость", "минус", 0.55, 1.50, 2, false, 30),
+            new Emotion("сарказм", "Сарказм", "Ирония как манера речи", "стиль", 0.15, 0.50, 5, false, 110),
+            new Emotion("агрессия", "Агрессия", "Производная шкала", "стиль", 0, 0, 0, true, 999));
 }

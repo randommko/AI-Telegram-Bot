@@ -1,5 +1,7 @@
 package org.example.Admin;
 
+import org.example.AiChat.Emotion;
+import org.example.AiChat.EmotionRepository;
 import org.example.AiChat.PersonaDetails;
 import org.example.AiChat.PersonaRepository;
 import org.example.CommandDispatcher.Command;
@@ -8,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,12 +17,14 @@ import java.util.Set;
 /**
  * Проверка карточки персоны. Глобальная уникальность алиаса обеспечивается здесь, а не в схеме:
  * индекс 004 разрешает одинаковые алиасы у персон в разных чатах, и менять схему ради формы не нужно.
+ * Поля эмоций строятся по справочнику: код, подпись и диапазон берутся из базы.
  */
 @Component
 public class AdminPersonaValidator {
     /** Имена-обращения команды AI: алиас персоны вправе с ними совпадать. */
     static final Set<String> PERSONA_ADDRESS_NAMES = Set.of("юра", "юрий", "юрец");
     private static final String ALIAS_PATTERN = "[\\p{L}\\p{N}_]+";
+    static final String EMOTION_FIELD_PREFIX = "emotion.";
 
     /** Результат проверки: либо ошибки по полям, либо готовая карточка. */
     public record Result(PersonaDetails details, Map<String, String> errors) {
@@ -31,9 +34,11 @@ public class AdminPersonaValidator {
     }
 
     private final PersonaRepository personas;
+    private final EmotionRepository emotions;
 
-    public AdminPersonaValidator(PersonaRepository personas) {
+    public AdminPersonaValidator(PersonaRepository personas, EmotionRepository emotions) {
         this.personas = personas;
+        this.emotions = emotions;
     }
 
     public Result validate(PersonaForm form) {
@@ -52,14 +57,8 @@ public class AdminPersonaValidator {
         List<String> aliases = parseAliases(form.aliases());
         checkAliases(aliases, form.id(), errors);
 
-        int joy = number(form.baseJoy(), "baseJoy", 0, 10, "Радость", errors);
-        int anger = number(form.baseAnger(), "baseAnger", 0, 10, "Злость", errors);
-        int offence = number(form.baseOffence(), "baseOffence", 0, 10, "Обида", errors);
-        int fatigue = number(form.baseFatigue(), "baseFatigue", 0, 10, "Усталость", errors);
-        int sarcasm = number(form.baseSarcasm(), "baseSarcasm", 0, 10, "Сарказм", errors);
-        int decay = number(form.offenceDecayPerHour(), "offenceDecayPerHour", 0, 10,
-                "Затухание обиды", errors);
-        int threshold = number(form.angerThreshold(), "angerThreshold", 1, 10,
+        Map<String, Integer> emotionValues = emotionBaseValues(form, errors);
+        int threshold = number(form.aggressionThreshold(), "aggressionThreshold", 1, 10,
                 "Порог срыва", errors);
         int hysteriaReplies = number(form.hysteriaReplies(), "hysteriaReplies", 3, 5,
                 "Ответов при срыве", errors);
@@ -73,12 +72,26 @@ public class AdminPersonaValidator {
 
         if (errors.isEmpty()) {
             PersonaDetails details = new PersonaDetails(form.id(), name, prompt, aliases,
-                    joy, anger, offence, fatigue, sarcasm, decay, threshold,
-                    hysteriaReplies, hysteriaCooldown, maxReplies, replyDelay,
-                    Boolean.TRUE.equals(form.initiativeEnabled()), initiativeCooldown);
+                    emotionValues, threshold, hysteriaReplies, hysteriaCooldown,
+                    maxReplies, replyDelay, Boolean.TRUE.equals(form.initiativeEnabled()), initiativeCooldown);
             return new Result(details, errors);
         }
         return new Result(null, errors);
+    }
+
+    /** Значения эмоций проверяются по справочнику: подпись и диапазон берутся из него. */
+    private Map<String, Integer> emotionBaseValues(PersonaForm form, Map<String, String> errors) {
+        Map<String, String> raw = form.emotionValues() == null ? Map.of() : form.emotionValues();
+        Map<String, Integer> values = new LinkedHashMap<>();
+
+        for (Emotion emotion : emotions.findCatalog()) {
+            if (emotion.derived())
+                continue;
+            int value = number(raw.get(emotion.code()), EMOTION_FIELD_PREFIX + emotion.code(),
+                    0, 10, emotion.title(), errors);
+            values.put(emotion.code(), value);
+        }
+        return values;
     }
 
     /** Алиасы из textarea: по одному в строке или через запятую, без повторов в разном регистре. */

@@ -45,6 +45,8 @@ class AiServiceTest {
     private PersonaService personaService;
     @Mock
     private MemoryRepository memoryRepository;
+    @Mock
+    private EmotionService emotionService;
 
     private final MemoryPromptBuilder memoryPromptBuilder = new MemoryPromptBuilder();
 
@@ -53,7 +55,7 @@ class AiServiceTest {
     @BeforeEach
     void setUp() {
         aiService = new AiService(settings, sender, deepSeekClient, repository,
-                personaService, memoryRepository, memoryPromptBuilder);
+                personaService, memoryRepository, memoryPromptBuilder, emotionService);
     }
 
     @Test
@@ -312,6 +314,48 @@ class AiServiceTest {
         String memory = payload.getValue().get(1).get("content").asText();
         assertTrue(memory.contains("[семья] родился 1988-04-12"), memory);
         assertFalse(memory.contains("[хобби]"), memory);
+    }
+
+    @Test
+    void moodBlockGoesBetweenPromptAndMemory() {
+        when(personaService.resolvePrompt(34L)).thenReturn(Optional.of(
+                new PersonaService.ResolvedPrompt("Промпт персоны", "persona:Юра")));
+        when(personaService.personaForChat(34L)).thenReturn(Optional.of(new Persona(7, "Юра", "Промпт персоны")));
+        when(emotionService.blockFor(7)).thenReturn("Твоё текущее состояние сейчас: гнев 8/10");
+        when(settings.getSettingValue(AI_MEMORY_PROMPT_SIZE)).thenReturn("30");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(memoryRepository.findCore(7)).thenReturn(List.of());
+        when(memoryRepository.findTopRegular(7, 30)).thenReturn(List.of(
+                new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of())));
+        when(repository.getResets(34L)).thenReturn(0);
+        when(repository.findLastMessages(34L, 100)).thenReturn(List.of());
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(34L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        ArrayNode messages = payload.getValue();
+
+        assertEquals(3, messages.size(), "промпт, настроение и память");
+        assertEquals("Твоё текущее состояние сейчас: гнев 8/10", messages.get(1).get("content").asText());
+        assertTrue(messages.get(2).get("content").asText().contains("шахматы"));
+    }
+
+    @Test
+    void chatWithoutPersonaHasNoMoodBlock() {
+        when(personaService.resolvePrompt(35L)).thenReturn(Optional.empty());
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(repository.getResets(35L)).thenReturn(0);
+        when(repository.findLastMessages(35L, 100)).thenReturn(List.of());
+        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+
+        aiService.askAi(35L, "привет");
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
+        assertEquals(1, payload.getValue().size(), "только промпт");
+        verifyNoInteractions(emotionService);
     }
 
     private Message message(String text, Long chatId) {
