@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 import static org.example.Settings.Settings.AI_SYSTEM_ROLE;
+import static org.example.Settings.Settings.USER_ROLE;
 
 /**
  * Второй шаг ответа: модель получает собранный промпт и план, а возвращает
@@ -41,6 +42,9 @@ public class AnswerGenerator {
                 instruction(plan, replies, targets, hysteria)));
         messages.insert(0, history.message(AI_SYSTEM_ROLE,
                 composer.compose(chatId, plan.memoryIds()).text()));
+        // Финальное требование отдельным сообщением: иначе персона отвечает прозой в чат.
+        messages.add(history.message(USER_ROLE,
+                "Верни только JSON-массив строк с репликами. Никакого текста до или после массива."));
 
         String raw = deepSeekClient.sendRequestToAi(messages, temperature);
         List<String> result = parser.parse(raw, replies);
@@ -52,7 +56,10 @@ public class AnswerGenerator {
     }
 
     private String instruction(AnswerPlan plan, int replies, List<String> targets, boolean hysteria) {
-        StringBuilder text = new StringBuilder("Теперь ответь по плану.\n");
+        StringBuilder text = new StringBuilder("Сейчас ты не отвечаешь в чат напрямую: ты готовишь реплики, ");
+        text.append("которые бот разошлёт от твоего имени.\n");
+        text.append("JSON — это техническая обёртка. Правила стиля (живая речь, без markdown, ");
+        text.append("короткие фразы) относятся к строкам внутри массива, а не к самому ответу.\n");
         text.append("Верни ТОЛЬКО JSON-массив строк: от 1 до ").append(replies).append(" реплик.\n");
         text.append("План: тема '").append(plan.topic()).append("', намерение ")
                 .append(plan.intent().code()).append(", реплик ").append(replies).append(".\n");

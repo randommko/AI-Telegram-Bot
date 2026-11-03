@@ -67,6 +67,12 @@ public class AnswerPlanParser {
 
         int open = text.indexOf('{');
         int close = text.lastIndexOf('}');
+        int arrayOpen = text.indexOf('[');
+        int arrayClose = text.lastIndexOf(']');
+
+        // Если текст начинается с массива, вырезаем массив; иначе — объект.
+        if (arrayOpen >= 0 && arrayClose > arrayOpen && (open < 0 || arrayOpen < open))
+            return text.substring(arrayOpen, arrayClose + 1);
         if (open >= 0 && close > open)
             return text.substring(open, close + 1);
         return text;

@@ -39,6 +39,12 @@ class ReplyParserTest {
     }
 
     @Test
+    void stripsTextAroundArray() {
+        assertEquals(List.of("раз", "два"),
+                parser.parse("Вот реплики: [\"раз\",\"два\"] — готово", 4));
+    }
+
+    @Test
     void brokenAnswerGivesNoReplies() {
         assertTrue(parser.parse("не json", 4).isEmpty());
         assertTrue(parser.parse(null, 4).isEmpty());

@@ -75,6 +75,9 @@ class AnswerGeneratorTest {
         assertTrue(instruction.contains("реплик 3"), instruction);
         assertTrue(instruction.contains("Адресаты колкостей: @nick"), instruction);
         assertEquals("@nick: привет", messages.get(2).get("content").asText());
+        assertEquals(USER_ROLE, messages.get(messages.size() - 1).get("role").asText());
+        assertTrue(messages.get(messages.size() - 1).get("content").asText().contains("JSON-массив"),
+                messages.get(messages.size() - 1).get("content").asText());
     }
 
     @Test
