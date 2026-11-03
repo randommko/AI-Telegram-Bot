@@ -96,6 +96,25 @@ class AdminSettingsTest {
     }
 
     @Test
+    void planTokenLimitIsShownOnModelTab() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Лимит токенов плана")));
+    }
+
+    @Test
+    void grudgeSettingsAreShownOnMemoryTab() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=memory").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Обида за оскорбление")))
+                .andExpect(content().string(containsString("Порог адресата колкостей")));
+    }
+
+    @Test
     void savesValidForm() throws Exception {
         mockMvc.perform(formWith(Map.of()))
                 .andExpect(redirectedUrl("/admin/settings?tab=model&saved"));

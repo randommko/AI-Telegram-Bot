@@ -6,6 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.Settings.Settings.AI_GRUDGE_ANGER_DELTA;
+import static org.example.Settings.Settings.AI_GRUDGE_DECAY_PER_HOUR;
+import static org.example.Settings.Settings.AI_GRUDGE_INSULT_STRENGTH;
+import static org.example.Settings.Settings.AI_GRUDGE_THRESHOLD;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
@@ -16,6 +20,7 @@ import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
+import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -121,6 +126,30 @@ class AdminSettingsValidatorTest {
     }
 
     @Test
+    void rejectsGrudgeValuesOutsideRange() {
+        Map<String, String> form = validForm();
+        form.put(AI_GRUDGE_INSULT_STRENGTH, "11");
+        form.put(AI_GRUDGE_ANGER_DELTA, "-1");
+        form.put(AI_GRUDGE_DECAY_PER_HOUR, "11");
+        form.put(AI_GRUDGE_THRESHOLD, "11");
+
+        Map<String, String> errors = validator.validate(form);
+
+        assertTrue(errors.containsKey(AI_GRUDGE_INSULT_STRENGTH));
+        assertTrue(errors.containsKey(AI_GRUDGE_ANGER_DELTA));
+        assertTrue(errors.containsKey(AI_GRUDGE_DECAY_PER_HOUR));
+        assertTrue(errors.containsKey(AI_GRUDGE_THRESHOLD));
+    }
+
+    @Test
+    void rejectsPlanTokenLimitOutsideRange() {
+        Map<String, String> form = validForm();
+        form.put(AI_PLAN_MAX_TOKENS, "0");
+
+        assertTrue(validator.validate(form).containsKey(AI_PLAN_MAX_TOKENS));
+    }
+
+    @Test
     void rejectsTemplateWithoutNamePlaceholder() {
         Map<String, String> form = validForm();
         form.put(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость");
@@ -143,6 +172,11 @@ class AdminSettingsValidatorTest {
         form.put(AI_MODEL_KEY, "deepseek-flash");
         form.put(AI_ANSWER_TEMPERATURE, "1.8");
         form.put(AI_MAX_TOKENS_ANSWER_QUESTION, "1000");
+        form.put(AI_PLAN_MAX_TOKENS, "1500");
+        form.put(AI_GRUDGE_INSULT_STRENGTH, "2");
+        form.put(AI_GRUDGE_ANGER_DELTA, "2");
+        form.put(AI_GRUDGE_DECAY_PER_HOUR, "1");
+        form.put(AI_GRUDGE_THRESHOLD, "5");
         form.put(AI_HISTORY_SIZE, "100");
         form.put(AI_MEMORY_PROMPT_SIZE, "30");
         form.put(AI_MEMORY_ANALYZE_EVERY, "50");

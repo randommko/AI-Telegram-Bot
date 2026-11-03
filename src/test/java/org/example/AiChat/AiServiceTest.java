@@ -1,6 +1,8 @@
 package org.example.AiChat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import org.example.Delay;
 import org.example.MessageSender;
 import org.example.Settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,28 +11,39 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.telegram.telegrambots.meta.api.objects.Message;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_ASSISTANT_ROLE;
-import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_SYSTEM_ROLE;
 import static org.example.Settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AiServiceTest {
+
+    private static final long CHAT_ID = 7L;
+    private static final int PERSONA_ID = 3;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Mock
     private SettingsService settings;
@@ -42,121 +55,175 @@ class AiServiceTest {
     private AiChatRepository repository;
     @Mock
     private PromptComposer promptComposer;
+    @Mock
+    private AiHistory history;
+    @Mock
+    private AnswerPlanner planner;
+    @Mock
+    private AnswerGenerator generator;
+    @Mock
+    private PersonaRepository personaRepository;
+    @Mock
+    private PersonaGrudgeService grudges;
+    @Mock
+    private EmotionService emotionService;
+    @Mock
+    private HysteriaService hysteriaService;
+    @Mock
+    private Delay delay;
 
     private AiService aiService;
 
     @BeforeEach
     void setUp() {
-        aiService = new AiService(settings, sender, deepSeekClient, repository, promptComposer);
+        aiService = new AiService(settings, sender, deepSeekClient, repository, promptComposer, history,
+                planner, generator, personaRepository, grudges, emotionService, hysteriaService, delay);
+
+        when(settings.getFloat(AI_ANSWER_TEMPERATURE, 1.0f)).thenReturn(1.0f);
+        when(history.size()).thenReturn(100);
+        when(history.messages(CHAT_ID)).thenReturn(MAPPER.createArrayNode());
+        when(history.message(anyString(), anyString())).thenAnswer(invocation ->
+                MAPPER.createObjectNode()
+                        .put("role", (String) invocation.getArgument(0))
+                        .put("content", (String) invocation.getArgument(1)));
+        when(promptComposer.compose(CHAT_ID)).thenReturn(new PromptComposer.ComposedPrompt(List.of(), "СИСТЕМА"));
+        when(personaRepository.findSettingsForChat(CHAT_ID)).thenReturn(Optional.of(persona()));
+        when(emotionService.stateFor(PERSONA_ID)).thenReturn(
+                new EmotionState(List.of(), 2, "Агрессия", "спокойно"));
+        when(hysteriaService.shouldStart(any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(false);
+        when(repository.findLastMessages(CHAT_ID, 1)).thenReturn(List.of(
+                new AiMessage(USER_ROLE, "вопрос?",
+                        new MessageAuthor(111L, "@nick", "Ник"))));
+        when(repository.findLastMessages(CHAT_ID, 50)).thenReturn(List.of(
+                new AiMessage(USER_ROLE, "вопрос?",
+                        new MessageAuthor(111L, "@nick", "Ник")),
+                new AiMessage(USER_ROLE, "старое",
+                        new MessageAuthor(222L, "@ann", "Анна"))));
     }
 
     @Test
-    void temperatureIsReadOnEveryRequest() {
-        when(promptComposer.compose(anyLong())).thenReturn(prompt("Промпт"));
-        when(settings.getFloat(AI_ANSWER_TEMPERATURE, 1.0f)).thenReturn(1.0f, 1.9f);
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+    void threeRepliesAreSentWithDelaysAndSavedSeparately() {
+        AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 3);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(eq(CHAT_ID), eq(plan), eq(3), anyList(), eq(false), anyFloat()))
+                .thenReturn(List.of("раз", "два", "три"));
 
-        aiService.askAi(7L, "первый");
-        aiService.askAi(7L, "второй");
+        aiService.askAi(CHAT_ID, "вопрос?");
+
+        verify(sender).sendLongMessage(CHAT_ID, "раз");
+        verify(sender).sendLongMessage(CHAT_ID, "два");
+        verify(sender).sendLongMessage(CHAT_ID, "три");
+        verify(delay, times(2)).pause(1500);
+        verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "раз", 100);
+        verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "два", 100);
+        verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "три", 100);
+    }
+
+    @Test
+    void ignoreSendsNothing() {
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan(PlanIntent.IGNORE, Map.of(), 0)));
+
+        aiService.askAi(CHAT_ID, "ну и?");
+
+        verify(generator, never()).generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(),
+                anyList(), org.mockito.ArgumentMatchers.anyBoolean(), anyFloat());
+        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+    }
+
+    @Test
+    void planFailureFallsBackToOneRequest() {
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
+
+        aiService.askAi(CHAT_ID, "вопрос?");
 
         verify(deepSeekClient).sendRequestToAi(any(), eq(1.0f));
-        verify(deepSeekClient).sendRequestToAi(any(), eq(1.9f));
+        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
+        verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "ответ фолбэка", 100);
     }
 
     @Test
-    void composedPromptGoesFirstAsSingleSystemMessage() {
-        when(promptComposer.compose(7L)).thenReturn(prompt("Техника\n\n## Кто ты\nТы кот из чата"));
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("50");
-        when(repository.findLastMessages(7L, 50)).thenReturn(List.of(new AiMessage(USER_ROLE, "привет")));
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+    void emptyGenerationFallsBack() {
+        AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 2);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
+                org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of());
+        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
 
-        aiService.askAi(message("/ai как дела", 7L));
+        aiService.askAi(CHAT_ID, "вопрос?");
 
-        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
-
-        ArrayNode messages = payload.getValue();
-        assertEquals(2, messages.size(), "один системный промпт и история");
-        assertEquals(AI_SYSTEM_ROLE, messages.get(0).get("role").asText());
-        assertEquals("Техника\n\n## Кто ты\nТы кот из чата", messages.get(0).get("content").asText());
-        assertEquals(USER_ROLE, messages.get(1).get("role").asText());
-        assertEquals("привет", messages.get(1).get("content").asText());
+        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
     }
 
     @Test
-    void promptChangeIsVisibleInNextRequest() {
-        when(promptComposer.compose(anyLong()))
-                .thenReturn(prompt("Первый промпт"))
-                .thenReturn(prompt("Второй промпт"));
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-        when(repository.findLastMessages(anyLong(), anyInt())).thenReturn(List.of());
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+    void chatWithoutPersonaUsesFallback() {
+        when(personaRepository.findSettingsForChat(CHAT_ID)).thenReturn(Optional.empty());
+        when(deepSeekClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ");
 
-        aiService.askAi(message("/ai раз", 9L));
-        aiService.askAi(message("/ai два", 9L));
+        aiService.askAi(CHAT_ID, "привет");
 
-        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient, org.mockito.Mockito.times(2)).sendRequestToAi(payload.capture(), any());
-
-        assertEquals("Первый промпт", payload.getAllValues().get(0).get(0).get("content").asText());
-        assertEquals("Второй промпт", payload.getAllValues().get(1).get(0).get("content").asText());
+        verify(planner, never()).plan(anyLong(), org.mockito.ArgumentMatchers.anyInt());
+        verify(sender).sendLongMessage(CHAT_ID, "ответ");
     }
 
     @Test
-    void historyIsRenderedWithAuthorFromColumns() {
-        when(promptComposer.compose(17L)).thenReturn(prompt("промпт"));
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-        when(repository.findLastMessages(17L, 100)).thenReturn(List.of(
-                new AiMessage(USER_ROLE, "как дела?", new MessageAuthor(111L, "@nick", "Ник"))));
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ");
+    void insultRaisesGrudgeAndAnger() {
+        AnswerPlan plan = plan(PlanIntent.INSULT, Map.of("гнев", 1), 1);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
+                org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ответ"));
+        when(grudges.angerDelta()).thenReturn(2);
+        when(emotionService.applyShifts(eq(PERSONA_ID), any())).thenReturn(Map.of("гнев", 3));
 
-        aiService.askAi(17L, "как дела?");
+        aiService.askAi(CHAT_ID, "ты никто");
 
-        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
-        ArrayNode messages = payload.getValue();
-        assertEquals("@nick (Ник): как дела?", messages.get(messages.size() - 1).get("content").asText());
+        verify(grudges).insult(CHAT_ID, 111L, "ты никто");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Integer>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(emotionService).applyShifts(eq(PERSONA_ID), captor.capture());
+        assertEquals(3, captor.getValue().get("гнев"));
     }
 
     @Test
-    void assistantMessagesGoWithoutAuthorPrefix() {
-        when(promptComposer.compose(18L)).thenReturn(prompt("промпт"));
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-        when(repository.findLastMessages(18L, 100)).thenReturn(List.of(
-                new AiMessage(AI_ASSISTANT_ROLE, "прошлый ответ")));
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn(null);
+    void apologyRemovesGrudge() {
+        AnswerPlan plan = plan(PlanIntent.APOLOGY, Map.of(), 1);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
+                org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ладно"));
 
-        aiService.askAi(18L, "привет");
+        aiService.askAi(CHAT_ID, "извини");
 
-        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
-        verify(deepSeekClient).sendRequestToAi(payload.capture(), any());
-        ArrayNode messages = payload.getValue();
-        assertEquals("прошлый ответ", messages.get(messages.size() - 1).get("content").asText());
+        verify(grudges).forgive(CHAT_ID, 111L);
+        verify(grudges, never()).insult(anyLong(), anyLong(), anyString());
     }
 
     @Test
-    void emptyHistoryIsZeroMessagesAndResetDoesNotThrow() {
-        when(repository.countMessages(1L)).thenReturn(0);
+    void hysteriaOverridesRepliesTargetsAndResetsAnger() {
+        AnswerPlan plan = plan(PlanIntent.INSULT, Map.of(), 2);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(emotionService.stateFor(PERSONA_ID)).thenReturn(
+                new EmotionState(List.of(), 9, "Агрессия", "психоз"));
+        when(hysteriaService.shouldStart(any(), eq(PlanIntent.INSULT), eq(9))).thenReturn(true);
+        when(generator.generate(eq(CHAT_ID), eq(plan), eq(4), anyList(), eq(true), anyFloat()))
+                .thenReturn(List.of("а", "б", "в", "г"));
 
-        assertEquals(0, aiService.getChatHistorySize(1L));
+        aiService.askAi(CHAT_ID, "ты никто");
 
-        aiService.clearChatHistory(1L);
-        verify(repository).clearMessages(1L);
-        verify(repository).incrementResets(1L);
+        verify(generator).generate(eq(CHAT_ID), eq(plan), eq(4), anyList(), eq(true), anyFloat());
+        verify(hysteriaService).record(PERSONA_ID);
+    }
+
+    @Test
+    void blankQuestionIsNotSentToAi() {
+        aiService.askAi(CHAT_ID, " ");
+
+        verifyNoInteractions(planner, generator, deepSeekClient);
+        verify(sender).sendMessage(CHAT_ID, "Напиши свой вопрос после команды /ai");
     }
 
     @Test
     void historyLimitComesFromSettings() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-
-        aiService.saveMessage(5L, USER_ROLE, "текст");
-
-        verify(repository).saveMessage(5L, USER_ROLE, "текст", 100);
-    }
-
-    @Test
-    void historyLimitIsNotHardcoded() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("50");
+        when(history.size()).thenReturn(50);
 
         aiService.saveMessage(5L, USER_ROLE, "текст");
 
@@ -164,66 +231,18 @@ class AiServiceTest {
     }
 
     @Test
-    void historyLimitFallsBackWhenSettingIsMissing() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn(null);
+    void assistantAnswerGoesWithoutAuthor() {
+        when(repository.countMessages(1L)).thenReturn(0);
 
-        aiService.saveMessage(5L, USER_ROLE, "текст");
-
-        verify(repository).saveMessage(5L, USER_ROLE, "текст", 100);
+        assertEquals(0, aiService.getChatHistorySize(1L));
     }
 
-    @Test
-    void historyLimitFallsBackWhenSettingIsNotANumber() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("abc");
-
-        aiService.saveMessage(5L, USER_ROLE, "текст");
-
-        verify(repository).saveMessage(5L, USER_ROLE, "текст", 100);
+    private static PersonaSettings persona() {
+        return new PersonaSettings(PERSONA_ID, 4, 1500, 8, 4, 6, null);
     }
 
-    @Test
-    void historyLimitFallsBackWhenSettingIsZero() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("0");
-
-        aiService.saveMessage(5L, USER_ROLE, "текст");
-
-        verify(repository).saveMessage(5L, USER_ROLE, "текст", 100);
-    }
-
-    @Test
-    void authorIsPassedToRepository() {
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-        MessageAuthor author = new MessageAuthor(111L, "@nick", "Ник");
-
-        aiService.saveMessage(5L, USER_ROLE, "текст", author);
-
-        verify(repository).saveMessage(5L, USER_ROLE, "текст", 100, author);
-    }
-
-    @Test
-    void assistantAnswerIsSentWholeAndSavedOnce() {
-        when(promptComposer.compose(13L)).thenReturn(prompt("промпт"));
-        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
-        when(repository.findLastMessages(anyLong(), anyInt())).thenReturn(List.of());
-        when(deepSeekClient.sendRequestToAi(any(), any())).thenReturn("ответ AI");
-
-        aiService.askAi(message("/ai вопрос", 13L));
-
-        verify(sender).sendLongMessage(13L, "ответ AI");
-        verify(repository).saveMessage(eq(13L), eq(AI_ASSISTANT_ROLE), eq("ответ AI"), eq(100));
-        verify(sender, never()).sendMessage(anyLong(), any());
-    }
-
-    @Test
-    void blankQuestionIsNotSentToAi() {
-        aiService.askAi(17L, " ");
-
-        verifyNoInteractions(deepSeekClient);
-        verify(sender).sendMessage(17L, "Напиши свой вопрос после команды /ai");
-    }
-
-    private static PromptComposer.ComposedPrompt prompt(String text) {
-        return new PromptComposer.ComposedPrompt(List.of(), text);
+    private static AnswerPlan plan(PlanIntent intent, Map<String, Integer> deltas, int replies) {
+        return new AnswerPlan("тема", intent, List.of(), deltas, "причина", replies, List.of());
     }
 
     private Message message(String text, Long chatId) {

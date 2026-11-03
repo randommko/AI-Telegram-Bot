@@ -7,6 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.Settings.Settings.AI_GRUDGE_ANGER_DELTA;
+import static org.example.Settings.Settings.AI_GRUDGE_DECAY_PER_HOUR;
+import static org.example.Settings.Settings.AI_GRUDGE_INSULT_STRENGTH;
+import static org.example.Settings.Settings.AI_GRUDGE_THRESHOLD;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
@@ -17,6 +21,7 @@ import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
+import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 /** Проверка формы настроек: ошибки возвращаются по ключу настройки и показываются у поля. */
@@ -37,6 +42,16 @@ public class AdminSettingsValidator {
                 "Температура должна быть числом от 0 до 2", errors);
         integerInRange(values, AI_MAX_TOKENS_ANSWER_QUESTION, 1, MAX_TOKENS_LIMIT,
                 "Лимит токенов должен быть целым от 1 до 8192", errors);
+        integerInRange(values, AI_PLAN_MAX_TOKENS, 1, MAX_TOKENS_LIMIT,
+                "Лимит токенов плана должен быть целым от 1 до 8192", errors);
+        integerInRange(values, AI_GRUDGE_INSULT_STRENGTH, 0, 10,
+                "Прибавка к обиде должна быть целой от 0 до 10", errors);
+        integerInRange(values, AI_GRUDGE_ANGER_DELTA, 0, 10,
+                "Прибавка к гневу должна быть целой от 0 до 10", errors);
+        integerInRange(values, AI_GRUDGE_DECAY_PER_HOUR, 0, 10,
+                "Затухание обиды должно быть целым от 0 до 10", errors);
+        integerInRange(values, AI_GRUDGE_THRESHOLD, 0, 10,
+                "Порог адресата должен быть целым от 0 до 10", errors);
         integerInRange(values, AI_MEMORY_ANALYSIS_MAX_TOKENS, 1, MAX_TOKENS_LIMIT,
                 "Лимит токенов анализа должен быть целым от 1 до 8192", errors);
         integerInRange(values, AI_MEMORY_ANALYSIS_MESSAGES, 1, MAX_ANALYSIS_MESSAGES,

@@ -32,6 +32,13 @@ public class Settings {
     public static final String AI_PROMPT_TIME_TEMPLATE = "aiPromptTimeTemplate";
     public static final String AI_PROMPT_TIME_ZONE = "aiPromptTimeZone";
     public static final String AI_PROMPT_ANSWER_FORMAT = "aiPromptAnswerFormat";
+    /** Бюджет токенов шага «план»: reasoning-модель тратит его и на размышления. */
+    public static final String AI_PLAN_MAX_TOKENS = "aiPlanMaxTokens";
+    /** Обиды: прибавки за оскорбление, скорость затухания и порог адресата. */
+    public static final String AI_GRUDGE_INSULT_STRENGTH = "aiGrudgeInsultStrength";
+    public static final String AI_GRUDGE_ANGER_DELTA = "aiGrudgeAngerDelta";
+    public static final String AI_GRUDGE_DECAY_PER_HOUR = "aiGrudgeDecayPerHour";
+    public static final String AI_GRUDGE_THRESHOLD = "aiGrudgeThreshold";
     public static final Long BOT_ID_PROD = 7332966399L;
     public static final Long BOT_ID_TEST = 7712595730L;
     public static final Long MY_CHAT_ID = -1001347887839L;

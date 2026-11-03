@@ -23,6 +23,9 @@ public class EmotionService {
 
     static final String JOY_CODE = "радость";
     static final String AGGRESSION_CODE = "агрессия";
+    static final String ANGER_CODE = "гнев";
+    /** Предел сдвига одной шкалы за ход: настроение не должно скакать. */
+    static final int MAX_SHIFT = 3;
     /** С этой радости агрессия гасится: агрессивным и довольным одновременно быть нельзя. */
     static final int JOY_SUPPRESSION_FROM = 7;
     /** Эмоция попадает в промпт, только если отошла от характера хотя бы на столько. */
@@ -53,6 +56,34 @@ public class EmotionService {
     /** Содержимое блока без заголовка: заголовок раздела берётся из настроек. */
     public String bodyFor(int personaId) {
         return bodyFor(personaId, false);
+    }
+
+    /** Применяет сдвиги плана и прибавку за оскорбление к действующим значениям. */
+    public Map<String, Integer> applyShifts(int personaId, Map<String, Integer> deltas) {
+        return emotions.applyShifts(personaId, deltas, MAX_SHIFT);
+    }
+
+    /** Гнев после срыва возвращается к базовому значению. */
+    public void resetAngerToBase(int personaId) {
+        emotions.resetToBase(personaId, ANGER_CODE);
+    }
+
+    /** Новое значение шкалы: сдвиг ограничен, итог клампится в 0..10. */
+    static int shiftValue(int effective, int delta, int maxShift) {
+        int bounded = Math.max(-maxShift, Math.min(maxShift, delta));
+        return Math.max(0, Math.min(10, effective + bounded));
+    }
+
+    /** Сдвиги только по известным шкалам: коды вне справочника молча отбрасываются. */
+    static Map<String, Integer> shiftAll(Map<String, Integer> effective,
+                                         Map<String, Integer> deltas, int maxShift) {
+        Map<String, Integer> shifted = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : effective.entrySet()) {
+            Integer delta = deltas.get(entry.getKey());
+            if (delta != null)
+                shifted.put(entry.getKey(), shiftValue(entry.getValue(), delta, maxShift));
+        }
+        return shifted;
     }
 
     public String bodyFor(int personaId, boolean readOnly) {

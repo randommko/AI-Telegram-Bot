@@ -21,6 +21,10 @@ import java.util.stream.Collectors;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_CONTEXT;
+import static org.example.Settings.Settings.AI_GRUDGE_ANGER_DELTA;
+import static org.example.Settings.Settings.AI_GRUDGE_DECAY_PER_HOUR;
+import static org.example.Settings.Settings.AI_GRUDGE_INSULT_STRENGTH;
+import static org.example.Settings.Settings.AI_GRUDGE_THRESHOLD;
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
 import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
@@ -31,6 +35,7 @@ import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
+import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 /**
@@ -61,13 +66,18 @@ public class AdminSettingsController {
                     select(AI_MODEL_KEY, "Модель", Settings.AVAILABLE_AI_MODELS),
                     range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
                     range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
+                    range(AI_PLAN_MAX_TOKENS, "Лимит токенов плана", "1", "8192", "64"),
                     range(AI_MEMORY_ANALYSIS_MAX_TOKENS, "Лимит токенов анализа памяти", "1", "8192", "64"),
                     range(AI_MEMORY_ANALYSIS_MESSAGES, "Сообщений в анализе памяти", "1", "1000", "10"),
                     range(AI_HISTORY_SIZE, "Сообщений в истории чата", "1", "1000", "10"))),
             new TabView("memory", "Память", false, List.of(
                     range(AI_MEMORY_PROMPT_SIZE, "Обычных воспоминаний в промпте", "0", "100", "1"),
                     range(AI_MEMORY_ANALYZE_EVERY, "Порог анализа переписки", "1", "1000", "1"),
-                    area(AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа переписки"))),
+                    area(AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа переписки"),
+                    range(AI_GRUDGE_INSULT_STRENGTH, "Обида за оскорбление", "0", "10", "1"),
+                    range(AI_GRUDGE_ANGER_DELTA, "Гнев за оскорбление", "0", "10", "1"),
+                    range(AI_GRUDGE_DECAY_PER_HOUR, "Затухание обиды в час", "0", "10", "1"),
+                    range(AI_GRUDGE_THRESHOLD, "Порог адресата колкостей", "0", "10", "1"))),
             new TabView("prompts", "Промты", false, List.of(
                     area(AI_CONTEXT, "Промпт чата без персоны"))),
             new TabView("templates", "Шаблоны", false, List.of(

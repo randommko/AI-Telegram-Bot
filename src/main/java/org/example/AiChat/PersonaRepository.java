@@ -54,6 +54,50 @@ public class PersonaRepository {
         return Optional.empty();
     }
 
+    /** Параметры ответа персоны этого чата: реплики, пауза, срыв и время последнего срыва. */
+    public Optional<PersonaSettings> findSettingsForChat(long chatId) {
+        String query = "SELECT p.id, p.max_replies, p.reply_delay_ms, p.aggression_threshold,"
+                + " p.hysteria_replies, p.hysteria_cooldown_hours, p.last_hysteria_at"
+                + " FROM " + CHAT_PERSONAS_TABLE + " cp"
+                + " JOIN " + PERSONAS_TABLE + " p ON p.id = cp.persona_id WHERE cp.chat_id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    var lastHysteria = resultSet.getObject("last_hysteria_at", java.time.OffsetDateTime.class);
+                    return Optional.of(new PersonaSettings(
+                            resultSet.getInt("id"),
+                            resultSet.getInt("max_replies"),
+                            resultSet.getInt("reply_delay_ms"),
+                            resultSet.getInt("aggression_threshold"),
+                            resultSet.getInt("hysteria_replies"),
+                            resultSet.getInt("hysteria_cooldown_hours"),
+                            lastHysteria == null ? null : lastHysteria.toInstant()));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения параметров персоны чата {}: ", chatId, e);
+        }
+        return Optional.empty();
+    }
+
+    /** Время последнего срыва: пауза принадлежит персоне, а не чату. */
+    public void updateLastHysteriaAt(int personaId, java.time.Instant at) {
+        String query = "UPDATE " + PERSONAS_TABLE + " SET last_hysteria_at = ? WHERE id = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setObject(1, java.time.OffsetDateTime.ofInstant(at, java.time.ZoneOffset.UTC));
+            statement.setInt(2, personaId);
+            statement.executeUpdate();
+        } catch (Exception e) {
+            logger.error("Ошибка записи времени срыва персоны {}: ", personaId, e);
+        }
+    }
+
     /** Алиасы персоны этого чата, от длинных к коротким. */
     public List<String> findAliasesForChat(long chatId) {
         String query = "SELECT a.alias FROM " + PERSONA_ALIASES_TABLE + " a" +

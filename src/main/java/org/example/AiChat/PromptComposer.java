@@ -12,6 +12,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -78,19 +79,32 @@ public class PromptComposer {
     public record ComposedPrompt(List<Section> sections, String text) {
     }
 
+    /** Ядро и обычные воспоминания из топ-N: план выбирает из них, что приложить к ответу. */
+    public record MemoryPool(List<MemoryRecord> core, List<MemoryRecord> regular) {
+    }
+
     public ComposedPrompt compose(long chatId) {
-        return compose(chatId, false);
+        return compose(chatId, false, null);
     }
 
     /** readOnly — для предпросмотра: чтение эмоций не добивает недостающие строки в базе. */
     public ComposedPrompt compose(long chatId, boolean readOnly) {
+        return compose(chatId, readOnly, null);
+    }
+
+    /** compose с выбором обычных воспоминаний: пустой выбор означает все топ-N. */
+    public ComposedPrompt compose(long chatId, Collection<Integer> regularMemoryIds) {
+        return compose(chatId, false, regularMemoryIds);
+    }
+
+    private ComposedPrompt compose(long chatId, boolean readOnly, Collection<Integer> regularMemoryIds) {
         Optional<Persona> persona = personaFor(chatId);
 
         List<Section> sections = new ArrayList<>();
         add(sections, PromptSection.TECHNICAL, applyLength(text(AI_PROMPT_TECHNICAL, PromptDefaults.TECHNICAL)));
         add(sections, PromptSection.PERSONA, personaText(chatId));
         add(sections, PromptSection.EMOTIONS, emotions(persona, readOnly));
-        add(sections, PromptSection.MEMORY, memories(persona));
+        add(sections, PromptSection.MEMORY, memories(persona, regularMemoryIds));
         add(sections, PromptSection.PEOPLE, people(chatId));
         add(sections, PromptSection.TIME, time());
         add(sections, PromptSection.ANSWER_FORMAT,
@@ -99,6 +113,23 @@ public class PromptComposer {
         String prompt = String.join("\n\n", sections.stream().map(PromptComposer::render).toList());
         logger.info("Системный промпт чата {}: разделов {}, символов {}", chatId, sections.size(), prompt.length());
         return new ComposedPrompt(List.copyOf(sections), prompt);
+    }
+
+    /** Каталог памяти для плана: ядро и обычные из топ-N, без записи в базу. */
+    public MemoryPool memoryPool(long chatId) {
+        Optional<Persona> persona = personaFor(chatId);
+        if (persona.isEmpty())
+            return new MemoryPool(List.of(), List.of());
+
+        try {
+            int personaId = persona.get().id();
+            return new MemoryPool(
+                    memoryRepository.findCore(personaId),
+                    memoryRepository.findTopRegular(personaId, memoryPromptSize()));
+        } catch (Exception e) {
+            logger.error("Ошибка чтения каталога памяти персоны {}: {}", persona.get().id(), String.valueOf(e));
+            return new MemoryPool(List.of(), List.of());
+        }
     }
 
     private static String render(Section section) {
@@ -160,7 +191,7 @@ public class PromptComposer {
         }
     }
 
-    private String memories(Optional<Persona> persona) {
+    private String memories(Optional<Persona> persona, Collection<Integer> regularMemoryIds) {
         if (persona.isEmpty())
             return "";
 
@@ -168,6 +199,16 @@ public class PromptComposer {
             int personaId = persona.get().id();
             List<MemoryRecord> core = memoryRepository.findCore(personaId);
             List<MemoryRecord> regular = memoryRepository.findTopRegular(personaId, memoryPromptSize());
+
+            if (regularMemoryIds != null && !regularMemoryIds.isEmpty()) {
+                List<MemoryRecord> selected = regular.stream()
+                        .filter(memory -> regularMemoryIds.contains(memory.id()))
+                        .toList();
+                // Пустой или неизвестный выбор не должен оставить генерацию без памяти.
+                if (!selected.isEmpty())
+                    regular = selected;
+            }
+
             String block = memoryPromptBuilder.build(
                     core, regular,
                     text(AI_PROMPT_MEMORY_CORE_HEADER, PromptDefaults.MEMORY_CORE_HEADER),

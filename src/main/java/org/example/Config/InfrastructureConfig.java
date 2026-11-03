@@ -1,6 +1,7 @@
 package org.example.Config;
 
 import com.zaxxer.hikari.HikariDataSource;
+import org.example.Delay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -22,6 +23,18 @@ public class InfrastructureConfig {
     @Bean
     Clock clock() {
         return Clock.systemDefaultZone();
+    }
+
+    /** Пауза между репликами; прерывание не должно ронять ответ. */
+    @Bean
+    Delay delay() {
+        return millis -> {
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        };
     }
 
     /**

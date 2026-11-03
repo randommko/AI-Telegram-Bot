@@ -8,6 +8,8 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -211,6 +213,82 @@ public class EmotionRepository {
             statement.executeUpdate();
         } catch (Exception e) {
             logger.error("Ошибка правки фразы эмоции {} полосы {}: ", emotionCode, fromValue, e);
+        }
+    }
+
+    /**
+     * Применяет сдвиги к действующим значениям эмоций одной транзакцией: строки
+     * персоны блокируются, чтобы два одновременных ответа не потеряли прибавку.
+     */
+    public Map<String, Integer> applyShifts(int personaId, Map<String, Integer> deltas, int maxDelta) {
+        if (deltas == null || deltas.isEmpty())
+            return Map.of();
+
+        String select = "SELECT pe.emotion_code, pe.base_value, pe.value, pe.updated_at, e.decay_per_hour,"
+                + " e.is_derived FROM " + PERSONA_EMOTIONS_TABLE + " pe"
+                + " JOIN " + EMOTIONS_TABLE + " e ON e.code = pe.emotion_code"
+                + " WHERE pe.persona_id = ? FOR UPDATE OF pe";
+        String update = "UPDATE " + PERSONA_EMOTIONS_TABLE
+                + " SET value = ?, updated_at = now() WHERE persona_id = ? AND emotion_code = ?";
+
+        Map<String, Integer> applied = new LinkedHashMap<>();
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                Instant now = Instant.now();
+                Map<String, Integer> effective = new LinkedHashMap<>();
+                try (PreparedStatement statement = connection.prepareStatement(select)) {
+                    statement.setInt(1, personaId);
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        while (resultSet.next()) {
+                            if (resultSet.getBoolean("is_derived"))
+                                continue;
+                            effective.put(resultSet.getString("emotion_code"), EmotionService.effectiveValue(
+                                    resultSet.getInt("base_value"),
+                                    resultSet.getInt("value"),
+                                    resultSet.getDouble("decay_per_hour"),
+                                    Duration.between(resultSet.getObject("updated_at", OffsetDateTime.class)
+                                            .toInstant(), now)));
+                        }
+                    }
+                }
+
+                applied.putAll(EmotionService.shiftAll(effective, deltas, maxDelta));
+                try (PreparedStatement updateStatement = connection.prepareStatement(update)) {
+                    for (Map.Entry<String, Integer> entry : applied.entrySet()) {
+                        updateStatement.setInt(1, entry.getValue());
+                        updateStatement.setInt(2, personaId);
+                        updateStatement.setString(3, entry.getKey());
+                        updateStatement.addBatch();
+                    }
+                    updateStatement.executeBatch();
+                }
+                connection.commit();
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка применения сдвигов эмоций персоны {}: ", personaId, e);
+            return Map.of();
+        }
+        return applied;
+    }
+
+    /** Гнев после срыва возвращается к характеру; остальные шкалы не трогаются. */
+    public void resetToBase(int personaId, String emotionCode) {
+        String query = "UPDATE " + PERSONA_EMOTIONS_TABLE
+                + " SET value = base_value, updated_at = now() WHERE persona_id = ? AND emotion_code = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            statement.setString(2, emotionCode);
+            statement.executeUpdate();
+        } catch (Exception e) {
+            logger.error("Ошибка сброса эмоции {} персоны {}: ", emotionCode, personaId, e);
         }
     }
 }

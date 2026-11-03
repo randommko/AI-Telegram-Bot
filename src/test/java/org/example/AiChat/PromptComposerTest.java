@@ -244,6 +244,53 @@ class PromptComposerTest {
         assertTrue(second.contains("Вторые люди:"), second);
     }
 
+    @Test
+    void memorySectionUsesPlanSelection() {
+        withPersona();
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(
+                new MemoryRecord(1, "семья", "ядровая запись", 10, true, null, List.of())));
+        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
+                .thenReturn(List.of(memory(2, "шахматы"), memory(3, "море")));
+
+        String memory = section(composer.compose(CHAT_ID, List.of(3)), PromptSection.MEMORY);
+
+        assertTrue(memory.contains("море"), memory);
+        assertFalse(memory.contains("шахматы"), memory);
+        assertTrue(memory.contains("ядровая запись"), "ядро не вытесняется выбором");
+    }
+
+    @Test
+    void emptyOrUnknownSelectionFallsBackToAllRegularMemories() {
+        withPersona();
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of());
+        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
+                .thenReturn(List.of(memory(2, "шахматы"), memory(3, "море")));
+
+        String empty = section(composer.compose(CHAT_ID, List.of()), PromptSection.MEMORY);
+        String unknown = section(composer.compose(CHAT_ID, List.of(999)), PromptSection.MEMORY);
+
+        assertTrue(empty.contains("шахматы") && empty.contains("море"), empty);
+        assertTrue(unknown.contains("шахматы") && unknown.contains("море"), unknown);
+    }
+
+    @Test
+    void memoryPoolExposesCoreAndTopRegular() {
+        withPersona();
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(
+                new MemoryRecord(1, "семья", "ядро", 10, true, null, List.of())));
+        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
+                .thenReturn(List.of(memory(2, "шахматы")));
+
+        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID);
+
+        assertEquals(1, pool.core().size());
+        assertEquals(2, pool.regular().get(0).id());
+    }
+
+    private static MemoryRecord memory(int id, String content) {
+        return new MemoryRecord(id, "другое", content, 5, false, null, List.of());
+    }
+
     private void withPersona() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.of(
                 new Persona(PERSONA_ID, "Юра", "Ты Юра")));
