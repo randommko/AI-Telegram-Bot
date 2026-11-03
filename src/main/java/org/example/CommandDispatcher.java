@@ -3,6 +3,7 @@ package org.example;
 
 import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
+import org.example.AiChat.MessageAuthor;
 import org.example.AiChat.PersonaService;
 import org.example.CockSize.CockSizeGame;
 import org.example.Config.BotProperties;
@@ -165,24 +166,7 @@ public class CommandDispatcher {
     }
 
     private void saveMessageText(User user, Chat chat, String text) {
-        String messageToSave = "Сообщение от: " + getAuthor(user) + ": " + text;
-
-        aiService.saveMessage(chat.getId(), USER_ROLE, messageToSave);
-    }
-
-    /**
-     * Ник и человеческое имя рядом: модель не должна угадывать, кто из участников
-     * сейчас пишет, — в промпте люди названы по именам, а в Telegram у них ники.
-     */
-    private String getAuthor(User user) {
-        String userName = user.getUserName();
-        String firstName = user.getFirstName();
-
-        if (userName == null || userName.isBlank())
-            return "@" + (firstName == null || firstName.isBlank() ? "unknown" : firstName);
-        if (firstName == null || firstName.isBlank() || firstName.equals(userName))
-            return "@" + userName;
-        return "@" + userName + " (" + firstName + ")";
+        aiService.saveMessage(chat.getId(), USER_ROLE, text, MessageAuthor.from(user));
     }
 
     // Хендлеры команд (каждый - 1 ответственность)

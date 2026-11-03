@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Предпросмотр промпта</h1>
+
+    <div class="toolbar">
+        <a class="button secondary" th:href="@{/admin/prompt}">Назад к шаблонам</a>
+    </div>
+
+    <form class="filters" method="get" th:action="@{/admin/prompt/preview}">
+        <label>Чат
+            <select name="chatId">
+                <option th:each="chat : ${chats}" th:value="${chat.chatId()}"
+                        th:selected="${chat.chatId() == chatId}"
+                        th:text="${chat.title() + (chat.hasPersona() ? ' — с персоной' : ' — без персоны')}"></option>
+            </select>
+        </label>
+        <label>Тестовый вопрос
+            <input type="text" name="question" th:value="${question}"/>
+        </label>
+        <button class="primary" type="submit">Собрать промпт</button>
+    </form>
+
+    <p class="note" th:if="${chatId == null}">В базе нет чатов — предпросмотр пуст.</p>
+
+    <pre th:if="${chatId != null}" th:text="${prompt}"
+         style="white-space: pre-wrap; background: #fff; border: 1px solid #dcdfe4; border-radius: 6px; padding: 16px; font-size: 13px;">Промпт</pre>
+
+    <p class="hint" th:if="${chatId != null}"
+       th:text="${'Тестовый вопрос: ' + question + '. В промпт он не входит — вопрос виден модели в истории.'}"></p>
+</main>
+</body>
+</html>

@@ -104,6 +104,28 @@ class AiMemoryExtractorTest {
     }
 
     @Test
+    void messageLineUsesAuthorColumnsLikeHistory() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 1));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "привет", Instant.parse("2026-11-03T10:00:00Z"),
+                        new MessageAuthor(111L, "@nick", "Ник"))));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of());
+        when(memoryRepository.categories()).thenReturn(Set.of("другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(deepSeekClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
+
+        extractor.analyzeChat(CHAT, 100);
+
+        ArgumentCaptor<ArrayNode> payload = ArgumentCaptor.forClass(ArrayNode.class);
+        verify(deepSeekClient).sendRequestToAi(payload.capture(), any(Float.class), anyInt());
+        String user = payload.getValue().get(1).get("content").asText();
+        assertTrue(user.contains("] @nick (Ник): привет"), user);
+    }
+
+    @Test
     void returnsCountsOfAppliedChanges() throws Exception {
         when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
         when(memoryRepository.watermark(1L)).thenReturn(10L);

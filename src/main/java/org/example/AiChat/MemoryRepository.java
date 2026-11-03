@@ -50,10 +50,14 @@ public class MemoryRepository {
         this.dataSource = dataSource;
     }
 
-    public record MessageRow(long id, String content, Instant createdAt) {
+    public record MessageRow(long id, String content, Instant createdAt, MessageAuthor author) {
 
         public MessageRow(long id, String content) {
-            this(id, content, Instant.EPOCH);
+            this(id, content, Instant.EPOCH, MessageAuthor.none());
+        }
+
+        public MessageRow(long id, String content, Instant createdAt) {
+            this(id, content, createdAt, MessageAuthor.none());
         }
     }
 
@@ -145,8 +149,8 @@ public class MemoryRepository {
     }
 
     public List<MessageRow> findNewMessages(long chatId, long watermark) {
-        String query = "SELECT id, content, created_at FROM " + AI_MESSAGES_TABLE +
-                " WHERE chat_id = ? AND id > ? ORDER BY id";
+        String query = "SELECT id, content, created_at, author_user_id, author_nick, author_name FROM "
+                + AI_MESSAGES_TABLE + " WHERE chat_id = ? AND id > ? ORDER BY id";
 
         List<MessageRow> messages = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
@@ -158,7 +162,11 @@ public class MemoryRepository {
                     messages.add(new MessageRow(
                             resultSet.getLong("id"),
                             resultSet.getString("content"),
-                            resultSet.getObject("created_at", OffsetDateTime.class).toInstant()));
+                            resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+                            new MessageAuthor(
+                                    resultSet.getObject("author_user_id", Long.class),
+                                    resultSet.getString("author_nick"),
+                                    resultSet.getString("author_name"))));
             }
         } catch (Exception e) {
             logger.error("Ошибка чтения новых сообщений в чате {}: ", chatId, e);

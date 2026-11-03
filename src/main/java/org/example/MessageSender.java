@@ -41,6 +41,22 @@ public class MessageSender {
         }
     }
 
+    /**
+     * Отправляет текст целиком: длинный ответ режется на части по лимиту Telegram
+     * и уходит по порядку. Сбой одной части не отменяет остальные.
+     */
+    public int sendLongMessage(Long chatId, String text) {
+        List<String> parts = TextSplitter.split(text, TextSplitter.MAX_MESSAGE_LENGTH);
+        int sent = 0;
+        for (String part : parts) {
+            if (sendMessage(chatId, part) != null)
+                sent++;
+        }
+        if (parts.size() > 1)
+            logger.info("Ответ в чат {} разбит на {} частей, отправлено {}", chatId, parts.size(), sent);
+        return sent;
+    }
+
     public Integer sendReplyMessage(Long chatId, Integer replyId, String text) {
         SendMessage msg = SendMessage.builder().chatId(chatId).text(text).replyToMessageId(replyId).build();
         try {

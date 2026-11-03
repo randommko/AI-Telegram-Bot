@@ -12,16 +12,24 @@ import java.util.stream.Collectors;
  */
 @Component
 public class MemoryPromptBuilder {
-    private static final String CORE_HEADER = "Что ты помнишь о себе и о людях в чате всегда (это незыблемо):";
-    private static final String REGULAR_HEADER = "Что ты помнишь о себе и о людях в чате:";
 
     public String build(List<MemoryRecord> core, List<MemoryRecord> regular) {
+        return build(core, regular, PromptDefaults.MEMORY_CORE_HEADER, PromptDefaults.MEMORY_REGULAR_HEADER);
+    }
+
+    /** Заголовки приходят из настроек: смена текста в админке действует без перезапуска. */
+    public String build(List<MemoryRecord> core, List<MemoryRecord> regular,
+                        String coreHeader, String regularHeader) {
         List<String> blocks = new ArrayList<>();
         if (core != null && !core.isEmpty())
-            blocks.add(block(CORE_HEADER, core));
+            blocks.add(block(header(coreHeader, PromptDefaults.MEMORY_CORE_HEADER), core));
         if (regular != null && !regular.isEmpty())
-            blocks.add(block(REGULAR_HEADER, regular));
+            blocks.add(block(header(regularHeader, PromptDefaults.MEMORY_REGULAR_HEADER), regular));
         return String.join("\n\n", blocks);
+    }
+
+    private String header(String configured, String fallback) {
+        return configured == null || configured.isBlank() ? fallback : configured;
     }
 
     private String block(String header, List<MemoryRecord> memories) {

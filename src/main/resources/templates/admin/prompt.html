@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head(${title})}"></head>
+<body>
+<header th:replace="~{admin/layout :: menu}"></header>
+<main>
+    <h1 th:text="${title}">Промпт</h1>
+    <p th:replace="~{admin/layout :: liveData}"></p>
+    <p class="notice" th:if="${saved}">Шаблоны сохранены. Следующий ответ строится по новому тексту.</p>
+
+    <form class="filters" method="get" th:action="@{/admin/prompt/preview}">
+        <label>Чат для предпросмотра
+            <select name="chatId">
+                <option th:each="chat : ${chats}" th:value="${chat.chatId()}"
+                        th:text="${chat.title() + (chat.hasPersona() ? ' — с персоной' : ' — без персоны')}"></option>
+            </select>
+        </label>
+        <label>Тестовый вопрос
+            <input type="text" name="question" value="как дела?"/>
+        </label>
+        <button class="primary" type="submit">Предпросмотр</button>
+    </form>
+
+    <form class="setting" th:each="section : ${sections}" th:action="@{/admin/prompt}" method="post">
+        <h2 class="section" th:text="${section.spec().title()}">Раздел</h2>
+        <p class="hint" th:text="${'Бюджет раздела: ' + section.spec().budget() + ' символов'}"></p>
+        <p class="hint" th:if="${section.spec().heading() != null}"
+           th:text="${'Заголовок в промпте: ' + section.spec().heading()}"></p>
+
+        <p class="note" th:if="${section.spec().name() == 'PERSONA'}">
+            Текст персоны правится в <a th:href="@{/admin/personas}">карточке персоны</a>.
+        </p>
+
+        <div class="field" th:each="field : ${section.templates()}">
+            <label th:for="${field.key()}" th:text="${field.label()}">Поле</label>
+
+            <textarea th:if="${field.multiline()}"
+                      th:id="${field.key()}" th:name="${field.key()}"
+                      th:attr="data-budget=${field.budget()}"
+                      th:text="${field.value()}"
+                      oninput="const c = this.closest('.field').querySelector('.counter'); c.textContent = this.value.length + ' / ' + this.dataset.budget + ' символов'; c.classList.toggle('error', this.value.length > this.dataset.budget);"></textarea>
+
+            <input th:unless="${field.multiline()}" type="text"
+                   th:id="${field.key()}" th:name="${field.key()}"
+                   th:attr="data-budget=${field.budget()}" th:value="${field.value()}"
+                   oninput="const c = this.closest('.field').querySelector('.counter'); c.textContent = this.value.length + ' / ' + this.dataset.budget + ' символов'; c.classList.toggle('error', this.value.length > this.dataset.budget);"/>
+
+            <span class="hint counter"
+                  th:classappend="${field.length() > field.budget()} ? ' error'"
+                  th:text="${field.length() + ' / ' + field.budget() + ' символов'}">0 / 0 символов</span>
+        </div>
+
+        <div class="toolbar">
+            <button class="primary" type="submit">Сохранить</button>
+            <button class="button secondary" type="submit" name="reset"
+                    th:each="field : ${section.templates()}"
+                    th:value="${field.key()}"
+                    th:text="${'Вернуть по умолчанию: ' + field.label()}"></button>
+        </div>
+    </form>
+</main>
+</body>
+</html>

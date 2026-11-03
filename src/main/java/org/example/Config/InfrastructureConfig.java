@@ -12,10 +12,17 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 import javax.sql.DataSource;
+import java.time.Clock;
 
 @Configuration
 public class InfrastructureConfig {
     private static final Logger logger = LoggerFactory.getLogger(InfrastructureConfig.class);
+
+    /** Часы — бином, чтобы время в промпте можно было зафиксировать в тестах. */
+    @Bean
+    Clock clock() {
+        return Clock.systemDefaultZone();
+    }
 
     /**
      * Имена BOT_DB_* не совпадают с spring.datasource.*, поэтому пул строится из BotProperties.

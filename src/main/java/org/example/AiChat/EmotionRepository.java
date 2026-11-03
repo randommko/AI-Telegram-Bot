@@ -93,6 +93,11 @@ public class EmotionRepository {
         return selectForPersona(personaId);
     }
 
+    /** Значения без добивки недостающих строк: предпросмотр промпта не должен писать в базу. */
+    public List<PersonaEmotion> findStoredForPersona(int personaId) {
+        return selectForPersona(personaId);
+    }
+
     private void ensureForPersona(int personaId) {
         String query = "INSERT INTO " + PERSONA_EMOTIONS_TABLE
                 + " (persona_id, emotion_code, base_value, value, updated_at)"
@@ -172,5 +177,40 @@ public class EmotionRepository {
                 codes.add(emotion.code());
         }
         return codes;
+    }
+
+    /** Правка справочника: производная агрессия не редактируется, её значения вычисляются. */
+    public void updateEmotion(String code, String title, double aggressionWeight, double decayPerHour,
+                              int baseDefault) {
+        String query = "UPDATE " + EMOTIONS_TABLE + " SET title = ?, aggression_weight = ?, decay_per_hour = ?,"
+                + " base_default = ? WHERE code = ? AND is_derived = false";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, title);
+            statement.setDouble(2, aggressionWeight);
+            statement.setDouble(3, decayPerHour);
+            statement.setInt(4, baseDefault);
+            statement.setString(5, code);
+            statement.executeUpdate();
+        } catch (Exception e) {
+            logger.error("Ошибка правки эмоции {}: ", code, e);
+        }
+    }
+
+    /** Правка фразы полосы: строка полосы уже есть в справочнике, меняется только текст. */
+    public void updatePhrase(String emotionCode, int fromValue, String phrase) {
+        String query = "UPDATE " + EMOTION_PHRASES_TABLE + " SET phrase = ?"
+                + " WHERE emotion_code = ? AND from_value = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, phrase);
+            statement.setString(2, emotionCode);
+            statement.setInt(3, fromValue);
+            statement.executeUpdate();
+        } catch (Exception e) {
+            logger.error("Ошибка правки фразы эмоции {} полосы {}: ", emotionCode, fromValue, e);
+        }
     }
 }

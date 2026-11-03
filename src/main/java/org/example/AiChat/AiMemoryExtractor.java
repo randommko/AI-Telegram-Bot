@@ -172,7 +172,8 @@ public class AiMemoryExtractor {
                 + existingMemories(existing)
                 + "\n\nНовые сообщения:\n"
                 + messages.stream()
-                .map(message -> "[" + MESSAGE_TIME.format(message.createdAt()) + "] " + message.content())
+                .map(message -> "[" + MESSAGE_TIME.format(message.createdAt()) + "] "
+                        + AuthorFormat.render(message.author(), message.content()))
                 .collect(Collectors.joining("\n")));
         payload.add(user);
 

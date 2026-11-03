@@ -25,7 +25,12 @@ public class AiChatRepository {
     }
 
     public void saveMessage(Long chatId, String role, String content, int limit) {
-        String insertQuery = "INSERT INTO " + AI_MESSAGES_TABLE + " (chat_id, role, content) VALUES (?, ?, ?)";
+        saveMessage(chatId, role, content, limit, MessageAuthor.none());
+    }
+
+    public void saveMessage(Long chatId, String role, String content, int limit, MessageAuthor author) {
+        String insertQuery = "INSERT INTO " + AI_MESSAGES_TABLE
+                + " (chat_id, role, content, author_user_id, author_nick, author_name) VALUES (?, ?, ?, ?, ?, ?)";
         // Окно истории на чат: всё, что вышло за последние limit сообщений, удаляется сразу.
         String trimQuery = "DELETE FROM " + AI_MESSAGES_TABLE +
                 " WHERE chat_id = ? AND id NOT IN (SELECT id FROM " + AI_MESSAGES_TABLE +
@@ -36,6 +41,7 @@ public class AiChatRepository {
                 insert.setLong(1, chatId);
                 insert.setString(2, role);
                 insert.setString(3, content);
+                setAuthor(insert, 4, author);
                 insert.executeUpdate();
             }
 
@@ -51,7 +57,7 @@ public class AiChatRepository {
     }
 
     public List<AiMessage> findLastMessages(Long chatId, int limit) {
-        String query = "SELECT role, content FROM " + AI_MESSAGES_TABLE +
+        String query = "SELECT role, content, author_user_id, author_nick, author_name FROM " + AI_MESSAGES_TABLE +
                 " WHERE chat_id = ? ORDER BY id DESC LIMIT ?";
         List<AiMessage> messages = new ArrayList<>();
 
@@ -62,7 +68,13 @@ public class AiChatRepository {
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next())
-                    messages.add(new AiMessage(resultSet.getString("role"), resultSet.getString("content")));
+                    messages.add(new AiMessage(
+                            resultSet.getString("role"),
+                            resultSet.getString("content"),
+                            new MessageAuthor(
+                                    resultSet.getObject("author_user_id", Long.class),
+                                    resultSet.getString("author_nick"),
+                                    resultSet.getString("author_name"))));
             }
         } catch (Exception e) {
             logger.error("Ошибка чтения истории AI в чате {}: ", chatId, e);
@@ -137,5 +149,16 @@ public class AiChatRepository {
             logger.error("Ошибка чтения счётчика сбросов AI в чате {}: ", chatId, e);
         }
         return 0;
+    }
+
+    /** Автор пишется тремя полями: ID для связей, ник и имя для подписи в промпте. */
+    private void setAuthor(PreparedStatement statement, int firstIndex, MessageAuthor author) throws Exception {
+        MessageAuthor value = author == null ? MessageAuthor.none() : author;
+        if (value.userId() == null)
+            statement.setNull(firstIndex, java.sql.Types.BIGINT);
+        else
+            statement.setLong(firstIndex, value.userId());
+        statement.setString(firstIndex + 1, value.nick());
+        statement.setString(firstIndex + 2, value.name());
     }
 }

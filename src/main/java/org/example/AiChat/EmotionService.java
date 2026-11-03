@@ -31,7 +31,7 @@ public class EmotionService {
     static final int STRONG_VALUE = 7;
     static final int MAX_LINES = 4;
     static final String CALM_LINE = "Твоё текущее состояние: ровное, без сильных эмоций.";
-    static final String HEADER = "Твоё текущее состояние сейчас (это настроение момента, а не характер):";
+    static final String HEADER = PromptDefaults.EMOTIONS_HEADER;
 
     private final EmotionRepository emotions;
 
@@ -41,19 +41,40 @@ public class EmotionService {
 
     /** Готовый блок промпта или пустая строка, если состояния нет или оно не читается. */
     public String blockFor(int personaId) {
-        EmotionState state = stateFor(personaId);
+        return blockFor(personaId, false);
+    }
+
+    /** Тот же блок, но без добивки недостающих строк эмоций — для предпросмотра без записи. */
+    public String blockFor(int personaId, boolean readOnly) {
+        EmotionState state = stateFor(personaId, readOnly);
         return state == null ? "" : blockText(state);
+    }
+
+    /** Содержимое блока без заголовка: заголовок раздела берётся из настроек. */
+    public String bodyFor(int personaId) {
+        return bodyFor(personaId, false);
+    }
+
+    public String bodyFor(int personaId, boolean readOnly) {
+        EmotionState state = stateFor(personaId, readOnly);
+        return state == null ? "" : bodyText(state);
     }
 
     /** Состояние персоны. Ошибка чтения не должна ломать ответ, поэтому здесь null, а не исключение. */
     public EmotionState stateFor(int personaId) {
+        return stateFor(personaId, false);
+    }
+
+    public EmotionState stateFor(int personaId, boolean readOnly) {
         try {
             List<Emotion> catalog = emotions.findCatalog();
             if (catalog.isEmpty())
                 return null;
 
             Map<String, List<EmotionPhrase>> phrases = emotions.findPhrases();
-            List<PersonaEmotion> stored = emotions.findForPersona(personaId);
+            List<PersonaEmotion> stored = readOnly
+                    ? emotions.findStoredForPersona(personaId)
+                    : emotions.findForPersona(personaId);
             Instant now = Instant.now();
 
             Map<String, Integer> effective = new LinkedHashMap<>();
@@ -139,6 +160,12 @@ public class EmotionService {
      * уровень агрессии. Агрессия идёт всегда, кроме полностью ровного состояния.
      */
     static String blockText(EmotionState state) {
+        String body = bodyText(state);
+        return CALM_LINE.equals(body) ? body : HEADER + "\n" + body;
+    }
+
+    /** Текст состояния без заголовка: строки эмоций и уровень агрессии. */
+    static String bodyText(EmotionState state) {
         List<EmotionState.Line> selected = state.lines().stream()
                 .filter(line -> line.deviation() >= DEVIATION_THRESHOLD || line.value() >= STRONG_VALUE)
                 .sorted(Comparator.comparingInt(EmotionService::strength).reversed())
@@ -148,16 +175,13 @@ public class EmotionService {
         if (selected.isEmpty() && state.aggression() == 0)
             return CALM_LINE;
 
-        StringBuilder block = new StringBuilder(HEADER);
+        List<String> lines = new ArrayList<>();
         for (EmotionState.Line line : selected) {
-            block.append('\n')
-                    .append("- ").append(line.title()).append(' ').append(line.value()).append("/10: ")
-                    .append(line.phrase());
+            lines.add("- " + line.title() + " " + line.value() + "/10: " + line.phrase());
         }
-        block.append('\n')
-                .append("- ").append(state.aggressionTitle()).append(' ').append(state.aggression()).append("/10: ")
-                .append(state.aggressionPhrase());
-        return block.toString();
+        lines.add("- " + state.aggressionTitle() + " " + state.aggression() + "/10: "
+                + state.aggressionPhrase());
+        return String.join("\n", lines);
     }
 
     /** Насколько эмоция заметна для промпта: сильное значение важнее мелкого отклонения. */

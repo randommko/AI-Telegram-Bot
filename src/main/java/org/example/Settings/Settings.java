@@ -22,6 +22,17 @@ public class Settings {
     public static final List<String> AVAILABLE_AI_MODELS = List.of("deepseek-chat", "deepseek-flash");
     public static final String AI_PERSONA_JOIN_TEMPLATE = "aiPersonaJoinTemplate";
     public static final String AI_PERSONA_LEAVE_TEMPLATE = "aiPersonaLeaveTemplate";
+    /** Разделы системного промпта: порядок и бюджеты — в коде, текст — в настройках. */
+    public static final String AI_PROMPT_TECHNICAL = "aiPromptTechnical";
+    public static final String AI_PROMPT_EMOTIONS_HEADER = "aiPromptEmotionsHeader";
+    public static final String AI_PROMPT_GRUDGES_HEADER = "aiPromptGrudgesHeader";
+    public static final String AI_PROMPT_MEMORY_CORE_HEADER = "aiPromptMemoryCoreHeader";
+    public static final String AI_PROMPT_MEMORY_REGULAR_HEADER = "aiPromptMemoryRegularHeader";
+    public static final String AI_PROMPT_PEOPLE_HEADER = "aiPromptPeopleHeader";
+    public static final String AI_PROMPT_TIME_TEMPLATE = "aiPromptTimeTemplate";
+    public static final String AI_PROMPT_TIME_ZONE = "aiPromptTimeZone";
+    public static final String AI_PROMPT_ANSWER_FORMAT = "aiPromptAnswerFormat";
+    public static final String AI_PROMPT_SERVICE_TEMPLATE = "aiPromptServiceTemplate";
     public static final Long BOT_ID_PROD = 7332966399L;
     public static final Long BOT_ID_TEST = 7712595730L;
     public static final Long MY_CHAT_ID = -1001347887839L;

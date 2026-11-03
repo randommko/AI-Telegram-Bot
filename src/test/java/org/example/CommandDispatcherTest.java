@@ -2,6 +2,7 @@ package org.example;
 
 import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
+import org.example.AiChat.MessageAuthor;
 import org.example.AiChat.PersonaService;
 import org.example.CockSize.CockSizeGame;
 import org.example.Config.BotProperties;
@@ -23,6 +24,7 @@ import java.util.List;
 
 import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.example.Settings.Settings.USER_ROLE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -68,7 +70,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("Юра, как дела?", MY_CHAT_ID));
 
         verify(aiService).askAi(MY_CHAT_ID, "Юра, как дела?");
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): Юра, как дела?"));
+        assertSaved(MY_CHAT_ID, "Юра, как дела?", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -95,7 +97,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("юра, как дела?", OTHER_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(OTHER_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юра, как дела?"));
+        assertSaved(OTHER_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -106,7 +108,7 @@ class CommandDispatcherTest {
 
         verify(aiService, never()).askAi(anyLong(), anyString());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юридический вопрос по договору"));
+        assertSaved(MY_CHAT_ID, "юридический вопрос по договору", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -116,7 +118,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("юра, как дела?", MY_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @nick (Ник): юра, как дела?"));
+        assertSaved(MY_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -131,7 +133,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update);
 
-        verify(aiService).saveMessage(eq(MY_CHAT_ID), eq(USER_ROLE), eq("Сообщение от: @Иван: привет"));
+        assertSaved(MY_CHAT_ID, "привет", 0L, null, "Иван");
     }
 
     @Test
@@ -188,6 +190,13 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("/bot_info", MY_CHAT_ID));
 
         verify(messageSender).sendMessage(eq(MY_CHAT_ID), contains("/clear"));
+    }
+
+    /** Сохранённый текст не содержит префикса автора, а сам автор уходит отдельными полями. */
+    private void assertSaved(Long chatId, String text, Long userId, String nick, String name) {
+        ArgumentCaptor<MessageAuthor> captor = ArgumentCaptor.forClass(MessageAuthor.class);
+        verify(aiService).saveMessage(eq(chatId), eq(USER_ROLE), eq(text), captor.capture());
+        assertEquals(new MessageAuthor(userId, nick, name), captor.getValue());
     }
 
     private Update update(String text, Long chatId) {
