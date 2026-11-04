@@ -52,6 +52,16 @@ class SettingsServiceTest {
         assertEquals(DEFAULT_AI_MODEL, serviceReturning("  ").getModel());
     }
 
+    @Test
+    void readsConfiguredRoute() throws Exception {
+        assertEquals("aitunnel", serviceReturning(" aitunnel ").getRoute());
+    }
+
+    @Test
+    void missingRouteMeansDirectDoorBehaviour() throws Exception {
+        assertEquals("", serviceReturning(null).getRoute());
+    }
+
     private SettingsService serviceReturning(String value) throws Exception {
         DataSource dataSource = mock(DataSource.class);
         Connection connection = mock(Connection.class);

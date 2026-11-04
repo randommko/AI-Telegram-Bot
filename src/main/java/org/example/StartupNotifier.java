@@ -60,10 +60,11 @@ public class StartupNotifier {
             logger.warn("Уведомление о запуске не отправлено в чат {}", chatId);
     }
 
-    /** Модель, её поставщик и наличие ключа: при пяти провайдерах одного имени модели мало. */
+    /** Модель, её поставщик и наличие ключа: при нескольких дверях одного имени модели мало. */
     private String modelLine() {
         String configured = settings.getModel();
-        Optional<LlmCatalog.Model> found = LlmCatalog.model(configured);
+        String route = settings.getRoute();
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(route, configured);
         if (found.isEmpty())
             return configured == null || configured.isBlank() ? DEFAULT_AI_MODEL : configured;
 

@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,8 @@ import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_ROUTE_KEY;
+import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 /**
@@ -54,16 +57,27 @@ public class AdminSettingsController {
     public record Option(String value, String title) {
     }
 
+    /** Опция каскада: значение, подпись, дверь (провайдер|вендор) и подсказка. */
+    public record Choice(String value, String label, String door, String title) {
+    }
+
     /** Группа опций — поставщик; hasKey=false добавляет к заголовку имя недостающей переменной. */
     public record OptionGroup(String title, boolean hasKey, String envName, List<Option> options) {
     }
 
     /** Поле с текущим значением, описанием из базы и ошибкой. */
     public record FieldView(String key, String title, String kind, String value, String error, String note,
-                            List<OptionGroup> options, String min, String max, String step) {
+                            List<OptionGroup> options, List<Choice> choices, String min, String max, String step) {
     }
 
     public record TabView(String id, String title, boolean active, List<FieldView> fields) {
+    }
+
+    /** Выбранная пара, разложенная для формы: режим, провайдер, вендор и модель. */
+    private record Selection(String mode, String providerId, String groupId, String modelId) {
+        String directModel() {
+            return AdminModelForm.DIRECT.equals(mode) ? modelId : "";
+        }
     }
 
     private final SettingsService settings;
@@ -95,6 +109,9 @@ public class AdminSettingsController {
             return render(model, stored, errors, tab, false, values);
 
         for (Map.Entry<String, String> entry : values.entrySet()) {
+            if (AdminModelForm.KEYS.contains(entry.getKey()))
+                continue;
+
             settings.save(entry.getKey(), entry.getValue());
             if (!Objects.equals(stored.get(entry.getKey()), entry.getValue()))
                 audit(entry.getKey());
@@ -109,7 +126,28 @@ public class AdminSettingsController {
         Map<String, String> values = new LinkedHashMap<>();
         for (String key : keys)
             values.put(key, params.getOrDefault(key, ""));
+        composeModel(values);
         return values;
+    }
+
+    /**
+     * Пара «дверь и модель» собирается из режима формы: прямой список даёт модель,
+     * каскад — провайдера, вендора и модель. Служебные поля в настройки не попадают.
+     */
+    private void composeModel(Map<String, String> values) {
+        if (!values.containsKey(AI_MODEL_KEY))
+            return;
+
+        if (AdminModelForm.PROVIDER.equals(values.getOrDefault(AdminModelForm.ACCESS_KEY, ""))) {
+            values.put(AI_MODEL_KEY, values.getOrDefault(AdminModelForm.DOOR_MODEL_KEY, ""));
+            values.put(AI_ROUTE_KEY, values.getOrDefault(AdminModelForm.PROVIDER_KEY, ""));
+            return;
+        }
+
+        values.put(AI_ROUTE_KEY, LlmCatalog.model(values.get(AI_MODEL_KEY))
+                .flatMap(LlmCatalog::providerOf)
+                .map(LlmCatalog.Provider::id)
+                .orElse(""));
     }
 
     private List<FieldView> fields(String tab) {
@@ -145,10 +183,13 @@ public class AdminSettingsController {
         for (TabView tabView : tabs()) {
             List<FieldView> fields = new ArrayList<>();
             for (FieldView field : tabView.fields()) {
-                String value = values.getOrDefault(field.key(), stored.getOrDefault(field.key(), ""));
+                String value = values.getOrDefault(field.key(), stored.getOrDefault(field.key(), field.value()));
+                if (AdminModelForm.KEYS.contains(field.key()) && value.isEmpty())
+                    value = field.value();
+
                 fields.add(new FieldView(field.key(), field.title(), field.kind(), value,
                         errors.get(field.key()), notes.getOrDefault(field.key(), ""),
-                        field.options(), field.min(), field.max(), field.step()));
+                        field.options(), field.choices(), field.min(), field.max(), field.step()));
             }
             tabs.add(new TabView(tabView.id(), tabView.title(), tabView.id().equals(tab), fields));
         }
@@ -170,9 +211,19 @@ public class AdminSettingsController {
 
     /** Вкладки собираются на каждый запрос: у групп моделей признак ключа меняется вместе с окружением. */
     private List<TabView> tabs() {
+        Selection selection = selection();
+
         return List.of(
                 new TabView("model", "Модель", false, List.of(
-                        select(AI_MODEL_KEY, "Модель", modelGroups()),
+                        radio(AdminModelForm.ACCESS_KEY, "Способ выбора модели", selection.mode()),
+                        hidden(AI_ROUTE_KEY),
+                        select(AI_MODEL_KEY, "Модель", modelGroups(), selection.directModel()),
+                        cascade("provider", AdminModelForm.PROVIDER_KEY, "Провайдер",
+                                providerChoices(), selection.providerId()),
+                        cascade("group", AdminModelForm.GROUP_KEY, "Группа моделей",
+                                groupChoices(), selection.groupId()),
+                        cascade("door-model", AdminModelForm.DOOR_MODEL_KEY, "Модель у провайдера",
+                                doorModelChoices(), selection.modelId()),
                         range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
                         range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
                         range(AI_PLAN_MAX_TOKENS, "Лимит токенов плана", "1", "8192", "64"),
@@ -196,10 +247,29 @@ public class AdminSettingsController {
                         text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"))));
     }
 
-    /** Модели каталога, сгруппированные по поставщику; у поставщика без ключа группа помечается. */
+    /** Выбранная пара из базы: режим и три ступени каскада для формы. */
+    private Selection selection() {
+        Map<String, String> stored = storedValues();
+        String route = stored.getOrDefault(AI_ROUTE_KEY, "").trim();
+        String configured = stored.getOrDefault(AI_MODEL_KEY, "").trim();
+        String modelId = configured.isEmpty() ? DEFAULT_AI_MODEL : configured;
+
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(route, modelId);
+        if (found.isEmpty())
+            return new Selection(AdminModelForm.DIRECT, "", "", modelId);
+
+        LlmCatalog.Model model = found.get();
+        boolean aggregator = LlmCatalog.provider(model.providerId())
+                .map(LlmCatalog.Provider::aggregator)
+                .orElse(false);
+        return new Selection(aggregator ? AdminModelForm.PROVIDER : AdminModelForm.DIRECT,
+                model.providerId(), model.group(), model.id());
+    }
+
+    /** Модели прямых поставщиков, сгруппированные по поставщику; у группы без ключа — пометка. */
     private List<OptionGroup> modelGroups() {
         List<OptionGroup> groups = new ArrayList<>();
-        for (LlmCatalog.Provider provider : LlmCatalog.providers()) {
+        for (LlmCatalog.Provider provider : LlmCatalog.directProviders()) {
             List<Option> options = LlmCatalog.modelsOf(provider.id()).stream()
                     .map(model -> new Option(model.id(), model.title()))
                     .toList();
@@ -209,19 +279,68 @@ public class AdminSettingsController {
         return groups;
     }
 
+    /** Провайдеры-агрегаторы: пометка об отсутствии ключа уходит в подсказку. */
+    private List<Choice> providerChoices() {
+        List<Choice> choices = new ArrayList<>();
+        for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
+            String title = properties.ai().keyFor(provider.id()) != null
+                    ? provider.title()
+                    : provider.title() + " — нет ключа " + provider.envName();
+            choices.add(new Choice(provider.id(), provider.title(), "", title));
+        }
+        return choices;
+    }
+
+    /** Пары «агрегатор и вендор»: второй список каскада. */
+    private List<Choice> groupChoices() {
+        List<Choice> choices = new ArrayList<>();
+        for (LlmCatalog.Provider provider : LlmCatalog.aggregators())
+            for (LlmCatalog.Group group : LlmCatalog.groupsOf(provider.id()))
+                choices.add(new Choice(group.id(), group.title(), door(provider.id(), group.id()), group.title()));
+        return choices;
+    }
+
+    /** Модели всех агрегаторов: третий список, отфильтрованный по провайдеру и вендору. */
+    private List<Choice> doorModelChoices() {
+        List<Choice> choices = new ArrayList<>();
+        for (LlmCatalog.Provider provider : LlmCatalog.aggregators())
+            for (LlmCatalog.Model model : LlmCatalog.modelsOf(provider.id()))
+                choices.add(new Choice(model.id(), model.id(), door(provider.id(), model.group()), model.title()));
+        return choices;
+    }
+
+    private static String door(String providerId, String groupId) {
+        return providerId + "|" + groupId;
+    }
+
+    private static FieldView radio(String key, String title, String value) {
+        List<Choice> choices = List.of(
+                new Choice(AdminModelForm.DIRECT, "Прямой доступ", "", "Модели напрямую у поставщика"),
+                new Choice(AdminModelForm.PROVIDER, "Провайдеры", "", "Модели через агрегатор"));
+        return new FieldView(key, title, "radio", value, null, "", List.of(), choices, null, null, null);
+    }
+
+    private static FieldView hidden(String key) {
+        return new FieldView(key, "", "hidden", "", null, "", List.of(), List.of(), null, null, null);
+    }
+
+    private static FieldView cascade(String kind, String key, String title, List<Choice> choices, String value) {
+        return new FieldView(key, title, kind, value, null, "", List.of(), choices, null, null, null);
+    }
+
     private static FieldView text(String key, String title) {
-        return new FieldView(key, title, "text", "", null, "", List.of(), null, null, null);
+        return new FieldView(key, title, "text", "", null, "", List.of(), List.of(), null, null, null);
     }
 
     private static FieldView area(String key, String title) {
-        return new FieldView(key, title, "textarea", "", null, "", List.of(), null, null, null);
+        return new FieldView(key, title, "textarea", "", null, "", List.of(), List.of(), null, null, null);
     }
 
-    private static FieldView select(String key, String title, List<OptionGroup> options) {
-        return new FieldView(key, title, "select", "", null, "", options, null, null, null);
+    private static FieldView select(String key, String title, List<OptionGroup> options, String value) {
+        return new FieldView(key, title, "select", value, null, "", options, List.of(), null, null, null);
     }
 
     private static FieldView range(String key, String title, String min, String max, String step) {
-        return new FieldView(key, title, "range", "", null, "", List.of(), min, max, step);
+        return new FieldView(key, title, "range", "", null, "", List.of(), List.of(), min, max, step);
     }
 }

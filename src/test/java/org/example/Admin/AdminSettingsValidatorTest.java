@@ -22,6 +22,7 @@ import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -186,6 +187,65 @@ class AdminSettingsValidatorTest {
     void ignoresKeysThatAreNotInTheForm() {
         assertTrue(validator.validate(new HashMap<>()).isEmpty());
         assertFalse(validator.validate(validForm()).containsKey("чужой-ключ"));
+    }
+
+    @Test
+    void rejectsModelThatDoesNotExistAtTheChosenDoor() {
+        Map<String, String> form = validForm();
+        form.put(AI_ROUTE_KEY, "aitunnel");
+        form.put(AI_MODEL_KEY, "claude-sonnet-5-5");
+
+        assertTrue(validator.validate(form).containsKey(AI_MODEL_KEY));
+    }
+
+    @Test
+    void acceptsSameModelThroughAnotherDoorWhenItsKeyIsPresent() {
+        Map<String, String> form = validForm();
+        form.put(AI_ROUTE_KEY, "aitunnel");
+        form.put(AI_MODEL_KEY, "gemini-4-argon");
+
+        assertTrue(validatorWith(Map.of("deepseek", "sk-deep", "aitunnel", "sk-tunnel")).validate(form).isEmpty());
+    }
+
+    @Test
+    void reportsProviderModeErrorAtTheVisibleField() {
+        Map<String, String> form = validForm();
+        form.put(AdminModelForm.ACCESS_KEY, AdminModelForm.PROVIDER);
+        form.put(AdminModelForm.PROVIDER_KEY, "aitunnel");
+        form.put(AdminModelForm.DOOR_MODEL_KEY, "нет-такой");
+        form.put(AI_MODEL_KEY, "нет-такой");
+
+        Map<String, String> errors = validator.validate(form);
+
+        assertTrue(errors.containsKey(AdminModelForm.DOOR_MODEL_KEY));
+        assertFalse(errors.containsKey(AI_MODEL_KEY));
+    }
+
+    @Test
+    void rejectsSwitchToAggregatorWithoutKey() {
+        Map<String, String> form = validForm();
+        form.put(AI_ROUTE_KEY, "venice");
+        form.put(AI_MODEL_KEY, "claude-sonnet-5-5");
+
+        Map<String, String> errors = validatorWith(Map.of("deepseek", "sk-deep")).validate(form);
+
+        assertTrue(errors.getOrDefault(AI_MODEL_KEY, "").contains("BOT_AI_KEY_VENICE"));
+    }
+
+    @Test
+    void keepsStoredAggregatorModelWithoutKeyOutOfTheWay() {
+        Map<String, String> form = validForm();
+        form.put(AI_ROUTE_KEY, "venice");
+        form.put(AI_MODEL_KEY, "claude-sonnet-5-5");
+
+        Map<String, String> stored = Map.of(AI_ROUTE_KEY, "venice", AI_MODEL_KEY, "claude-sonnet-5-5");
+
+        assertTrue(validatorWith(Map.of("deepseek", "sk-deep")).validate(form, stored).isEmpty());
+    }
+
+    private AdminSettingsValidator validatorWith(Map<String, String> keys) {
+        return new AdminSettingsValidator(new BotProperties(
+                "1:dummy", null, new BotProperties.Ai(keys), null, null));
     }
 
     static Map<String, String> validForm() {

@@ -18,8 +18,10 @@ import java.util.Map;
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
+import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "bot.db.url=jdbc:postgresql://localhost:5432/telegram_bot_db",
                 "bot.db.user=app_user",
                 "bot.db.password=secret",
-                "bot.ai.key.deepseek=sk-test"
+                "bot.ai.key.deepseek=sk-test",
+                "bot.ai.key.aitunnel=sk-tunnel"
         })
 @Import({AdminSecurityConfig.class, AdminSettingsValidator.class})
 @EnableConfigurationProperties(BotProperties.class)
@@ -194,6 +197,104 @@ class AdminSettingsTest {
         mockMvc.perform(formWith(Map.of(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость", "tab", "templates")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Шаблон входа должен содержать {name}")));
+
+        verify(settings, never()).save(anyString(), anyString());
+    }
+
+    @Test
+    void offersModeSwitchAndCascadeLists() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"aiAccess\"")))
+                .andExpect(content().string(containsString("Прямой доступ")))
+                .andExpect(content().string(containsString("Провайдеры")))
+                .andExpect(content().string(containsString("name=\"aiProvider\"")))
+                .andExpect(content().string(containsString("name=\"aiModelGroup\"")))
+                .andExpect(content().string(containsString("name=\"aiDoorModel\"")))
+                .andExpect(content().string(containsString("data-door=\"aitunnel|gemini\"")));
+    }
+
+    @Test
+    void directListKeepsOnlyDirectProviders() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("label=\"AITunnel"))));
+    }
+
+    @Test
+    void savedAggregatorModelOpensProviderMode() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_ROUTE_KEY, "aitunnel", null),
+                new SettingsService.Setting(AI_MODEL_KEY, "gemini-4-argon", null)));
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"provider\" title=\"Модели через агрегатор\" checked=\"checked\"")))
+                .andExpect(content().string(containsString("data-door=\"aitunnel|gemini\" selected=\"selected\"")));
+    }
+
+    @Test
+    void savesAggregatorPairFromCascade() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(formWith(Map.of(
+                        AdminModelForm.ACCESS_KEY, AdminModelForm.PROVIDER,
+                        AdminModelForm.PROVIDER_KEY, "aitunnel",
+                        AdminModelForm.GROUP_KEY, "gemini",
+                        AdminModelForm.DOOR_MODEL_KEY, "gemini-4-argon",
+                        AI_MODEL_KEY, "")))
+                .andExpect(redirectedUrl("/admin/settings?tab=model&saved"));
+
+        verify(settings).save(AI_ROUTE_KEY, "aitunnel");
+        verify(settings).save(AI_MODEL_KEY, "gemini-4-argon");
+        verify(settings, never()).save(eq(AdminModelForm.PROVIDER_KEY), anyString());
+        verify(settings, never()).save(eq(AdminModelForm.GROUP_KEY), anyString());
+        verify(settings, never()).save(eq(AdminModelForm.DOOR_MODEL_KEY), anyString());
+        verify(settings, never()).save(eq(AdminModelForm.ACCESS_KEY), anyString());
+    }
+
+    @Test
+    void directChoiceRecordsItsOwnProvider() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(formWith(Map.of(AI_MODEL_KEY, "grok-4.7",
+                        AdminModelForm.ACCESS_KEY, AdminModelForm.DIRECT)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("BOT_AI_KEY_GROK")));
+    }
+
+    @Test
+    void rejectsAggregatorWithoutKey() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(formWith(Map.of(
+                        AdminModelForm.ACCESS_KEY, AdminModelForm.PROVIDER,
+                        AdminModelForm.PROVIDER_KEY, "venice",
+                        AdminModelForm.GROUP_KEY, "anthropic",
+                        AdminModelForm.DOOR_MODEL_KEY, "claude-sonnet-5-5",
+                        AI_MODEL_KEY, "")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("BOT_AI_KEY_VENICE")));
+
+        verify(settings, never()).save(anyString(), anyString());
+    }
+
+    @Test
+    void rejectsAggregatorModelOutsideTheCascade() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(formWith(Map.of(
+                        AdminModelForm.ACCESS_KEY, AdminModelForm.PROVIDER,
+                        AdminModelForm.PROVIDER_KEY, "aitunnel",
+                        AdminModelForm.GROUP_KEY, "gemini",
+                        AdminModelForm.DOOR_MODEL_KEY, "claude-sonnet-5-5",
+                        AI_MODEL_KEY, "")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("нет в списке доступных")));
 
         verify(settings, never()).save(anyString(), anyString());
     }

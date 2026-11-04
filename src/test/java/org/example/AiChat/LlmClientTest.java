@@ -162,6 +162,85 @@ class LlmClientTest {
         assertThat(logs.list).noneSatisfy(event -> assertThat(event.getFormattedMessage()).contains("DeepSeek"));
     }
 
+    @Test
+    void sendsRequestToTheDoorFromSettings() {
+        client = clientWith(Map.of("gemini", "sk-gem", "aitunnel", "sk-tunnel"));
+        when(settings.getModel()).thenReturn("gemini-4-argon");
+        when(settings.getRoute()).thenReturn("aitunnel");
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(answer("привет"));
+
+        assertThat(client.sendRequestToAi(messages(), 1.0f)).isEqualTo("привет");
+
+        HttpRequest request = sent.get();
+        assertThat(request.uri().toString()).isEqualTo("https://api.aitunnel.ru/v1/chat/completions");
+        assertThat(request.headers().firstValue("Authorization")).contains("Bearer sk-tunnel");
+    }
+
+    @Test
+    void missingModelBehindTheDoorFallsBackToDefault() {
+        client = clientWith(Map.of("deepseek", "sk-deep", "venice", "sk-ven"));
+        when(settings.getModel()).thenReturn("gemini-4-argon");
+        when(settings.getRoute()).thenReturn("grok");
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(answer("ок"));
+
+        client.sendRequestToAi(messages(), 1.0f);
+
+        assertThat(sent.get().uri().toString()).isEqualTo("https://api.deepseek.com/v1/chat/completions");
+        assertThat(logs.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains("grok").contains("нет в каталоге"));
+    }
+
+    @Test
+    void veniceRequestDisablesItsSystemPromptAndUsesCompletionTokensField() {
+        client = clientWith(Map.of("venice", "sk-ven"));
+        LlmCatalog.Model model = LlmCatalog.model("venice", "claude-sonnet-5-5").orElseThrow();
+
+        ObjectNode request = client.request(model, messages(), 1.0f, 1000, true);
+
+        assertThat(request.path("venice_parameters").path("include_venice_system_prompt").asBoolean(true)).isFalse();
+        assertThat(request.path("venice_parameters").path("strip_thinking_response").asBoolean(false)).isTrue();
+        assertThat(request.has("max_completion_tokens")).isTrue();
+        assertThat(request.has("max_tokens")).isFalse();
+    }
+
+    @Test
+    void directRequestKeepsPlainBody() {
+        client = clientWith(Map.of("deepseek", "sk-deep"));
+        LlmCatalog.Model model = LlmCatalog.model("deepseek-flash").orElseThrow();
+
+        ObjectNode request = client.request(model, messages(), 1.0f, 1000, true);
+
+        assertThat(request.has("max_tokens")).isTrue();
+        assertThat(request.has("max_completion_tokens")).isFalse();
+        assertThat(request.has("venice_parameters")).isFalse();
+    }
+
+    @Test
+    void contentAsArrayOfBlocksIsNotLost() {
+        client = clientWith(Map.of("venice", "sk-ven"));
+        when(settings.getModel()).thenReturn("gemini-4-argon");
+        when(settings.getRoute()).thenReturn("venice");
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(blocks("{\"replies\": ", "[\"раз\"]}"));
+
+        assertThat(client.sendJsonRequestToAi(messages(), 1.0f)).isEqualTo("{\"replies\": [\"раз\"]}");
+    }
+
+    @Test
+    void emptyContentStaysEmptyAndIsLogged() {
+        client = clientWith(Map.of("venice", "sk-ven"));
+        when(settings.getModel()).thenReturn("gemini-4-argon");
+        when(settings.getRoute()).thenReturn("venice");
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(blocks());
+
+        assertThat(client.sendRequestToAi(messages(), 1.0f)).isEmpty();
+        assertThat(logs.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains("пустой ответ").contains("finish_reason"));
+    }
+
     private LlmClient clientWith(Map<String, String> keys) {
         BotProperties properties = new BotProperties("1:dummy", null, new BotProperties.Ai(keys), null, null);
         return new LlmClient(properties, settings, httpClient);
@@ -176,6 +255,23 @@ class LlmClientTest {
     private String answer(String content) {
         ObjectNode root = mapper.createObjectNode();
         root.putArray("choices").addObject().putObject("message").put("content", content);
+        return root.toString();
+    }
+
+    /** Ответ, в котором содержимое пришло массивом текстовых блоков, как у Venice. */
+    private String blocks(String... parts) {
+        ObjectNode root = mapper.createObjectNode();
+        ArrayNode content = mapper.createArrayNode();
+        for (String part : parts) {
+            ObjectNode block = content.addObject();
+            block.put("type", "text");
+            block.put("text", part);
+        }
+
+        ObjectNode message = root.putArray("choices").addObject()
+                .put("finish_reason", "stop")
+                .putObject("message");
+        message.set("content", content);
         return root.toString();
     }
 

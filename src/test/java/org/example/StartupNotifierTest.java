@@ -154,6 +154,34 @@ class StartupNotifierTest {
     }
 
     @Test
+    void namesTheAggregatorDoorOfTheConfiguredModel() {
+        when(properties.ai()).thenReturn(new BotProperties.Ai(Map.of("gemini", "sk-gem", "aitunnel", "sk-tunnel")));
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("gemini-4-argon");
+        when(settings.getRoute()).thenReturn("aitunnel");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Модель: gemini-4-argon (AITunnel)")
+                        && !text.contains("ключа нет")));
+    }
+
+    @Test
+    void marksTheAggregatorDoorWithoutKey() {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(settings.getModel()).thenReturn("claude-sonnet-5-5");
+        when(settings.getRoute()).thenReturn("venice");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, properties).notifyOwner();
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Модель: claude-sonnet-5-5 (Venice), ключа нет")));
+    }
+
+    @Test
     void skipsWhenOwnerChatIsNotANumber() {
         when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("не-id");
 

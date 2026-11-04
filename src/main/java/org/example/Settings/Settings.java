@@ -15,6 +15,11 @@ public class Settings {
     public static final String OWNER_CHAT_ID = "ownerChatId";
     /** Ключ настройки с именем модели; значение по умолчанию — DEFAULT_AI_MODEL. */
     public static final String AI_MODEL_KEY = "aiModel";
+    /**
+     * Ключ настройки с дверью к модели: идентификатор провайдера из каталога.
+     * Пустое значение означает «провайдер выбранной модели», как до появления агрегаторов.
+     */
+    public static final String AI_ROUTE_KEY = "aiRoute";
     public static final String DEFAULT_AI_MODEL = "deepseek-flash";
     public static final String AI_PERSONA_JOIN_TEMPLATE = "aiPersonaJoinTemplate";
     public static final String AI_PERSONA_LEAVE_TEMPLATE = "aiPersonaLeaveTemplate";

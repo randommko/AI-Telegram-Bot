@@ -101,14 +101,21 @@ public class LlmClient {
         }
     }
 
-    /** Модель из настроек; неизвестное значение не глушит бота — уходим на модель по умолчанию. */
+    /** Модель из настроек; неизвестная пара не глушит бота — уходим на модель по умолчанию. */
     private LlmCatalog.Model resolveModel() {
         String configured = settings.getModel();
-        Optional<LlmCatalog.Model> model = LlmCatalog.model(configured);
+        String route = settings.getRoute();
+        route = route == null ? "" : route.trim();
+        Optional<LlmCatalog.Model> model = LlmCatalog.model(route, configured);
         if (model.isPresent())
             return model.get();
 
-        logger.error("Модели «{}» нет в каталоге: используется {}", configured, DEFAULT_AI_MODEL);
+        if (route.isEmpty())
+            logger.error("Модели «{}» нет в каталоге: используется {}", configured, DEFAULT_AI_MODEL);
+        else
+            logger.error("Модели «{}» нет в каталоге провайдера «{}»: используется {}",
+                    configured, route, DEFAULT_AI_MODEL);
+
         return LlmCatalog.model(DEFAULT_AI_MODEL)
                 .orElseThrow(() -> new IllegalStateException("В каталоге нет модели по умолчанию " + DEFAULT_AI_MODEL));
     }
@@ -120,11 +127,15 @@ public class LlmClient {
         if (limit < maxTokens)
             logger.info("Лимит токенов {} урезан до {} по потолку модели {}", maxTokens, limit, model.id());
 
+        LlmCatalog.Provider provider = LlmCatalog.providerOf(model).orElse(null);
+
         ObjectNode request = objectMapper.createObjectNode();
         request.put("model", model.id());
         request.set("messages", messages);
         request.put("temperature", temperature);
-        request.put("max_tokens", limit);
+        request.put(provider == null ? "max_tokens" : provider.maxTokensField(), limit);
+        if (provider != null && !provider.extraBody().isEmpty())
+            request.setAll((ObjectNode) objectMapper.valueToTree(provider.extraBody()));
         if (jsonMode && model.jsonMode())
             request.set("response_format", objectMapper.createObjectNode().put("type", "json_object"));
         return request;
@@ -156,7 +167,7 @@ public class LlmClient {
     private String content(String responseBody, LlmCatalog.Provider provider, LlmCatalog.Model model) throws IOException {
         ObjectNode respNode = objectMapper.readValue(responseBody, ObjectNode.class);
         JsonNode choice = respNode.get("choices").get(0);
-        String content = choice.get("message").get("content").asText("").trim();
+        String content = text(choice.get("message").get("content"));
 
         if (content.isEmpty()) {
             JsonNode usage = respNode.path("usage");
@@ -168,5 +179,22 @@ public class LlmClient {
                     usage.path("completion_tokens_details").path("reasoning_tokens").asInt());
         }
         return content;
+    }
+
+    /** Содержимое приходит строкой или массивом текстовых блоков: агрегаторы отдают обе формы. */
+    private String text(JsonNode node) {
+        if (node == null || node.isNull())
+            return "";
+        if (node.isTextual())
+            return node.asText().trim();
+        if (!node.isArray())
+            return "";
+
+        StringBuilder text = new StringBuilder();
+        for (JsonNode block : node) {
+            JsonNode value = block.path("text");
+            text.append(value.isTextual() ? value.asText() : block.asText(""));
+        }
+        return text.toString().trim();
     }
 }

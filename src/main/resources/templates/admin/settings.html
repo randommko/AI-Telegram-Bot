@@ -20,7 +20,7 @@
 
         <section class="group" th:each="tab : ${tabs}" th:if="${tab.active}">
             <div class="field" th:each="field : ${tab.fields}">
-                <label th:for="${field.key}">
+                <label th:for="${field.key}" th:if="${field.kind != 'hidden'}">
                     <span th:text="${field.title}">Поле</span>
                     <i class="tip" th:if="${field.note != null and field.note != ''}"
                        th:attr="data-tip=${field.note}" tabindex="0">i</i>
@@ -28,6 +28,9 @@
 
                 <textarea th:if="${field.kind == 'textarea'}"
                           th:id="${field.key}" th:name="${field.key}" th:text="${field.value}"></textarea>
+
+                <input type="hidden" th:if="${field.kind == 'hidden'}"
+                       th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>
 
                 <select th:if="${field.kind == 'select'}"
                         th:id="${field.key}" th:name="${field.key}">
@@ -38,6 +41,23 @@
                                 th:title="${option.title}"
                                 th:selected="${option.value == field.value}"></option>
                     </optgroup>
+                </select>
+
+                <div class="radio-row" th:if="${field.kind == 'radio'}">
+                    <label class="radio" th:each="choice : ${field.choices}">
+                        <input type="radio" th:name="${field.key}" th:value="${choice.value}" th:title="${choice.title}" th:checked="${choice.value == field.value}"/>
+                        <span th:text="${choice.label}">Режим</span>
+                    </label>
+                </div>
+
+                <select th:if="${field.kind == 'provider' or field.kind == 'group' or field.kind == 'door-model'}"
+                        th:id="${field.key}" th:name="${field.key}"
+                        th:attr="data-step=${field.kind}">
+                    <option th:each="choice : ${field.choices}"
+                            th:value="${choice.value}" th:text="${choice.label}"
+                            th:title="${choice.title}"
+                            th:attr="data-door=${choice.door}"
+                            th:selected="${choice.value == field.value}"></option>
                 </select>
 
                 <div class="range-row" th:if="${field.kind == 'range'}">
@@ -58,6 +78,93 @@
 
         <button class="primary" type="submit">Сохранить</button>
     </form>
+
+    <style>
+        .radio-row { display: flex; gap: 18px; font-size: 14px; }
+        .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .cascade-hint { font-size: 13px; color: #3b4a5f; }
+    </style>
+
+    <script>
+        (function () {
+            var form = document.querySelector('form.setting');
+            if (!form) return;
+
+            var directSelect = form.querySelector('select[name="aiModel"]');
+            var providerSelect = form.querySelector('select[name="aiProvider"]');
+            var groupSelect = form.querySelector('select[name="aiModelGroup"]');
+            var modelSelect = form.querySelector('select[name="aiDoorModel"]');
+            if (!directSelect || !providerSelect || !groupSelect || !modelSelect) return;
+
+            var access = Array.prototype.slice.call(form.querySelectorAll('input[name="aiAccess"]'));
+            var directField = directSelect.closest('.field');
+            var providerField = providerSelect.closest('.field');
+            var groupField = groupSelect.closest('.field');
+            var modelField = modelSelect.closest('.field');
+
+            function providerMode() {
+                return access.some(function (radio) { return radio.checked && radio.value === 'provider'; });
+            }
+
+            function visibleOptions(select) {
+                return Array.prototype.slice.call(select.options).filter(function (option) { return !option.hidden; });
+            }
+
+            function filterByDoor(select, prefix) {
+                Array.prototype.slice.call(select.options).forEach(function (option) {
+                    var ok = !prefix || (option.dataset.door || '').indexOf(prefix) === 0;
+                    option.hidden = !ok;
+                    option.disabled = !ok;
+                });
+                var current = select.options[select.selectedIndex];
+                if (!current || current.hidden) {
+                    var first = visibleOptions(select)[0];
+                    if (first) select.value = first.value;
+                }
+            }
+
+            function doorPrefix() {
+                return providerSelect.value + '|';
+            }
+
+            function refreshGroups() {
+                filterByDoor(groupSelect, doorPrefix());
+                var options = visibleOptions(groupSelect);
+                if (options.length === 1) groupSelect.value = options[0].value;
+                if (options.length <= 1) groupField.hidden = true;
+            }
+
+            function refreshModels() {
+                filterByDoor(modelSelect, doorPrefix() + groupSelect.value);
+            }
+
+            function applyMode() {
+                var mode = providerMode();
+                directField.hidden = mode;
+                directSelect.disabled = mode;
+                providerField.hidden = !mode;
+                groupField.hidden = !mode;
+                modelField.hidden = !mode;
+                providerSelect.disabled = !mode;
+                groupSelect.disabled = !mode;
+                modelSelect.disabled = !mode;
+                if (!mode) return;
+
+                refreshGroups();
+                refreshModels();
+            }
+
+            access.forEach(function (radio) { radio.addEventListener('change', applyMode); });
+            providerSelect.addEventListener('change', function () {
+                groupField.hidden = false;
+                refreshGroups();
+                refreshModels();
+            });
+            groupSelect.addEventListener('change', refreshModels);
+
+            applyMode();
+        })();
+    </script>
 </main>
 </body>
 </html>

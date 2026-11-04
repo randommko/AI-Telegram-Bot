@@ -24,6 +24,7 @@ import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 
 /** Проверка формы настроек: ошибки возвращаются по ключу настройки и показываются у поля. */
@@ -51,7 +52,7 @@ public class AdminSettingsValidator {
     public Map<String, String> validate(Map<String, String> values, Map<String, String> stored) {
         Map<String, String> errors = new LinkedHashMap<>();
 
-        requireText(values, AI_MODEL_KEY, "Модель не может быть пустой", errors);
+        requireModel(values, errors);
         modelFromCatalog(values, stored, errors);
         requireText(values, AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа не может быть пустым", errors);
         decimalInRange(values, AI_ANSWER_TEMPERATURE, 0f, MAX_TEMPERATURE,
@@ -85,25 +86,52 @@ public class AdminSettingsValidator {
         return errors;
     }
 
-    /** Модель должна быть в каталоге, а её поставщик — с ключом, если модель меняется. */
+    /** Модель должна существовать у провайдера из aiRoute, а его ключ нужен при смене пары. */
     private void modelFromCatalog(Map<String, String> values, Map<String, String> stored,
                                   Map<String, String> errors) {
         String value = values.get(AI_MODEL_KEY);
         if (value == null || value.isBlank())
             return;
 
-        Optional<LlmCatalog.Model> found = LlmCatalog.model(value);
+        String route = values.getOrDefault(AI_ROUTE_KEY, "").trim();
+        String errorKey = modelErrorKey(values);
+
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(route, value);
         if (found.isEmpty()) {
-            errors.put(AI_MODEL_KEY, "Модели «" + value.trim() + "» нет в списке доступных");
+            errors.put(errorKey, "Модели «" + value.trim() + "» нет в списке доступных");
             return;
         }
-        if (value.trim().equals(stored.getOrDefault(AI_MODEL_KEY, "").trim()))
+
+        String previousRoute = stored.getOrDefault(AI_ROUTE_KEY, "").trim();
+        String previousModel = stored.getOrDefault(AI_MODEL_KEY, "").trim();
+        Optional<LlmCatalog.Model> before = LlmCatalog.model(previousRoute, previousModel);
+        boolean sameDoorAndModel = before
+                .map(model -> model.id().equals(found.get().id())
+                        && model.providerId().equals(found.get().providerId()))
+                .orElse(false);
+        if (sameDoorAndModel)
             return;
 
         LlmCatalog.Provider provider = LlmCatalog.providerOf(found.get()).orElse(null);
         if (provider != null && properties.ai().keyFor(provider.id()) == null)
-            errors.put(AI_MODEL_KEY, "У поставщика " + provider.title() + " нет ключа в окружении ("
+            errors.put(errorKey, "У поставщика " + provider.title() + " нет ключа в окружении ("
                     + provider.envName() + "): выберите модель другого поставщика");
+    }
+
+    /** Ошибка модели показывается у того поля, которое видно в выбранном режиме. */
+    private String modelErrorKey(Map<String, String> values) {
+        return AdminModelForm.PROVIDER.equals(values.getOrDefault(AdminModelForm.ACCESS_KEY, ""))
+                ? AdminModelForm.DOOR_MODEL_KEY
+                : AI_MODEL_KEY;
+    }
+
+    private void requireModel(Map<String, String> values, Map<String, String> errors) {
+        if (!values.containsKey(AI_MODEL_KEY))
+            return;
+
+        String value = values.get(AI_MODEL_KEY);
+        if (value == null || value.isBlank())
+            errors.put(modelErrorKey(values), "Модель не может быть пустой");
     }
 
     private void requireText(Map<String, String> values, String key, String message, Map<String, String> errors) {

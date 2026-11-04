@@ -47,6 +47,9 @@ jobs:
           BOT_AI_KEY_OPENAI=${{ secrets.OPENAI_API_KEY }}
           BOT_AI_KEY_GEMINI=${{ secrets.GEMINI_API_KEY }}
           BOT_AI_KEY_MISTRAL=${{ secrets.MISTRAL_API_KEY }}
+          BOT_AI_KEY_AITUNNEL=${{ secrets.AITUNNEL_API_KEY }}
+          BOT_AI_KEY_VENICE=${{ secrets.VENICE_API_KEY }}
+          BOT_AI_KEY_ABLITERATION=${{ secrets.ABLITERATION_API_KEY }}
           BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}
           # Админку открывает VPN-подсеть 10.8.0.0/24, порт ограничен правилом ufw.
           # Локально без этой строки админка остаётся на 127.0.0.1.

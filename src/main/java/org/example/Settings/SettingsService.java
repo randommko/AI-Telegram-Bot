@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.example.Settings.Settings.AI_MODEL_KEY;
+import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
 import static org.example.Settings.TablesDB.SETTINGS_TABLE;
 
@@ -83,6 +84,12 @@ public class SettingsService {
         if (configured == null || configured.isBlank())
             return DEFAULT_AI_MODEL;
         return configured.trim();
+    }
+
+    /** Дверь к модели — провайдер из каталога; пустая строка означает прежнее поведение. */
+    public String getRoute() {
+        String configured = getSettingValue(AI_ROUTE_KEY);
+        return configured == null ? "" : configured.trim();
     }
 
     public List<Setting> listAll() {

@@ -26,7 +26,7 @@ mvn clean package
 | `BOT_DB_URL` | JDBC-URL базы |
 | `BOT_DB_USER` | пользователь базы |
 | `BOT_DB_PASSWORD` | пароль базы |
-| `BOT_AI_KEY` | ключ ИИ |
+| `BOT_AI_KEY_<ID>` | ключ провайдера: `BOT_AI_KEY_DEEPSEEK`, `BOT_AI_KEY_GROK`, `BOT_AI_KEY_OPENAI`, `BOT_AI_KEY_GEMINI`, `BOT_AI_KEY_MISTRAL`, `BOT_AI_KEY_AITUNNEL`, `BOT_AI_KEY_VENICE`, `BOT_AI_KEY_ABLITERATION`; ни один ключ не обязателен |
 | `BOT_ADMIN_PASSWORD` | пароль владельца и выключатель веб-админки; без него админка выключена |
 | `BOT_ADMIN_PORT` | порт админки, по умолчанию `8081` |
 | `BOT_ADMIN_BIND` | адрес админки, по умолчанию `127.0.0.1`; на сервере `0.0.0.0` вместе с правилом файрвола |
@@ -38,7 +38,7 @@ set BOT_TOKEN=<token>
 set BOT_DB_URL=jdbc:postgresql://host:5432/db
 set BOT_DB_USER=<dbUser>
 set BOT_DB_PASSWORD=<dbPassword>
-set BOT_AI_KEY=<aiKey>
+set BOT_AI_KEY_DEEPSEEK=<aiKey>
 java -jar target/telegram-bot-1.0.jar
 ```
 
@@ -46,7 +46,7 @@ Linux:
 
 ```
 BOT_TOKEN=<token> BOT_DB_URL=jdbc:postgresql://host:5432/db \
-BOT_DB_USER=<dbUser> BOT_DB_PASSWORD=<dbPassword> BOT_AI_KEY=<aiKey> \
+BOT_DB_USER=<dbUser> BOT_DB_PASSWORD=<dbPassword> BOT_AI_KEY_DEEPSEEK=<aiKey> \
 java -jar target/telegram-bot-1.0.jar
 ```
 
@@ -212,7 +212,8 @@ ssh -L 8081:127.0.0.1:8081 <user>@<host>
 
 Страница `/admin/settings` правит параметры в `bot_settings`. Бот читает их на каждый запрос, поэтому сохранённое значение действует со следующего сообщения без перезапуска.
 
-- **Модель:** `aiModel` (по умолчанию `deepseek-flash`), `aiAnswerTemperature` (0..2), `maxTokensQuestion` (1..8192), `aiPlanMaxTokens` — бюджет шага «план» (1..8192), `aiMemoryAnalysisMaxTokens` (1..8192) и `aiMemoryAnalysisMessages` (1..1000) — бюджет и размер запроса анализа памяти, `aiHistorySize` — размер истории чата.
+- **Модель:** `aiRoute` — дверь к модели (провайдер из каталога; пустое значение означает «провайдер выбранной модели»), `aiModel` (по умолчанию `deepseek-flash`), `aiAnswerTemperature` (0..2), `maxTokensQuestion` (1..8192), `aiPlanMaxTokens` — бюджет шага «план» (1..8192), `aiMemoryAnalysisMaxTokens` (1..8192) и `aiMemoryAnalysisMessages` (1..1000) — бюджет и размер запроса анализа памяти, `aiHistorySize` — размер истории чата.
+- **Выбор модели в админке:** радиокнопки «Прямой доступ» (список моделей прямых поставщиков с группами) и «Провайдеры» (каскад провайдер → группа → модель). Через провайдеров доступны агрегаторы AITunnel, Venice и Abliteration; без ключа провайдер виден с пометкой и не выбирается.
 - **Память:** `aiMemoryPromptSize` (0 — в промпт идёт только ядро), `aiMemoryAnalyzeEvery` — порог фонового анализа, `aiMemoryExtractPrompt` — промпт анализа, `aiGrudgeInsultStrength`, `aiGrudgeAngerDelta`, `aiGrudgeDecayPerHour`, `aiGrudgeThreshold` — прибавки и затухание обид.
 - **Промпты:** `aiPromtContext` — запасной промпт для чата без персоны. Шаблоны разделов системного промпта правятся на странице «Промпт».
 - **Шаблоны:** `aiPersonaJoinTemplate` и `aiPersonaLeaveTemplate` — сообщения о входе и выходе персоны, обязаны содержать `{name}`.
