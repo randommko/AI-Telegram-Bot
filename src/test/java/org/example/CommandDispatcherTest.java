@@ -3,6 +3,7 @@ package org.example;
 import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
 import org.example.AiChat.MessageAuthor;
+import org.example.AiChat.Persona;
 import org.example.AiChat.PersonaService;
 import org.example.CockSize.CockSizeGame;
 import org.example.Config.BotProperties;
@@ -21,8 +22,8 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.util.List;
+import java.util.Optional;
 
-import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.example.Settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,9 +40,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CommandDispatcherTest {
 
+    private static final Long BLUE_CHAT_ID = -1001347887839L;
     private static final Long OTHER_CHAT_ID = -1007777777777L;
     private static final long BOT_ID = 42L;
     private static final List<String> ALIASES = List.of("юр", "юра", "юрец", "юрчик", "юрий");
+    private static final Persona BLUE_PERSONA = new Persona(1, "Юра", "Ты Юра");
+    private static final Persona OTHER_PERSONA = new Persona(2, "Макс", "Ты Макс");
+    private static final List<String> OTHER_ALIASES = List.of("макс", "максим");
 
     @Mock
     private MessageSender messageSender;
@@ -65,35 +70,64 @@ class CommandDispatcherTest {
 
     @Test
     void addressInMyChatIsSentToAi() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(ALIASES);
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+        when(personaService.aliasesForChat(BLUE_CHAT_ID)).thenReturn(ALIASES);
 
-        dispatcher.dispatch(update("Юра, как дела?", MY_CHAT_ID));
+        dispatcher.dispatch(update("Юра, как дела?", BLUE_CHAT_ID));
 
-        verify(aiService).askAi(MY_CHAT_ID, "Юра, как дела?");
-        assertSaved(MY_CHAT_ID, "Юра, как дела?", 111L, "@nick", "Ник");
+        verify(aiService).askAi(BLUE_CHAT_ID, "Юра, как дела?");
+        assertSaved(BLUE_CHAT_ID, "Юра, как дела?", 111L, "@nick", "Ник");
     }
 
     @Test
     void addressInTheMiddleOfTheMessageIsSentToAi() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(ALIASES);
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+        when(personaService.aliasesForChat(BLUE_CHAT_ID)).thenReturn(ALIASES);
 
-        dispatcher.dispatch(update("как дела, юра?", MY_CHAT_ID));
+        dispatcher.dispatch(update("как дела, юра?", BLUE_CHAT_ID));
 
-        verify(aiService).askAi(MY_CHAT_ID, "как дела, юра?");
+        verify(aiService).askAi(BLUE_CHAT_ID, "как дела, юра?");
     }
 
     @Test
     void addressWithoutQuestionAsksForAQuestion() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(ALIASES);
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+        when(personaService.aliasesForChat(BLUE_CHAT_ID)).thenReturn(ALIASES);
 
-        dispatcher.dispatch(update("Юрий!", MY_CHAT_ID));
+        dispatcher.dispatch(update("Юрий!", BLUE_CHAT_ID));
 
-        verify(messageSender).sendMessage(MY_CHAT_ID, "Юра на связи, но вопроса нет. Напиши его после обращения.");
+        verify(messageSender).sendMessage(BLUE_CHAT_ID, "Юра на связи, но вопроса нет. Напиши его после обращения.");
         verify(aiService, never()).askAi(anyLong(), anyString());
     }
 
     @Test
-    void addressInAnotherChatIsNotSentToAi() {
+    void addressWithoutQuestionNamesTheChatsPersona() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.of(OTHER_PERSONA));
+        when(personaService.aliasesForChat(OTHER_CHAT_ID)).thenReturn(OTHER_ALIASES);
+
+        dispatcher.dispatch(update("Максим!", OTHER_CHAT_ID));
+
+        verify(messageSender).sendMessage(OTHER_CHAT_ID,
+                "Макс на связи, но вопроса нет. Напиши его после обращения.");
+        verify(aiService, never()).askAi(anyLong(), anyString());
+    }
+
+    @Test
+    void addressInAnotherChatWithPersonaIsSentToAi() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.of(OTHER_PERSONA));
+        when(personaService.aliasesForChat(OTHER_CHAT_ID)).thenReturn(OTHER_ALIASES);
+
+        dispatcher.dispatch(update("макс, как дела?", OTHER_CHAT_ID));
+
+        verify(aiService).askAi(OTHER_CHAT_ID, "макс, как дела?");
+        assertSaved(OTHER_CHAT_ID, "макс, как дела?", 111L, "@nick", "Ник");
+    }
+
+    @Test
+    void foreignAliasInChatWithAnotherPersonaIsOnlySaved() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.of(OTHER_PERSONA));
+        when(personaService.aliasesForChat(OTHER_CHAT_ID)).thenReturn(OTHER_ALIASES);
+
         dispatcher.dispatch(update("юра, как дела?", OTHER_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
@@ -102,29 +136,29 @@ class CommandDispatcherTest {
 
     @Test
     void plainTextInMyChatIsOnlySaved() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(ALIASES);
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+        when(personaService.aliasesForChat(BLUE_CHAT_ID)).thenReturn(ALIASES);
 
-        dispatcher.dispatch(update("юридический вопрос по договору", MY_CHAT_ID));
+        dispatcher.dispatch(update("юридический вопрос по договору", BLUE_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
-        assertSaved(MY_CHAT_ID, "юридический вопрос по договору", 111L, "@nick", "Ник");
+        assertSaved(BLUE_CHAT_ID, "юридический вопрос по договору", 111L, "@nick", "Ник");
     }
 
     @Test
     void chatWithoutPersonaHasNoNameTrigger() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(List.of());
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.empty());
 
-        dispatcher.dispatch(update("юра, как дела?", MY_CHAT_ID));
+        dispatcher.dispatch(update("юра, как дела?", BLUE_CHAT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
-        assertSaved(MY_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
+        assertSaved(BLUE_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
     }
 
     @Test
     void authorWithoutUsernameIsSavedWithFirstName() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(List.of());
-        Message message = message("привет", MY_CHAT_ID);
+        Message message = message("привет", BLUE_CHAT_ID);
         User author = mock(User.class);
         when(author.getFirstName()).thenReturn("Иван");
         when(message.getFrom()).thenReturn(author);
@@ -133,35 +167,50 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update);
 
-        assertSaved(MY_CHAT_ID, "привет", 0L, null, "Иван");
+        assertSaved(BLUE_CHAT_ID, "привет", 0L, null, "Иван");
     }
 
     @Test
     void replyToBotIsSentToAiWithoutAddress() {
-        dispatcher.dispatch(replyUpdate("ну что?", MY_CHAT_ID, BOT_ID));
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
 
-        verify(aiService).askAi(MY_CHAT_ID, "ну что?");
+        dispatcher.dispatch(replyUpdate("ну что?", BLUE_CHAT_ID, BOT_ID));
+
+        verify(aiService).askAi(BLUE_CHAT_ID, "ну что?");
     }
 
     @Test
     void replyToHumanIsNotSentToAi() {
-        when(personaService.aliasesForChat(MY_CHAT_ID)).thenReturn(ALIASES);
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+        when(personaService.aliasesForChat(BLUE_CHAT_ID)).thenReturn(ALIASES);
 
-        dispatcher.dispatch(replyUpdate("ну что?", MY_CHAT_ID, 111L));
+        dispatcher.dispatch(replyUpdate("ну что?", BLUE_CHAT_ID, 111L));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
     }
 
     @Test
-    void replyToBotInAnotherChatIsNotSentToAi() {
+    void replyToBotInAnotherChatWithPersonaIsSentToAi() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.of(OTHER_PERSONA));
+
+        dispatcher.dispatch(replyUpdate("ну что?", OTHER_CHAT_ID, BOT_ID));
+
+        verify(aiService).askAi(OTHER_CHAT_ID, "ну что?");
+    }
+
+    @Test
+    void replyToBotInChatWithoutPersonaIsOnlySaved() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.empty());
+
         dispatcher.dispatch(replyUpdate("ну что?", OTHER_CHAT_ID, BOT_ID));
 
         verify(aiService, never()).askAi(anyLong(), anyString());
+        assertSaved(OTHER_CHAT_ID, "ну что?", 111L, "@nick", "Ник");
     }
 
     @Test
     void slashCommandStillWorksAsBefore() {
-        Update update = update("/юра как дела", MY_CHAT_ID);
+        Update update = update("/юра как дела", BLUE_CHAT_ID);
 
         dispatcher.dispatch(update);
 
@@ -173,9 +222,9 @@ class CommandDispatcherTest {
     void clearCommandAsksForConfirmationInsteadOfClearing() throws Exception {
         TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
         when(messageSender.getBot()).thenReturn(bot);
-        when(aiService.getChatHistorySize(MY_CHAT_ID)).thenReturn(7);
+        when(aiService.getChatHistorySize(BLUE_CHAT_ID)).thenReturn(7);
 
-        dispatcher.dispatch(update("/clear", MY_CHAT_ID));
+        dispatcher.dispatch(update("/clear", BLUE_CHAT_ID));
 
         verify(aiService, never()).clearChatHistory(anyLong());
 
@@ -187,9 +236,9 @@ class CommandDispatcherTest {
 
     @Test
     void botInfoListsClearCommand() {
-        dispatcher.dispatch(update("/bot_info", MY_CHAT_ID));
+        dispatcher.dispatch(update("/bot_info", BLUE_CHAT_ID));
 
-        verify(messageSender).sendMessage(eq(MY_CHAT_ID), contains("/clear"));
+        verify(messageSender).sendMessage(eq(BLUE_CHAT_ID), contains("/clear"));
     }
 
     /** Сохранённый текст не содержит префикса автора, а сам автор уходит отдельными полями. */

@@ -1,6 +1,10 @@
 package org.example.AiChat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.example.Settings.SettingsService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -50,12 +55,22 @@ class PromptComposerTest {
     @Mock
     private AiChatRepository aiChatRepository;
 
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
+    private final Logger logger = (Logger) LoggerFactory.getLogger(PromptComposer.class);
+
     private PromptComposer composer;
 
     @BeforeEach
     void setUp() {
+        logger.addAppender(logs);
+        logs.start();
         composer = new PromptComposer(settings, personaService, emotionService, memoryRepository,
                 new MemoryPromptBuilder(), aiChatRepository, CLOCK);
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.detachAppender(logs);
     }
 
     @Test
@@ -305,6 +320,32 @@ class PromptComposerTest {
         assertFalse(context.text().contains("Ты Юра"), "характер в план не попадает");
         assertFalse(context.text().contains("Ты участник этого чата"), "техника в план не попадает");
         assertFalse(context.text().contains("## Как отвечать"), context.text());
+    }
+
+    @Test
+    void promptLogNamesTheChatsPersona() {
+        withPersona();
+
+        composer.compose(CHAT_ID);
+
+        assertTrue(promptLog().contains("персона Юра"), promptLog());
+    }
+
+    @Test
+    void promptLogSaysNoPersonaForChatWithoutIt() {
+        when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
+
+        composer.compose(CHAT_ID);
+
+        assertTrue(promptLog().contains("персона без персоны"), promptLog());
+    }
+
+    private String promptLog() {
+        return logs.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(message -> message.startsWith("Системный промпт чата"))
+                .findFirst()
+                .orElse("");
     }
 
     private static MemoryRecord memory(int id, String content) {

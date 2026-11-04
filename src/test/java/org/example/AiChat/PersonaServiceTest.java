@@ -10,7 +10,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.example.Settings.Settings.AI_CONTEXT;
-import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -18,6 +17,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PersonaServiceTest {
+
+    private static final long BLUE_CHAT_ID = -1001347887839L;
 
     @Mock
     private PersonaRepository repository;
@@ -55,10 +56,10 @@ class PersonaServiceTest {
 
     @Test
     void blueChatWithoutPersonaUsesTheCommonPrompt() {
-        when(repository.findForChat(MY_CHAT_ID)).thenReturn(Optional.empty());
+        when(repository.findForChat(BLUE_CHAT_ID)).thenReturn(Optional.empty());
         when(settings.getSettingValue(AI_CONTEXT)).thenReturn("общий промпт");
 
-        PersonaService.ResolvedPrompt resolved = service.resolvePrompt(MY_CHAT_ID).orElseThrow();
+        PersonaService.ResolvedPrompt resolved = service.resolvePrompt(BLUE_CHAT_ID).orElseThrow();
 
         assertEquals("общий промпт", resolved.text());
         assertEquals("setting:" + AI_CONTEXT, resolved.source());

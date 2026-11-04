@@ -111,7 +111,8 @@ public class PromptComposer {
                 applyLength(text(AI_PROMPT_ANSWER_FORMAT, PromptDefaults.ANSWER_FORMAT)));
 
         String prompt = String.join("\n\n", sections.stream().map(PromptComposer::render).toList());
-        logger.info("Системный промпт чата {}: разделов {}, символов {}", chatId, sections.size(), prompt.length());
+        logger.info("Системный промпт чата {}: персона {}, разделов {}, символов {}",
+                chatId, persona.map(Persona::name).orElse("без персоны"), sections.size(), prompt.length());
         return new ComposedPrompt(List.copyOf(sections), prompt);
     }
 

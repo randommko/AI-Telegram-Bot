@@ -4,6 +4,7 @@ package org.example;
 import org.example.AiChat.AiAddressParser;
 import org.example.AiChat.AiService;
 import org.example.AiChat.MessageAuthor;
+import org.example.AiChat.Persona;
 import org.example.AiChat.PersonaService;
 import org.example.CockSize.CockSizeGame;
 import org.example.Config.BotProperties;
@@ -19,9 +20,9 @@ import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
-import static org.example.Settings.Settings.MY_CHAT_ID;
 import static org.example.Settings.Settings.USER_ROLE;
 
 @Component
@@ -138,7 +139,8 @@ public class CommandDispatcher {
 
     private void answerNameAddress(Message message, String text) {
         Long chatId = message.getChatId();
-        if (!MY_CHAT_ID.equals(chatId))
+        Optional<Persona> persona = personaService.personaForChat(chatId);
+        if (persona.isEmpty())
             return;
 
         // Ответ реплаем на сообщение самого бота — второй триггер, имя в тексте не нужно.
@@ -150,7 +152,8 @@ public class CommandDispatcher {
         List<String> aliases = personaService.aliasesForChat(chatId);
         addressParser.question(text, aliases).ifPresent(question -> {
             if (question.isEmpty()) {
-                messageSender.sendMessage(chatId, "Юра на связи, но вопроса нет. Напиши его после обращения.");
+                messageSender.sendMessage(chatId, persona.get().name()
+                        + " на связи, но вопроса нет. Напиши его после обращения.");
                 return;
             }
             aiService.askAi(chatId, question);
