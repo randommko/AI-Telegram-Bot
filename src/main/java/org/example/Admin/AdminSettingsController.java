@@ -318,14 +318,15 @@ public class AdminSettingsController {
         return groups;
     }
 
-    /** Провайдеры-агрегаторы: пометка об отсутствии ключа уходит в подсказку. */
+    /** Провайдеры-агрегаторы; отсутствие ключа видно в самом пункте списка, а не только в подсказке. */
     private List<Choice> providerChoices() {
         List<Choice> choices = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
-            String title = properties.ai().keyFor(provider.id()) != null
-                    ? provider.title()
-                    : provider.title() + " — нет ключа " + provider.envName();
-            choices.add(new Choice(provider.id(), provider.title(), "", title));
+            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
+            choices.add(new Choice(provider.id(),
+                    hasKey ? provider.title() : provider.title() + " — нет ключа",
+                    "",
+                    hasKey ? provider.title() : provider.title() + " — нет ключа " + provider.envName()));
         }
         return choices;
     }

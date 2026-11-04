@@ -325,6 +325,30 @@ class AdminSettingsTest {
                 .andExpect(content().string(containsString(">BOT_AI_KEY_OPENAI<")));
     }
 
+    @Test
+    void aggregatorWithoutKeyIsMarkedInTheListItself() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Venice — нет ключа")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("AITunnel — нет ключа"))))
+                .andExpect(content().string(containsString(".field[hidden]")));
+    }
+
+    @Test
+    void summaryLineNamesProvidersWithAndWithoutKeys() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Ключи провайдеров")))
+                .andExpect(content().string(containsString("DeepSeek — есть")))
+                .andExpect(content().string(containsString("AITunnel — есть")))
+                .andExpect(content().string(containsString("Venice — нет")));
+    }
+
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {
         Map<String, String> form = AdminSettingsValidatorTest.validForm();
         form.put("tab", "model");
