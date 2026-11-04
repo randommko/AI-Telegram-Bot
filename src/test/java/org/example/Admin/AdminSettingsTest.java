@@ -299,6 +299,32 @@ class AdminSettingsTest {
         verify(settings, never()).save(anyString(), anyString());
     }
 
+    @Test
+    void explainsHowToAddProviderKeys() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Как добавить ключ провайдера")))
+                .andExpect(content().string(containsString("ssh root@45.141.103.51")))
+                .andExpect(content().string(containsString("secrets.VENICE_API_KEY")))
+                .andExpect(content().string(containsString(">BOT_AI_KEY_VENICE<")))
+                .andExpect(content().string(containsString("https://venice.ai/settings/api/keys")))
+                .andExpect(content().string(containsString(">BOT_AI_KEY_DEEPSEEK<")))
+                .andExpect(content().string(containsString(
+                        "группы: DeepSeek, Grok, OpenAI, Google Gemini, Anthropic, Qwen, Kimi, GLM")));
+    }
+
+    @Test
+    void keyHintsMarkProvidersThatAlreadyHaveKeys() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(">BOT_AI_KEY_AITUNNEL<")))
+                .andExpect(content().string(containsString(">BOT_AI_KEY_OPENAI<")));
+    }
+
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {
         Map<String, String> form = AdminSettingsValidatorTest.validForm();
         form.put("tab", "model");

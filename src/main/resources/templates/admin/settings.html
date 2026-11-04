@@ -8,6 +8,66 @@
     <p th:replace="~{admin/layout :: liveData}"></p>
     <p class="notice" th:if="${saved}">Сохранено. Новые значения применяются к следующему запросу бота.</p>
 
+    <details class="note keys">
+        <summary>Как добавить ключ провайдера</summary>
+
+        <p>
+            Ключ приходит из переменной окружения <code>BOT_AI_KEY_&lt;ID&gt;</code>. Ни один ключ не обязателен:
+            без него поставщик виден в списке моделей с пометкой, но выбрать его модель нельзя.
+        </p>
+
+        <p>
+            <strong>Постоянный путь — секрет репозитория.</strong> Деплой на каждом пуше заново собирает
+            <code>/etc/telegram-bot/bot.env</code> из секретов, поэтому строка, вписанная в файл руками,
+            живёт только до следующего деплоя.
+        </p>
+        <ol>
+            <li>Создать ключ в кабинете поставщика — ссылка в таблице ниже.</li>
+            <li>GitHub → <em>Settings</em> → <em>Secrets and variables</em> → <em>Actions</em> → <em>New repository secret</em>.
+                Имя секрета — латиницей, например <code>VENICE_API_KEY</code>.</li>
+            <li>Убедиться, что в блоке <code>bot.env</code> файла <code>.github/workflows/deploy.yml</code> есть строка
+                <code>BOT_AI_KEY_VENICE=${{ secrets.VENICE_API_KEY }}</code>; для поставщиков из таблицы они уже есть.</li>
+            <li>Пуш в <code>main</code>: деплой пересоберёт <code>bot.env</code> и перезапустит бота.</li>
+        </ol>
+
+        <p><strong>Временно, без пуша</strong> — пока секрет не заведён:</p>
+        <pre><code>ssh root@45.141.103.51
+cp /etc/telegram-bot/bot.env /etc/telegram-bot/bot.env.bak-$(date +%F)
+nano /etc/telegram-bot/bot.env      # добавить, например: BOT_AI_KEY_VENICE=sk-...
+systemctl restart telegram-bot
+journalctl -u telegram-bot -n 30 --no-pager</code></pre>
+        <p class="hint">
+            Вписанная руками строка исчезнет после следующего деплоя. Ключ не коммитить в репозиторий —
+            он публичный; ключи живут только в GitHub Secrets и в <code>bot.env</code> на сервере.
+        </p>
+
+        <table class="list">
+            <thead>
+            <tr>
+                <th>Переменная</th>
+                <th>Поставщик</th>
+                <th>Что открывает</th>
+                <th>Ключ</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="hint : ${keyHints}">
+                <td><code th:text="${hint.envName}">BOT_AI_KEY_X</code></td>
+                <td>
+                    <a th:if="${hint.keyUrl != ''}" th:href="${hint.keyUrl}" th:text="${hint.provider}"
+                       target="_blank" rel="noreferrer">Поставщик</a>
+                    <span th:if="${hint.keyUrl == ''}" th:text="${hint.provider}">Поставщик</span>
+                </td>
+                <td th:text="${hint.scope}">модели</td>
+                <td>
+                    <span class="ok" th:if="${hint.hasKey}">есть</span>
+                    <span class="badge" th:unless="${hint.hasKey}">нет</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </details>
+
     <nav class="tabs">
         <a th:each="tab : ${tabs}"
            th:href="@{/admin/settings(tab=${tab.id})}"

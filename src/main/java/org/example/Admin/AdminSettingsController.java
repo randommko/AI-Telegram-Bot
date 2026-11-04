@@ -53,6 +53,17 @@ public class AdminSettingsController {
     private static final Logger logger = LoggerFactory.getLogger(AdminSettingsController.class);
     private static final String DEFAULT_TAB = "model";
 
+    /** Кабинеты, где выдают ключи: ссылки живут в админке, чтобы не тяжелеть каталог. */
+    private static final Map<String, String> KEY_URLS = Map.ofEntries(
+            Map.entry("deepseek", "https://platform.deepseek.com/api_keys"),
+            Map.entry("grok", "https://console.x.ai"),
+            Map.entry("openai", "https://platform.openai.com/api-keys"),
+            Map.entry("gemini", "https://aistudio.google.com/apikey"),
+            Map.entry("mistral", "https://console.mistral.ai/api-keys"),
+            Map.entry("aitunnel", "https://aitunnel.ru/"),
+            Map.entry("venice", "https://venice.ai/settings/api/keys"),
+            Map.entry("abliteration", "https://abliteration.ai/console"));
+
     /** Опция списка моделей: значение — идентификатор модели, title — описание для подсказки. */
     public record Option(String value, String title) {
     }
@@ -71,6 +82,10 @@ public class AdminSettingsController {
     }
 
     public record TabView(String id, String title, boolean active, List<FieldView> fields) {
+    }
+
+    /** Строка инструкции: переменная окружения, поставщик, ссылка на кабинет, что открывает и есть ли ключ. */
+    public record KeyHint(String envName, String provider, String keyUrl, String scope, boolean hasKey) {
     }
 
     /** Выбранная пара, разложенная для формы: режим, провайдер, вендор и модель. */
@@ -198,6 +213,7 @@ public class AdminSettingsController {
         model.addAttribute("tabs", tabs);
         model.addAttribute("activeTab", tab);
         model.addAttribute("saved", saved);
+        model.addAttribute("keyHints", keyHints());
         return "admin/settings";
     }
 
@@ -264,6 +280,29 @@ public class AdminSettingsController {
                 .orElse(false);
         return new Selection(aggregator ? AdminModelForm.PROVIDER : AdminModelForm.DIRECT,
                 model.providerId(), model.group(), model.id());
+    }
+
+    /** Инструкция по ключам: переменная, поставщик и что эта дверь открывает. */
+    private List<KeyHint> keyHints() {
+        List<KeyHint> hints = new ArrayList<>();
+        for (LlmCatalog.Provider provider : LlmCatalog.providers()) {
+            String scope;
+            if (provider.aggregator()) {
+                String groups = LlmCatalog.groupsOf(provider.id()).stream()
+                        .map(LlmCatalog.Group::title)
+                        .collect(Collectors.joining(", "));
+                scope = "группы: " + groups + " · моделей: " + LlmCatalog.modelsOf(provider.id()).size();
+            } else {
+                scope = "модели: " + LlmCatalog.modelsOf(provider.id()).stream()
+                        .map(LlmCatalog.Model::id)
+                        .collect(Collectors.joining(", "));
+            }
+
+            hints.add(new KeyHint(provider.envName(), provider.title(),
+                    KEY_URLS.getOrDefault(provider.id(), ""), scope,
+                    properties.ai().keyFor(provider.id()) != null));
+        }
+        return hints;
     }
 
     /** Модели прямых поставщиков, сгруппированные по поставщику; у группы без ключа — пометка. */
