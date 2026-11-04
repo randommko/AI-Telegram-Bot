@@ -349,6 +349,29 @@ class AdminSettingsTest {
                 .andExpect(content().string(containsString("Venice — нет")));
     }
 
+    @Test
+    void modelWithoutKeyCannotBePicked() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "value=\"grok-4.7\" title=\"Grok 4.7\" disabled=\"disabled\"")))
+                .andExpect(content().string(containsString(
+                        "data-door=\"venice|anthropic\" disabled=\"disabled\"")));
+    }
+
+    @Test
+    void storedModelWithoutKeyStaysPicked() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MODEL_KEY, "grok-4.7", null)));
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString(
+                        "value=\"grok-4.7\" title=\"Grok 4.7\" disabled"))));
+    }
+
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {
         Map<String, String> form = AdminSettingsValidatorTest.validForm();
         form.put("tab", "model");

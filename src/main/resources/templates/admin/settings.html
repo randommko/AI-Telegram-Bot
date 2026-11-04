@@ -104,6 +104,7 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                         <option th:each="option : ${group.options}"
                                 th:value="${option.value}" th:text="${option.value}"
                                 th:title="${option.title}"
+                                th:disabled="${!option.enabled}"
                                 th:selected="${option.value == field.value}"></option>
                     </optgroup>
                 </select>
@@ -122,6 +123,7 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                             th:value="${choice.value}" th:text="${choice.label}"
                             th:title="${choice.title}"
                             th:attr="data-door=${choice.door}"
+                            th:disabled="${!choice.enabled}"
                             th:selected="${choice.value == field.value}"></option>
                 </select>
 
@@ -169,23 +171,35 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
             var groupField = groupSelect.closest('.field');
             var modelField = modelSelect.closest('.field');
 
+            // Пункты без ключа выключены сервером: фильтрация по двери не должна их включать обратно.
+            var noKey = new WeakSet();
+            Array.prototype.slice.call(directSelect.options)
+                .concat(Array.prototype.slice.call(providerSelect.options),
+                        Array.prototype.slice.call(groupSelect.options),
+                        Array.prototype.slice.call(modelSelect.options))
+                .forEach(function (option) {
+                    if (option.disabled) noKey.add(option);
+                });
+
             function providerMode() {
                 return access.some(function (radio) { return radio.checked && radio.value === 'provider'; });
             }
 
-            function visibleOptions(select) {
-                return Array.prototype.slice.call(select.options).filter(function (option) { return !option.hidden; });
+            function selectableOptions(select) {
+                return Array.prototype.slice.call(select.options).filter(function (option) {
+                    return !option.hidden && !option.disabled;
+                });
             }
 
             function filterByDoor(select, prefix) {
                 Array.prototype.slice.call(select.options).forEach(function (option) {
                     var ok = !prefix || (option.dataset.door || '').indexOf(prefix) === 0;
                     option.hidden = !ok;
-                    option.disabled = !ok;
+                    option.disabled = !ok || noKey.has(option);
                 });
                 var current = select.options[select.selectedIndex];
-                if (!current || current.hidden) {
-                    var first = visibleOptions(select)[0];
+                if (!current || current.hidden || current.disabled) {
+                    var first = selectableOptions(select)[0];
                     if (first) select.value = first.value;
                 }
             }
@@ -196,7 +210,7 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
 
             function refreshGroups() {
                 filterByDoor(groupSelect, doorPrefix());
-                var options = visibleOptions(groupSelect);
+                var options = selectableOptions(groupSelect);
                 if (options.length === 1) groupSelect.value = options[0].value;
                 if (options.length <= 1) groupField.hidden = true;
             }

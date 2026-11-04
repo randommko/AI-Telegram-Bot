@@ -64,12 +64,20 @@ public class AdminSettingsController {
             Map.entry("venice", "https://venice.ai/settings/api/keys"),
             Map.entry("abliteration", "https://abliteration.ai/console"));
 
-    /** Опция списка моделей: значение — идентификатор модели, title — описание для подсказки. */
-    public record Option(String value, String title) {
+    /** Опция списка моделей: значение — идентификатор модели, title — описание, enabled — есть ли ключ. */
+    public record Option(String value, String title, boolean enabled) {
+
+        public Option(String value, String title) {
+            this(value, title, true);
+        }
     }
 
     /** Опция каскада: значение, подпись, дверь (провайдер|вендор) и подсказка. */
-    public record Choice(String value, String label, String door, String title) {
+    public record Choice(String value, String label, String door, String title, boolean enabled) {
+
+        public Choice(String value, String label, String door, String title) {
+            this(value, label, door, title, true);
+        }
     }
 
     /** Группа опций — поставщик; hasKey=false добавляет к заголовку имя недостающей переменной. */
@@ -233,13 +241,13 @@ public class AdminSettingsController {
                 new TabView("model", "Модель", false, List.of(
                         radio(AdminModelForm.ACCESS_KEY, "Способ выбора модели", selection.mode()),
                         hidden(AI_ROUTE_KEY),
-                        select(AI_MODEL_KEY, "Модель", modelGroups(), selection.directModel()),
+                        select(AI_MODEL_KEY, "Модель", modelGroups(selection), selection.directModel()),
                         cascade("provider", AdminModelForm.PROVIDER_KEY, "Провайдер",
-                                providerChoices(), selection.providerId()),
+                                providerChoices(selection), selection.providerId()),
                         cascade("group", AdminModelForm.GROUP_KEY, "Группа моделей",
                                 groupChoices(), selection.groupId()),
                         cascade("door-model", AdminModelForm.DOOR_MODEL_KEY, "Модель у провайдера",
-                                doorModelChoices(), selection.modelId()),
+                                doorModelChoices(selection), selection.modelId()),
                         range(AI_ANSWER_TEMPERATURE, "Температура ответа", "0", "2", "0.1"),
                         range(AI_MAX_TOKENS_ANSWER_QUESTION, "Лимит токенов ответа", "1", "8192", "64"),
                         range(AI_PLAN_MAX_TOKENS, "Лимит токенов плана", "1", "8192", "64"),
@@ -306,27 +314,30 @@ public class AdminSettingsController {
     }
 
     /** Модели прямых поставщиков, сгруппированные по поставщику; у группы без ключа — пометка. */
-    private List<OptionGroup> modelGroups() {
+    private List<OptionGroup> modelGroups(Selection selection) {
         List<OptionGroup> groups = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.directProviders()) {
+            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
             List<Option> options = LlmCatalog.modelsOf(provider.id()).stream()
-                    .map(model -> new Option(model.id(), model.title()))
+                    .map(model -> new Option(model.id(), model.title(),
+                            hasKey || isCurrent(selection, provider.id(), model.id())))
                     .toList();
-            groups.add(new OptionGroup(provider.title(),
-                    properties.ai().keyFor(provider.id()) != null, provider.envName(), options));
+            groups.add(new OptionGroup(provider.title(), hasKey, provider.envName(), options));
         }
         return groups;
     }
 
     /** Провайдеры-агрегаторы; отсутствие ключа видно в самом пункте списка, а не только в подсказке. */
-    private List<Choice> providerChoices() {
+    private List<Choice> providerChoices(Selection selection) {
         List<Choice> choices = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
             boolean hasKey = properties.ai().keyFor(provider.id()) != null;
+            boolean enabled = hasKey || isCurrent(selection, provider.id(), selection.modelId());
             choices.add(new Choice(provider.id(),
                     hasKey ? provider.title() : provider.title() + " — нет ключа",
                     "",
-                    hasKey ? provider.title() : provider.title() + " — нет ключа " + provider.envName()));
+                    hasKey ? provider.title() : provider.title() + " — нет ключа " + provider.envName(),
+                    enabled));
         }
         return choices;
     }
@@ -341,12 +352,20 @@ public class AdminSettingsController {
     }
 
     /** Модели всех агрегаторов: третий список, отфильтрованный по провайдеру и вендору. */
-    private List<Choice> doorModelChoices() {
+    private List<Choice> doorModelChoices(Selection selection) {
         List<Choice> choices = new ArrayList<>();
-        for (LlmCatalog.Provider provider : LlmCatalog.aggregators())
+        for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
+            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
             for (LlmCatalog.Model model : LlmCatalog.modelsOf(provider.id()))
-                choices.add(new Choice(model.id(), model.id(), door(provider.id(), model.group()), model.title()));
+                choices.add(new Choice(model.id(), model.id(), door(provider.id(), model.group()),
+                        model.title(), hasKey || isCurrent(selection, provider.id(), model.id())));
+        }
         return choices;
+    }
+
+    /** Сохранённая пара остаётся выбираемой: иначе снятый ключ молча переключил бы модель при сохранении. */
+    private static boolean isCurrent(Selection selection, String providerId, String modelId) {
+        return providerId.equals(selection.providerId()) && modelId.equals(selection.modelId());
     }
 
     private static String door(String providerId, String groupId) {
