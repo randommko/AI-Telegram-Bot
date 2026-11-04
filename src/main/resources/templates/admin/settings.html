@@ -153,6 +153,13 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                 <input th:if="${field.kind == 'text'}" type="text"
                        th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>
 
+                <div class="checkbox-row" th:if="${field.kind == 'checkbox'}">
+                    <input type="checkbox" th:id="${field.key}" th:name="${field.key}" value="true"
+                           th:checked="${field.value == 'true'}"/>
+                    <!-- Скрытое поле идёт после галочки: снятая галочка сохраняется как false, а не пустой строкой. -->
+                    <input type="hidden" th:name="${field.key}" value="false"/>
+                </div>
+
                 <span class="error" th:if="${field.error}" th:text="${field.error}"></span>
             </div>
         </section>

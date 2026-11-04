@@ -52,18 +52,20 @@ public class AiMemoryExtractor {
     private final MemoryExtractionParser parser;
     private final LlmClient llmClient;
     private final SettingsService settings;
+    private final MemoryUpdateNotifier notifier;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicBoolean warnedAboutThreshold = new AtomicBoolean(false);
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public AiMemoryExtractor(PersonaRepository personaRepository, MemoryRepository memoryRepository,
                              MemoryExtractionParser parser, LlmClient llmClient,
-                             SettingsService settings) {
+                             SettingsService settings, MemoryUpdateNotifier notifier) {
         this.personaRepository = personaRepository;
         this.memoryRepository = memoryRepository;
         this.parser = parser;
         this.llmClient = llmClient;
         this.settings = settings;
+        this.notifier = notifier;
     }
 
     @Scheduled(fixedDelayString = "PT5M")
@@ -141,8 +143,24 @@ public class AiMemoryExtractor {
         logger.info("Анализ памяти в чате {}: сообщений {}, добавлено {}, обновлено {}, удалено {}",
                 chat.chatId(), messages.size(), applied.add().size(), applied.update().size(), applied.delete().size());
 
+        notifyOwner(chat, existing, applied, rejected, messages.size());
+
         return new AnalysisResult(messages.size(), applied.add().size(), applied.update().size(),
                 applied.delete().size(), rejected.size());
+    }
+
+    /** Отчёт владельцу уже после записи памяти: его сбой не должен менять результат анализа. */
+    private void notifyOwner(ChatPersona chat, List<MemoryRecord> existing, MemoryExtraction applied,
+                             List<Long> rejected, int messages) {
+        try {
+            String personaName = personaRepository.findForChat(chat.chatId())
+                    .map(Persona::name)
+                    .orElse("");
+            notifier.notifyOwner(chat, personaName, existing, applied, rejected, messages);
+        } catch (Exception e) {
+            logger.warn("Отчёт об обновлении памяти в чате {} не отправлен: {}",
+                    chat.chatId(), String.valueOf(e));
+        }
     }
 
     private void logWindowGap(long chatId, long watermark, int historySize) {

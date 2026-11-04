@@ -78,6 +78,22 @@ public class SettingsService {
         }
     }
 
+    /** Флажок: включён, если строки нет или она пуста; выключает только явное false. */
+    public boolean getBoolean(String key, boolean defaultValue) {
+        String configured = getSettingValue(key);
+        if (configured == null || configured.isBlank())
+            return defaultValue;
+
+        String value = configured.trim();
+        if ("true".equalsIgnoreCase(value))
+            return true;
+        if ("false".equalsIgnoreCase(value))
+            return false;
+
+        logger.warn("Некорректное значение флажка {} ('{}'): используется {}", key, configured, defaultValue);
+        return defaultValue;
+    }
+
     /** Модель для запросов к ИИ: читается на каждый запрос, поэтому правка работает без рестарта. */
     public String getModel() {
         String configured = getSettingValue(AI_MODEL_KEY);

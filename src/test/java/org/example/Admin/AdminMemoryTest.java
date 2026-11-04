@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -153,6 +154,8 @@ class AdminMemoryTest {
 
         verify(memories).createManual(eq(1), eq("работа"), eq("играет в шахматы"), eq(7), eq(false),
                 eq(LocalDate.of(2024, 3, 21)), eq(List.of(42L)), any());
+        // Ручная правка не запускает анализ, поэтому и отчёта владельцу из неё быть не может.
+        verifyNoInteractions(extractor);
     }
 
     @Test

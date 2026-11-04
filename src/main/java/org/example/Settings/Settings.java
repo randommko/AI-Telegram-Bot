@@ -13,6 +13,8 @@ public class Settings {
     /** Бюджет токенов на ответ анализа памяти: reasoning-модель тратит его и на размышления. */
     public static final String AI_MEMORY_ANALYSIS_MAX_TOKENS = "aiMemoryAnalysisMaxTokens";
     public static final String OWNER_CHAT_ID = "ownerChatId";
+    /** Флажок «присылать обновления памяти в личку»: включён, пока не записано явное false. */
+    public static final String AI_MEMORY_NOTIFY_OWNER = "aiMemoryNotifyOwner";
     /** Ключ настройки с именем модели; значение по умолчанию — DEFAULT_AI_MODEL. */
     public static final String AI_MODEL_KEY = "aiModel";
     /**

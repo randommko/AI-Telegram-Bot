@@ -9,6 +9,8 @@ import java.sql.ResultSet;
 
 import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,6 +62,20 @@ class SettingsServiceTest {
     @Test
     void missingRouteMeansDirectDoorBehaviour() throws Exception {
         assertEquals("", serviceReturning(null).getRoute());
+    }
+
+    @Test
+    void readsBooleanFlag() throws Exception {
+        assertTrue(serviceReturning("true").getBoolean("любая", true));
+        assertFalse(serviceReturning("false").getBoolean("любая", true));
+        assertFalse(serviceReturning(" FALSE ").getBoolean("любая", true));
+    }
+
+    @Test
+    void missingOrDefaultBooleanFlagIsOn() throws Exception {
+        assertTrue(serviceReturning(null).getBoolean("любая", true));
+        assertTrue(serviceReturning("  ").getBoolean("любая", true));
+        assertTrue(serviceReturning("мусор").getBoolean("любая", true), "мусор не выключает флажок");
     }
 
     private SettingsService serviceReturning(String value) throws Exception {

@@ -33,6 +33,7 @@ import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
+import static org.example.Settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
@@ -273,7 +274,8 @@ public class AdminSettingsController {
                         text(AI_PERSONA_JOIN_TEMPLATE, "Вход персоны в чат"),
                         text(AI_PERSONA_LEAVE_TEMPLATE, "Выход персоны из чата"))),
                 new TabView("notifications", "Уведомления", false, List.of(
-                        text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"))));
+                        text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"),
+                        checkbox(AI_MEMORY_NOTIFY_OWNER, "Присылать обновления памяти"))));
     }
 
     /** Выбранная пара из базы: режим и три ступени каскада для формы. */
@@ -408,6 +410,11 @@ public class AdminSettingsController {
 
     private static FieldView text(String key, String title) {
         return new FieldView(key, title, "text", "", null, "", List.of(), List.of(), null, null, null);
+    }
+
+    /** Флажок: без строки в базе показывается включённым, как и читает его бот. */
+    private static FieldView checkbox(String key, String title) {
+        return new FieldView(key, title, "checkbox", "true", null, "", List.of(), List.of(), null, null, null);
     }
 
     private static FieldView area(String key, String title) {

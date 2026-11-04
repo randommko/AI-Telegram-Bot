@@ -16,9 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.Settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
 import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_ROUTE_KEY;
+import static org.example.Settings.Settings.OWNER_CHAT_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -403,6 +405,45 @@ class AdminSettingsTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString(
                         "disabled=\"disabled\">grok-4.7</option>"))));
+    }
+
+    @Test
+    void notificationsTabHasMemoryCheckboxOnByDefault() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=notifications").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Присылать обновления памяти")))
+                .andExpect(content().string(containsString("type=\"checkbox\"")))
+                .andExpect(content().string(containsString("name=\"" + AI_MEMORY_NOTIFY_OWNER + "\"")))
+                .andExpect(content().string(containsString("value=\"false\"")))
+                .andExpect(content().string(containsString("checked=\"checked\"")));
+    }
+
+    @Test
+    void storedDisabledMemoryCheckboxStaysOff() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MEMORY_NOTIFY_OWNER, "false", "Описание флажка")));
+
+        mockMvc.perform(get("/admin/settings?tab=notifications").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("checked=\"checked\""))));
+    }
+
+    @Test
+    void uncheckedMemoryToggleIsSavedAsFalse() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "notifications")
+                        .param(OWNER_CHAT_ID, "270459384")
+                        .param(AI_MEMORY_NOTIFY_OWNER, "false"))
+                .andExpect(redirectedUrl("/admin/settings?tab=notifications&saved"));
+
+        verify(settings).save(AI_MEMORY_NOTIFY_OWNER, "false");
+        verify(settings).save(OWNER_CHAT_ID, "270459384");
     }
 
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {

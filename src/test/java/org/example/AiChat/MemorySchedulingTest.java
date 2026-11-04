@@ -66,7 +66,7 @@ class MemorySchedulingTest {
         AiMemoryExtractor aiMemoryExtractor(PersonaRepository personaRepository, MemoryRepository memoryRepository,
                                            LlmClient llmClient, SettingsService settingsService) {
             return new AiMemoryExtractor(personaRepository, memoryRepository,
-                    new MemoryExtractionParser(), llmClient, settingsService);
+                    new MemoryExtractionParser(), llmClient, settingsService, mock(MemoryUpdateNotifier.class));
         }
     }
 }

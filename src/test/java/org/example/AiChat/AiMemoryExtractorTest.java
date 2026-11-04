@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.example.Settings.Settings.AI_HISTORY_SIZE;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -49,13 +51,15 @@ class AiMemoryExtractorTest {
     private LlmClient llmClient;
     @Mock
     private SettingsService settings;
+    @Mock
+    private MemoryUpdateNotifier notifier;
 
     private AiMemoryExtractor extractor;
 
     @BeforeEach
     void setUp() {
         extractor = new AiMemoryExtractor(personaRepository, memoryRepository,
-                new MemoryExtractionParser(), llmClient, settings);
+                new MemoryExtractionParser(), llmClient, settings, notifier);
 
         lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MESSAGES)).thenReturn("50");
         lenient().when(settings.getSettingValue(AI_MEMORY_ANALYSIS_MAX_TOKENS)).thenReturn("8000");
@@ -154,6 +158,82 @@ class AiMemoryExtractorTest {
     }
 
     @Test
+    void backgroundRunNotifiesOwnerWithPersonaName() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_ANALYZE_EVERY)).thenReturn("50");
+        when(settings.getSettingValue(AI_HISTORY_SIZE)).thenReturn("100");
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(personaRepository.findAssignedChats()).thenReturn(List.of(CHAT));
+        when(personaRepository.findForChat(1L)).thenReturn(Optional.of(new Persona(7, "Юра", "Ты Юра")));
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.countNewMessages(1L, 10L)).thenReturn(50);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 50));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "первое"),
+                new MemoryRepository.MessageRow(61L, "второе")));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of(
+                new MemoryRecord(3, "работа", "старая работа", 4, false, null, List.of(),
+                        "auto", Instant.EPOCH)));
+        when(memoryRepository.categories()).thenReturn(Set.of("хобби", "другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[{\"category\":\"хобби\",\"content\":\"играет в шахматы\","
+                        + "\"importance\":6,\"event_date\":null,\"people\":[]}],"
+                        + "\"update\":[],\"delete\":[{\"id\":3}]}");
+
+        extractor.analyzeDueChats();
+
+        ArgumentCaptor<String> name = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MemoryExtraction> sent = ArgumentCaptor.forClass(MemoryExtraction.class);
+        verify(notifier).notifyOwner(eq(CHAT), name.capture(), any(), sent.capture(), any(), eq(2));
+        assertEquals("Юра", name.getValue());
+        assertEquals("играет в шахматы", sent.getValue().add().get(0).content());
+        assertEquals(List.of(3L), sent.getValue().delete());
+    }
+
+    @Test
+    void manualRunFromAdminNotifiesOwnerToo() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(personaRepository.findForChat(1L)).thenReturn(Optional.of(new Persona(7, "Юра", "Ты Юра")));
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 1));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "привет")));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of());
+        when(memoryRepository.categories()).thenReturn(Set.of("другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[],\"update\":[],\"delete\":[]}");
+
+        extractor.analyzeChat(CHAT, 100);
+
+        verify(notifier).notifyOwner(eq(CHAT), eq("Юра"), any(), any(), any(), eq(1));
+    }
+
+    @Test
+    void notifierFailureDoesNotChangeAnalysisResult() throws Exception {
+        when(settings.getSettingValue(AI_MEMORY_EXTRACT_PROMPT)).thenReturn("промпт анализа");
+        when(personaRepository.findForChat(1L)).thenReturn(Optional.of(new Persona(7, "Юра", "Ты Юра")));
+        when(memoryRepository.watermark(1L)).thenReturn(10L);
+        when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 1));
+        when(memoryRepository.findNewMessages(1L, 10L)).thenReturn(List.of(
+                new MemoryRepository.MessageRow(60L, "привет")));
+        when(memoryRepository.findByPersona(7)).thenReturn(List.of());
+        when(memoryRepository.categories()).thenReturn(Set.of("хобби", "другое"));
+        when(memoryRepository.userIds(any())).thenReturn(Map.of());
+        when(llmClient.sendRequestToAi(any(ArrayNode.class), any(Float.class), anyInt()))
+                .thenReturn("{\"add\":[{\"category\":\"хобби\",\"content\":\"играет в шахматы\","
+                        + "\"importance\":6,\"event_date\":null,\"people\":[]}],"
+                        + "\"update\":[],\"delete\":[]}");
+        doThrow(new IllegalStateException("телеграм недоступен"))
+                .when(notifier).notifyOwner(any(), any(), any(), any(), any(), anyInt());
+
+        AiMemoryExtractor.AnalysisResult result = extractor.analyzeChat(CHAT, 100);
+
+        assertEquals(1, result.added(), "результат анализа не зависит от отправки");
+        verify(memoryRepository).apply(eq(1L), eq(7), any(), eq(60L), anySet(), anyMap());
+    }
+
+    @Test
     void returnsZeroWhenThereAreNoNewMessages() throws Exception {
         when(memoryRepository.watermark(1L)).thenReturn(10L);
         when(memoryRepository.window(1L)).thenReturn(new MemoryRepository.WindowInfo(11L, 2));
@@ -163,6 +243,7 @@ class AiMemoryExtractorTest {
 
         assertEquals(0, result.messages());
         verifyNoInteractions(llmClient);
+        verify(notifier, never()).notifyOwner(any(), any(), any(), any(), any(), anyInt());
     }
 
     @Test
