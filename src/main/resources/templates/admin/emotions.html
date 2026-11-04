@@ -8,71 +8,81 @@
     <p th:replace="~{admin/layout :: liveData}"></p>
     <p class="notice" th:if="${saved}">Справочник сохранён. Следующий ответ считается по новым значениям.</p>
 
+    <p class="hint"
+       th:text="'Сумма положительных весов в агрессию: ' + ${weightSum}
+                + ' → максимум агрессии ' + ${aggressionCeiling} + ' из 10.'">
+        Сумма положительных весов в агрессию: 1.00 → максимум агрессии 10 из 10.
+    </p>
+
     <form class="setting" th:action="@{/admin/emotions}" method="post">
-        <section class="group">
-            <h2>Справочник</h2>
-            <p class="hint">Шкалы — 0..10, вес в агрессию — от -1 до 1, затухание — не меньше нуля.</p>
+        <input type="hidden" name="tab" th:value="${activeTab}"/>
 
-            <fieldset th:each="view : ${emotions}">
-                <legend th:text="${view.title()}">Эмоция</legend>
-                <div class="grid-2">
-                    <div class="field">
-                        <label th:for="${'title_' + view.emotion().code()}">Подпись</label>
-                        <input type="text"
-                               th:id="${'title_' + view.emotion().code()}"
-                               th:name="${'title_' + view.emotion().code()}"
-                               th:value="${view.title()}"/>
-                        <span class="error" th:if="${errors['title_' + view.emotion().code()]}"
-                              th:text="${errors['title_' + view.emotion().code()]}"></span>
-                    </div>
+        <nav class="tabs">
+            <a th:each="tab : ${tabs}"
+               th:href="@{/admin/emotions(tab=${tab.code})}"
+               th:classappend="${tab.active} ? 'active'"><span th:text="${tab.title}">Радость</span><span
+                    class="error" th:if="${tab.hasErrors}">!</span></a>
+        </nav>
 
-                    <div class="field">
-                        <label th:for="${'weight_' + view.emotion().code()}">Вес в агрессию (-1..1)</label>
-                        <input type="number" step="0.01" min="-1" max="1"
-                               th:id="${'weight_' + view.emotion().code()}"
-                               th:name="${'weight_' + view.emotion().code()}"
-                               th:value="${view.weight()}"/>
-                        <span class="error" th:if="${errors['weight_' + view.emotion().code()]}"
-                              th:text="${errors['weight_' + view.emotion().code()]}"></span>
-                    </div>
+        <section th:each="tab : ${tabs}"
+                 th:id="${'tab-' + tab.code}"
+                 th:classappend="${tab.active} ? null : 'hidden'">
+            <h2 class="section" th:text="${tab.title}">Гнев</h2>
+            <p class="hint" th:if="${tab.description != null and tab.description != ''}"
+               th:text="${tab.description}">Злость, резкость, импульсивность</p>
+            <p class="hint" th:if="${tab.derived}">
+                Значение вычисляется из остальных эмоций, значения не редактируются.
+            </p>
 
-                    <div class="field">
-                        <label th:for="${'decay_' + view.emotion().code()}">Затухание в час</label>
-                        <input type="number" step="0.01" min="0"
-                               th:id="${'decay_' + view.emotion().code()}"
-                               th:name="${'decay_' + view.emotion().code()}"
-                               th:value="${view.decay()}"/>
-                        <span class="error" th:if="${errors['decay_' + view.emotion().code()]}"
-                              th:text="${errors['decay_' + view.emotion().code()]}"></span>
-                    </div>
-
-                    <div class="field">
-                        <label th:for="${'base_' + view.emotion().code()}">Базовое значение (0..10)</label>
-                        <input type="number" min="0" max="10"
-                               th:id="${'base_' + view.emotion().code()}"
-                               th:name="${'base_' + view.emotion().code()}"
-                               th:value="${view.base()}"/>
-                        <span class="error" th:if="${errors['base_' + view.emotion().code()]}"
-                              th:text="${errors['base_' + view.emotion().code()]}"></span>
-                    </div>
+            <div class="grid-2" th:if="${!tab.derived}">
+                <div class="field">
+                    <label th:for="${'title_' + tab.code}">Подпись</label>
+                    <input type="text"
+                           th:id="${'title_' + tab.code}"
+                           th:name="${'title_' + tab.code}"
+                           th:value="${tab.fields.title()}"/>
+                    <span class="error" th:if="${errors['title_' + tab.code]}"
+                          th:text="${errors['title_' + tab.code]}"></span>
                 </div>
-            </fieldset>
 
-            <p class="hint" th:each="emotion : ${derived}"
-               th:text="${emotion.title() + ': вычисляется из остальных эмоций, значения не редактируются.'}"></p>
-        </section>
+                <div class="field">
+                    <label th:for="${'weight_' + tab.code}">Вес в агрессию (-1..1)</label>
+                    <input type="number" step="0.01" min="-1" max="1"
+                           th:id="${'weight_' + tab.code}"
+                           th:name="${'weight_' + tab.code}"
+                           th:value="${tab.fields.weight()}"/>
+                    <span class="error" th:if="${errors['weight_' + tab.code]}"
+                          th:text="${errors['weight_' + tab.code]}"></span>
+                </div>
 
-        <section class="group">
-            <h2>Фразы по полосам значения</h2>
+                <div class="field">
+                    <label th:for="${'decay_' + tab.code}">Затухание в час</label>
+                    <input type="number" step="0.01" min="0"
+                           th:id="${'decay_' + tab.code}"
+                           th:name="${'decay_' + tab.code}"
+                           th:value="${tab.fields.decay()}"/>
+                    <span class="error" th:if="${errors['decay_' + tab.code]}"
+                          th:text="${errors['decay_' + tab.code]}"></span>
+                </div>
+
+                <div class="field">
+                    <label th:for="${'base_' + tab.code}">Базовое значение (0..10)</label>
+                    <input type="number" min="0" max="10"
+                           th:id="${'base_' + tab.code}"
+                           th:name="${'base_' + tab.code}"
+                           th:value="${tab.fields.base()}"/>
+                    <span class="error" th:if="${errors['base_' + tab.code]}"
+                          th:text="${errors['base_' + tab.code]}"></span>
+                </div>
+            </div>
+
             <p class="hint">Полосы 0-1, 2-4, 5-6, 7-8, 9-10: текст попадает в промпт, когда значение эмоции в этой полосе.</p>
-
-            <div class="field" th:each="row : ${phrases}">
-                <label th:for="${row.fieldKey()}"
-                       th:text="${row.title() + ' ' + row.from() + '-' + row.to()}">Фраза</label>
-                <textarea th:id="${row.fieldKey()}" th:name="${row.fieldKey()}"
-                          th:text="${row.phrase()}"></textarea>
-                <span class="error" th:if="${errors[row.fieldKey()]}"
-                      th:text="${errors[row.fieldKey()]}"></span>
+            <div class="field" th:each="row : ${tab.phrases}">
+                <label th:for="${row.fieldKey}" th:text="'Полоса ' + ${row.from} + '-' + ${row.to}">Полоса 0-1</label>
+                <textarea th:id="${row.fieldKey}" th:name="${row.fieldKey}"
+                          th:text="${row.phrase}"></textarea>
+                <span class="error" th:if="${errors[row.fieldKey]}"
+                      th:text="${errors[row.fieldKey]}"></span>
             </div>
         </section>
 
