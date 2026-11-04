@@ -96,6 +96,10 @@ public class AdminSettingsController {
     public record KeyHint(String envName, String provider, String keyUrl, String scope, boolean hasKey) {
     }
 
+    /** Что бот использует сейчас: модель, поставщик, способ подключения и найдена ли пара в каталоге. */
+    public record CurrentModel(String model, String provider, String door, String fallback, boolean known) {
+    }
+
     /** Выбранная пара, разложенная для формы: режим, провайдер, вендор и модель. */
     private record Selection(String mode, String providerId, String groupId, String modelId) {
         String directModel() {
@@ -222,6 +226,7 @@ public class AdminSettingsController {
         model.addAttribute("activeTab", tab);
         model.addAttribute("saved", saved);
         model.addAttribute("keyHints", keyHints());
+        model.addAttribute("currentModel", currentModel());
         return "admin/settings";
     }
 
@@ -288,6 +293,20 @@ public class AdminSettingsController {
                 .orElse(false);
         return new Selection(aggregator ? AdminModelForm.PROVIDER : AdminModelForm.DIRECT,
                 model.providerId(), model.group(), model.id());
+    }
+
+    /** Что бот использует сейчас: сохранённую пару, её поставщика и способ подключения. */
+    private CurrentModel currentModel() {
+        Selection selection = selection();
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(selection.providerId(), selection.modelId());
+        if (found.isEmpty())
+            return new CurrentModel(selection.modelId(), "", "", DEFAULT_AI_MODEL, false);
+
+        LlmCatalog.Model model = found.get();
+        LlmCatalog.Provider provider = LlmCatalog.providerOf(model).orElse(null);
+        String door = provider == null ? "" : provider.aggregator() ? "через агрегатор" : "прямое подключение";
+        String title = provider == null ? "" : provider.title();
+        return new CurrentModel(model.id(), title, door, DEFAULT_AI_MODEL, true);
     }
 
     /** Инструкция по ключам: переменная, поставщик и что эта дверь открывает. */

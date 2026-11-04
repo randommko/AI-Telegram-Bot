@@ -344,9 +344,44 @@ class AdminSettingsTest {
         mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Ключи провайдеров")))
+                .andExpect(content().string(containsString("class=\"key-chip ok\"")))
+                .andExpect(content().string(containsString("class=\"key-chip missing\"")))
                 .andExpect(content().string(containsString("DeepSeek — есть")))
                 .andExpect(content().string(containsString("AITunnel — есть")))
                 .andExpect(content().string(containsString("Venice — нет")));
+    }
+
+    @Test
+    void showsTheModelTheBotUsesNow() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Текущая модель")))
+                .andExpect(content().string(containsString("<strong>deepseek-flash</strong>")))
+                .andExpect(content().string(containsString("поставщик: DeepSeek · прямое подключение")));
+    }
+
+    @Test
+    void currentModelShowsTheAggregatorDoor() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_ROUTE_KEY, "aitunnel", null),
+                new SettingsService.Setting(AI_MODEL_KEY, "gemini-4-argon", null)));
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<strong>gemini-4-argon</strong>")))
+                .andExpect(content().string(containsString("поставщик: AITunnel · через агрегатор")));
+    }
+
+    @Test
+    void currentModelWarnsAboutUnknownPair() throws Exception {
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_MODEL_KEY, "нет-такой", null)));
+
+        mockMvc.perform(get("/admin/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("нет в каталоге — бот ответит моделью по умолчанию deepseek-flash")));
     }
 
     @Test
@@ -355,10 +390,8 @@ class AdminSettingsTest {
 
         mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString(
-                        "value=\"grok-4.7\" title=\"Grok 4.7\" disabled=\"disabled\"")))
-                .andExpect(content().string(containsString(
-                        "data-door=\"venice|anthropic\" disabled=\"disabled\"")));
+                .andExpect(content().string(containsString("disabled=\"disabled\">grok-4.7</option>")))
+                .andExpect(content().string(containsString("disabled=\"disabled\">claude-sonnet-5-5</option>")));
     }
 
     @Test
@@ -369,7 +402,7 @@ class AdminSettingsTest {
         mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString(
-                        "value=\"grok-4.7\" title=\"Grok 4.7\" disabled"))));
+                        "disabled=\"disabled\">grok-4.7</option>"))));
     }
 
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {

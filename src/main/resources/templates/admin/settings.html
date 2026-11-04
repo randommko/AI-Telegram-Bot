@@ -8,10 +8,24 @@
     <p th:replace="~{admin/layout :: liveData}"></p>
     <p class="notice" th:if="${saved}">Сохранено. Новые значения применяются к следующему запросу бота.</p>
 
-    <p class="hint keys-summary">
-        Ключи провайдеров:
-        <span th:each="hint, iter : ${keyHints}"><span th:text="${hint.provider + (hint.hasKey ? ' — есть' : ' — нет')}">Поставщик — есть</span><span th:if="${!iter.last}">, </span></span>
-    </p>
+    <div class="current-model">
+        <span class="label">Текущая модель</span>
+        <strong th:text="${currentModel.model}">deepseek-flash</strong>
+        <span class="hint" th:if="${currentModel.known}"
+              th:text="|поставщик: ${currentModel.provider} · ${currentModel.door}|">поставщик: DeepSeek · прямое подключение</span>
+        <span class="error" th:unless="${currentModel.known}"
+              th:text="|«${currentModel.model}» нет в каталоге — бот ответит моделью по умолчанию ${currentModel.fallback}|">нет в каталоге</span>
+    </div>
+
+    <div class="keys-panel">
+        <h2>Ключи провайдеров</h2>
+        <div class="chips">
+            <span th:each="hint : ${keyHints}" class="key-chip"
+                  th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
+                  th:title="${hint.hasKey} ? hint.envName : hint.envName + ' не задана'"
+                  th:text="${hint.provider + (hint.hasKey ? ' — есть' : ' — нет')}">DeepSeek — есть</span>
+        </div>
+    </div>
 
     <details class="note keys">
         <summary>Как добавить ключ провайдера</summary>
@@ -65,8 +79,8 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                 </td>
                 <td th:text="${hint.scope}">модели</td>
                 <td>
-                    <span class="ok" th:if="${hint.hasKey}">есть</span>
-                    <span class="badge" th:unless="${hint.hasKey}">нет</span>
+                    <span class="key-chip" th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
+                          th:text="${hint.hasKey} ? 'есть' : 'нет'">есть</span>
                 </td>
             </tr>
             </tbody>
@@ -151,7 +165,21 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
         .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
         /* display у .field перебивает атрибут hidden, поэтому скрытие задаётся явно. */
         .field[hidden] { display: none; }
-        .cascade-hint { font-size: 13px; color: #3b4a5f; }
+
+        .current-model { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
+                         background: #fff; border: 1px solid #dcdfe4; border-left: 3px solid #1d2129;
+                         border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; }
+        .current-model .label { font-size: 13px; color: #3b4a5f; }
+        .current-model strong { font-size: 17px; }
+
+        .keys-panel { background: #fff; border: 1px solid #dcdfe4; border-radius: 6px;
+                      padding: 14px 16px; margin-bottom: 16px; }
+        .keys-panel h2 { font-size: 15px; margin: 0 0 10px; }
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .key-chip { display: inline-block; border-radius: 12px; padding: 3px 10px; font-size: 13px;
+                    border: 1px solid transparent; }
+        .key-chip.ok { background: #e8f4ea; color: #1e6b3a; border-color: #b7dfc2; }
+        .key-chip.missing { background: #fdecea; color: #b3261e; border-color: #f5c2bd; }
     </style>
 
     <script>
