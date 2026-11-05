@@ -1,13 +1,8 @@
 package org.example.Admin;
 
-import org.example.AiChat.AiMemoryExtractor;
-import org.example.AiChat.ChatPersona;
 import org.example.AiChat.MemoryRepository;
 import org.example.AiChat.PersonaRepository;
 import org.example.AiChat.PersonaSummary;
-import org.example.Settings.SettingsService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,33 +17,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.example.Settings.Settings.AI_HISTORY_SIZE;
-
-/** Воспоминания персоны: просмотр с фильтрами, ручная правка, ядро и прогон анализа. */
+/** Воспоминания персоны: просмотр с фильтрами, ручная правка и ядро. */
 @Controller
 @Conditional(AdminPasswordPresentCondition.class)
 public class AdminMemoryController {
-    private static final Logger logger = LoggerFactory.getLogger(AdminMemoryController.class);
     private static final int PAGE_SIZE = 25;
-    private static final int DEFAULT_HISTORY_SIZE = 100;
     private static final int HISTORY_LIMIT = 50;
 
     private final MemoryRepository memories;
     private final PersonaRepository personas;
     private final AdminMemoryValidator validator;
-    private final AiMemoryExtractor extractor;
-    private final SettingsService settings;
     private final AdminAccess access;
     private final ChangeJournal journal;
 
     public AdminMemoryController(MemoryRepository memories, PersonaRepository personas,
-                                 AdminMemoryValidator validator, AiMemoryExtractor extractor,
-                                 SettingsService settings, AdminAccess access, ChangeJournal journal) {
+                                 AdminMemoryValidator validator,
+                                 AdminAccess access, ChangeJournal journal) {
         this.memories = memories;
         this.personas = personas;
         this.validator = validator;
-        this.extractor = extractor;
-        this.settings = settings;
         this.access = access;
         this.journal = journal;
     }
@@ -173,42 +160,6 @@ public class AdminMemoryController {
         memories.restoreManual(entry.get().entityId(), actor());
         redirect.addFlashAttribute("saved", "Воспоминание возвращено");
         return "redirect:/admin/memories";
-    }
-
-    /** Ручной прогон анализа: порог не учитывается, отметка разобранных сообщений соблюдается. */
-    @PostMapping("/admin/memories/analyze")
-    String analyze(@RequestParam int personaId, RedirectAttributes redirect) {
-        if (!access.canEditPersona(personaId)) {
-            redirect.addFlashAttribute("error", "Память этой персоны вам недоступна");
-            return "redirect:/admin/memories";
-        }
-
-        List<Long> chats = personas.chatsOf(personaId);
-        if (chats.isEmpty()) {
-            redirect.addFlashAttribute("error", "У персоны нет привязанного чата — анализировать нечего");
-            return "redirect:/admin/memories?personaId=" + personaId;
-        }
-
-        long chatId = chats.get(0);
-        try {
-            AiMemoryExtractor.AnalysisResult result = extractor.analyzeChat(
-                    new ChatPersona(chatId, personaId),
-                    settings.getInt(AI_HISTORY_SIZE, DEFAULT_HISTORY_SIZE));
-
-            if (result.messages() == 0) {
-                redirect.addFlashAttribute("saved", "Новых сообщений нет — анализировать нечего");
-            } else {
-                redirect.addFlashAttribute("saved", "Разобрано сообщений: " + result.messages()
-                        + ", добавлено: " + result.added()
-                        + ", обновлено: " + result.updated()
-                        + ", удалено: " + result.deleted()
-                        + ", отброшено удалений защищённых записей: " + result.rejectedDeletes());
-            }
-        } catch (Exception e) {
-            logger.error("Ручной прогон анализа для персоны {} завершился ошибкой: ", personaId, e);
-            redirect.addFlashAttribute("error", "Анализ не выполнен: " + e.getMessage());
-        }
-        return "redirect:/admin/memories?personaId=" + personaId;
     }
 
     /** Персоны, память которых видна: у модератора — только те, что он вправе править. */

@@ -4,8 +4,6 @@ import org.example.AiChat.Persona;
 import org.example.AiChat.PersonaRepository;
 import org.example.AiChat.PersonaSummary;
 import org.example.Config.BotProperties;
-import org.example.MessageSender;
-import org.example.Settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +20,6 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -56,12 +53,6 @@ class AdminChatTest {
 
     @MockitoBean
     private PersonaRepository personas;
-
-    @MockitoBean
-    private SettingsService settings;
-
-    @MockitoBean
-    private MessageSender sender;
 
     @MockitoBean
     private AdminAccess access;
@@ -109,10 +100,24 @@ class AdminChatTest {
     }
 
     @Test
-    void firstAssignmentSendsOnlyJoin() throws Exception {
+    void firstAssignmentWritesJoinLineOnly() throws Exception {
         when(personas.findForChat(CHAT)).thenReturn(Optional.empty());
         when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(10);
+
+        mockMvc.perform(post("/admin/chats/assign")
+                        .param("chatId", String.valueOf(CHAT))
+                        .param("personaId", "1")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/chats"))
+                .andExpect(flash().attribute("saved", containsString("Привязка сохранена")));
+
+        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"), any(Actor.class));
+    }
+
+    @Test
+    void switchingPersonaWritesJoinLineOnly() throws Exception {
+        when(personas.findForChat(CHAT)).thenReturn(Optional.of(new Persona(2, "Петя", "промпт")));
+        when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));
 
         mockMvc.perform(post("/admin/chats/assign")
                         .param("chatId", String.valueOf(CHAT))
@@ -121,64 +126,11 @@ class AdminChatTest {
                 .andExpect(redirectedUrl("/admin/chats"));
 
         verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"), any(Actor.class));
-        verify(sender).sendMessage(CHAT, "В чат приходит Юра");
-        verify(sender, never()).sendMessage(CHAT, "Петя покинул чат");
     }
 
     @Test
-    void switchingPersonaSendsLeaveAndJoin() throws Exception {
+    void removalClearsHistoryWithoutMessage() throws Exception {
         when(personas.findForChat(CHAT)).thenReturn(Optional.of(new Persona(2, "Петя", "промпт")));
-        when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(10);
-
-        mockMvc.perform(post("/admin/chats/assign")
-                        .param("chatId", String.valueOf(CHAT))
-                        .param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/chats"));
-
-        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"), any(Actor.class));
-        verify(sender).sendMessage(CHAT, "Петя покинул чат. Убрал: @vajnaya_sobaka (Алексей)");
-        verify(sender).sendMessage(CHAT, "В чат приходит Юра");
-    }
-
-    @Test
-    void leaveMessageNamesTheModeratorWhoRemovedThePersona() throws Exception {
-        when(access.isOwner()).thenReturn(false);
-        when(access.author()).thenReturn(Optional.of(
-                new Actor(777L, "vasya", "@clerfe", "Иван")));
-        when(personas.findForChat(CHAT)).thenReturn(Optional.of(new Persona(2, "Петя", "промпт")));
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(10);
-
-        mockMvc.perform(post("/admin/chats/assign")
-                        .param("chatId", String.valueOf(CHAT))
-                        .param("personaId", "")
-                        .with(user("vasya").roles("MODERATOR")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/chats"));
-
-        verify(sender).sendMessage(CHAT, "Петя покинул чат. Убрал: @clerfe (Иван)");
-    }
-
-    @Test
-    void usesTemplatesFromSettings() throws Exception {
-        when(personas.findForChat(CHAT)).thenReturn(Optional.empty());
-        when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));
-        when(settings.getSettingValue("aiPersonaJoinTemplate")).thenReturn("Заходит {name}");
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(10);
-
-        mockMvc.perform(post("/admin/chats/assign")
-                        .param("chatId", String.valueOf(CHAT))
-                        .param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/chats"));
-
-        verify(sender).sendMessage(CHAT, "Заходит Юра");
-    }
-
-    @Test
-    void removalSendsOnlyLeaveAndKeepsHistory() throws Exception {
-        when(personas.findForChat(CHAT)).thenReturn(Optional.of(new Persona(2, "Петя", "промпт")));
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(10);
 
         mockMvc.perform(post("/admin/chats/assign")
                         .param("chatId", String.valueOf(CHAT))
@@ -188,7 +140,6 @@ class AdminChatTest {
 
         verify(personas).switchPersona(eq(CHAT), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(), any(Actor.class));
-        verify(sender).sendMessage(CHAT, "Петя покинул чат. Убрал: @vajnaya_sobaka (Алексей)");
     }
 
     @Test
@@ -203,7 +154,6 @@ class AdminChatTest {
                 .andExpect(flash().attribute("saved", containsString("уже эта персона")));
 
         verify(personas, never()).switchPersona(anyLong(), any(), any(), any());
-        verify(sender, never()).sendMessage(anyLong(), anyString());
     }
 
     @Test
@@ -233,20 +183,5 @@ class AdminChatTest {
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/settings"), "настройки скрыты");
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/moderators"), "модераторы скрыты");
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/prompt"), "промпт скрыт");
-    }
-
-    @Test
-    void telegramFailureKeepsBinding() throws Exception {
-        when(personas.findForChat(CHAT)).thenReturn(Optional.empty());
-        when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 3, null)));
-        when(sender.sendMessage(anyLong(), anyString())).thenReturn(null);
-
-        mockMvc.perform(post("/admin/chats/assign")
-                        .param("chatId", String.valueOf(CHAT))
-                        .param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(flash().attribute("error", containsString("Telegram не принял")));
-
-        verify(personas).switchPersona(eq(CHAT), eq(1), anyString(), any(Actor.class));
     }
 }

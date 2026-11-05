@@ -18,7 +18,6 @@ import java.util.Map;
 import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.Settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
-import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
 import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
 import static org.hamcrest.Matchers.containsString;
@@ -190,15 +189,6 @@ class AdminSettingsTest {
         mockMvc.perform(formWith(Map.of(AI_MODEL_KEY, "gpt-4")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("нет в списке доступных")));
-
-        verify(settings, never()).save(anyString(), anyString());
-    }
-
-    @Test
-    void rejectsTemplateWithoutNamePlaceholder() throws Exception {
-        mockMvc.perform(formWith(Map.of(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость", "tab", "templates")))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Шаблон входа должен содержать {name}")));
 
         verify(settings, never()).save(anyString(), anyString());
     }

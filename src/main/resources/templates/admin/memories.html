@@ -50,15 +50,6 @@
         <a class="button" th:href="@{/admin/memories/new(personaId=${filter.personaId})}">Добавить</a>
     </form>
 
-    <form class="analyze" method="post" th:action="@{/admin/memories/analyze}" th:if="${filter.personaId != null}">
-        <input type="hidden" name="personaId" th:value="${filter.personaId}"/>
-        <button class="button secondary" type="submit">Проанализировать сейчас</button>
-        <span class="hint">
-            Прогон игнорирует порог, но соблюдает отметку разобранных сообщений и может занять до минуты.
-            Старше окна истории (aiHistorySize) ничего не восстановить.
-        </span>
-    </form>
-
     <p class="hint" th:text="'Найдено: ' + ${page.total}">Найдено: 0</p>
 
     <table class="list" th:unless="${#lists.isEmpty(page.items)}">

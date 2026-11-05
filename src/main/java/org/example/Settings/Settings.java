@@ -23,8 +23,6 @@ public class Settings {
      */
     public static final String AI_ROUTE_KEY = "aiRoute";
     public static final String DEFAULT_AI_MODEL = "deepseek-flash";
-    public static final String AI_PERSONA_JOIN_TEMPLATE = "aiPersonaJoinTemplate";
-    public static final String AI_PERSONA_LEAVE_TEMPLATE = "aiPersonaLeaveTemplate";
     /** Разделы системного промпта: порядок и бюджеты — в коде, текст — в настройках. */
     public static final String AI_PROMPT_TECHNICAL = "aiPromptTechnical";
     public static final String AI_PROMPT_EMOTIONS_HEADER = "aiPromptEmotionsHeader";

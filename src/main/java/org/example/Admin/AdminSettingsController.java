@@ -36,8 +36,6 @@ import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
-import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
-import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
@@ -270,9 +268,6 @@ public class AdminSettingsController {
                         range(AI_GRUDGE_THRESHOLD, "Порог адресата колкостей", "0", "10", "1"))),
                 new TabView("prompts", "Промты", false, List.of(
                         area(AI_CONTEXT, "Промпт чата без персоны"))),
-                new TabView("templates", "Шаблоны", false, List.of(
-                        text(AI_PERSONA_JOIN_TEMPLATE, "Вход персоны в чат"),
-                        text(AI_PERSONA_LEAVE_TEMPLATE, "Выход персоны из чата"))),
                 new TabView("notifications", "Уведомления", false, List.of(
                         text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"),
                         checkbox(AI_MEMORY_NOTIFY_OWNER, "Присылать обновления памяти"))));

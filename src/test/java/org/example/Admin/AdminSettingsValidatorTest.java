@@ -19,8 +19,6 @@ import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
-import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
-import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
@@ -172,18 +170,6 @@ class AdminSettingsValidatorTest {
     }
 
     @Test
-    void rejectsTemplateWithoutNamePlaceholder() {
-        Map<String, String> form = validForm();
-        form.put(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит гость");
-        form.put(AI_PERSONA_LEAVE_TEMPLATE, "покинул чат");
-
-        Map<String, String> errors = validator.validate(form);
-
-        assertTrue(errors.containsKey(AI_PERSONA_JOIN_TEMPLATE));
-        assertTrue(errors.containsKey(AI_PERSONA_LEAVE_TEMPLATE));
-    }
-
-    @Test
     void ignoresKeysThatAreNotInTheForm() {
         assertTrue(validator.validate(new HashMap<>()).isEmpty());
         assertFalse(validator.validate(validForm()).containsKey("чужой-ключ"));
@@ -264,8 +250,6 @@ class AdminSettingsValidatorTest {
         form.put(AI_MEMORY_ANALYSIS_MESSAGES, "50");
         form.put(AI_MEMORY_ANALYSIS_MAX_TOKENS, "8000");
         form.put(AI_MEMORY_EXTRACT_PROMPT, "Ты пополняешь память персоны");
-        form.put(AI_PERSONA_JOIN_TEMPLATE, "В чат приходит {name}");
-        form.put(AI_PERSONA_LEAVE_TEMPLATE, "{name} покинул чат");
         form.put(OWNER_CHAT_ID, "270459384");
         return form;
     }

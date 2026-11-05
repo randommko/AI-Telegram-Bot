@@ -1,12 +1,10 @@
 package org.example.Admin;
 
-import org.example.AiChat.AiMemoryExtractor;
 import org.example.AiChat.MemoryRecord;
 import org.example.AiChat.MemoryRepository;
 import org.example.AiChat.PersonaRepository;
 import org.example.AiChat.PersonaSummary;
 import org.example.Config.BotProperties;
-import org.example.Settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,12 +61,6 @@ class AdminMemoryTest {
 
     @MockitoBean
     private PersonaRepository personas;
-
-    @MockitoBean
-    private AiMemoryExtractor extractor;
-
-    @MockitoBean
-    private SettingsService settings;
 
     @MockitoBean
     private AdminAccess access;
@@ -154,8 +146,6 @@ class AdminMemoryTest {
 
         verify(memories).createManual(eq(1), eq("работа"), eq("играет в шахматы"), eq(7), eq(false),
                 eq(LocalDate.of(2024, 3, 21)), eq(List.of(42L)), any());
-        // Ручная правка не запускает анализ, поэтому и отчёта владельцу из неё быть не может.
-        verifyNoInteractions(extractor);
     }
 
     @Test
@@ -231,52 +221,6 @@ class AdminMemoryTest {
         mockMvc.perform(get("/admin/memories/5/delete").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("не восстановит")));
-    }
-
-    @Test
-    void analyzeShowsNumbers() throws Exception {
-        when(personas.chatsOf(1)).thenReturn(List.of(-1001347887839L));
-        when(extractor.analyzeChat(any(), anyInt())).thenReturn(
-                new AiMemoryExtractor.AnalysisResult(10, 2, 1, 0, 1));
-
-        mockMvc.perform(post("/admin/memories/analyze").param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/memories?personaId=1"))
-                .andExpect(flash().attribute("saved", containsString("Разобрано сообщений: 10")))
-                .andExpect(flash().attribute("saved", containsString("добавлено: 2")))
-                .andExpect(flash().attribute("saved", containsString("отброшено удалений защищённых записей: 1")));
-    }
-
-    @Test
-    void analyzeReportsNoNewMessages() throws Exception {
-        when(personas.chatsOf(1)).thenReturn(List.of(-1001347887839L));
-        when(extractor.analyzeChat(any(), anyInt())).thenReturn(
-                new AiMemoryExtractor.AnalysisResult(0, 0, 0, 0, 0));
-
-        mockMvc.perform(post("/admin/memories/analyze").param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(flash().attribute("saved", containsString("Новых сообщений нет")));
-    }
-
-    @Test
-    void analyzeReportsMissingChat() throws Exception {
-        when(personas.chatsOf(1)).thenReturn(List.of());
-
-        mockMvc.perform(post("/admin/memories/analyze").param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(flash().attribute("error", containsString("нет привязанного чата")));
-
-        verify(extractor, never()).analyzeChat(any(), anyInt());
-    }
-
-    @Test
-    void analyzeReportsModelFailure() throws Exception {
-        when(personas.chatsOf(1)).thenReturn(List.of(-1001347887839L));
-        when(extractor.analyzeChat(any(), anyInt())).thenThrow(new IllegalStateException("модель молчит"));
-
-        mockMvc.perform(post("/admin/memories/analyze").param("personaId", "1")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(flash().attribute("error", containsString("модель молчит")));
     }
 
     private MockHttpServletRequestBuilder saveForm(String... overrides) {

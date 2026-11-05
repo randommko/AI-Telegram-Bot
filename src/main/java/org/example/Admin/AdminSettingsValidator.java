@@ -21,8 +21,6 @@ import static org.example.Settings.Settings.AI_MEMORY_ANALYZE_EVERY;
 import static org.example.Settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.Settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.Settings.Settings.AI_MODEL_KEY;
-import static org.example.Settings.Settings.AI_PERSONA_JOIN_TEMPLATE;
-import static org.example.Settings.Settings.AI_PERSONA_LEAVE_TEMPLATE;
 import static org.example.Settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.Settings.Settings.AI_ROUTE_KEY;
 import static org.example.Settings.Settings.OWNER_CHAT_ID;
@@ -33,7 +31,6 @@ public class AdminSettingsValidator {
     static final float MAX_TEMPERATURE = 2f;
     static final int MAX_TOKENS_LIMIT = 8192;
     static final int MAX_ANALYSIS_MESSAGES = 1000;
-    static final String NAME_PLACEHOLDER = "{name}";
 
     private final BotProperties properties;
 
@@ -80,8 +77,6 @@ public class AdminSettingsValidator {
         integerInRange(values, AI_MEMORY_ANALYZE_EVERY, 1, Integer.MAX_VALUE,
                 "Порог анализа должен быть целым больше нуля", errors);
         ownerChatId(values, errors);
-        requirePlaceholder(values, AI_PERSONA_JOIN_TEMPLATE, "Шаблон входа должен содержать {name}", errors);
-        requirePlaceholder(values, AI_PERSONA_LEAVE_TEMPLATE, "Шаблон выхода должен содержать {name}", errors);
 
         return errors;
     }
@@ -181,14 +176,5 @@ public class AdminSettingsValidator {
         } catch (NumberFormatException e) {
             errors.put(OWNER_CHAT_ID, "Получатель уведомлений должен быть числом или пустым полем");
         }
-    }
-
-    private void requirePlaceholder(Map<String, String> values, String key, String message,
-                                    Map<String, String> errors) {
-        if (!values.containsKey(key))
-            return;
-        String value = values.get(key);
-        if (value == null || !value.contains(NAME_PLACEHOLDER))
-            errors.put(key, message);
     }
 }
