@@ -7,9 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -63,6 +65,14 @@ class AdminSecurityTest {
     }
 
     @Test
+    void loginPageAsksForLoginNotOnlyPassword() throws Exception {
+        mockMvc.perform(get("/admin/login"))
+                .andExpect(content().string(Matchers.containsString("name=\"username\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(
+                        "type=\"hidden\" name=\"username\""))));
+    }
+
+    @Test
     void logsInWithCorrectPassword() throws Exception {
         mockMvc.perform(formLogin("/admin/login").user("admin").password(PASSWORD))
                 .andExpect(authenticated().withUsername("admin"));
@@ -83,6 +93,13 @@ class AdminSecurityTest {
     }
 
     @Test
+    void moderatorStartsFromHisOwnSection() throws Exception {
+        mockMvc.perform(get("/admin").with(user("vasya").roles("MODERATOR")))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/personas"));
+    }
+
+    @Test
     void rejectsPostWithoutCsrfToken() throws Exception {
         mockMvc.perform(post("/admin/logout").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isForbidden());
@@ -100,8 +117,13 @@ class AdminSecurityTest {
                 new AdminAccountsRepository.AdminCredentials(1, 777L, "vasya",
                         passwordEncoder.encode("modpass"))));
 
-        mockMvc.perform(formLogin("/admin/login").user("vasya").password("modpass"))
-                .andExpect(authenticated().withUsername("vasya"));
+        MvcResult login = mockMvc.perform(formLogin("/admin/login").user("vasya").password("modpass"))
+                .andExpect(authenticated().withUsername("vasya"))
+                .andReturn();
+
+        // Симптом из жизни: после верного входа модератор попадал на закрытый раздел владельца.
+        mockMvc.perform(get("/admin").session((MockHttpSession) login.getRequest().getSession(false)))
+                .andExpect(redirectedUrl("/admin/personas"));
     }
 
     @Test
