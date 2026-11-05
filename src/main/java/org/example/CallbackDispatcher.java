@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.AiChat.AiService;
+import org.example.aichat.AiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

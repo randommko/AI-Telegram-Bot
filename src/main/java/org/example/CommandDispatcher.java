@@ -1,11 +1,11 @@
 package org.example;
 
-import org.example.AiChat.AiAddressParser;
-import org.example.AiChat.AiService;
-import org.example.AiChat.MessageAuthor;
-import org.example.AiChat.Persona;
-import org.example.AiChat.PersonaService;
-import org.example.Config.BotProperties;
+import org.example.aichat.AiAddressParser;
+import org.example.aichat.AiService;
+import org.example.aichat.MessageAuthor;
+import org.example.aichat.Persona;
+import org.example.aichat.PersonaService;
+import org.example.config.BotProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-import static org.example.Settings.Settings.USER_ROLE;
+import static org.example.settings.Settings.USER_ROLE;
 
 @Component
 public class CommandDispatcher {

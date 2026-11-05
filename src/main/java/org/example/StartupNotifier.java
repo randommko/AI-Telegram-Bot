@@ -1,8 +1,8 @@
 package org.example;
 
-import org.example.AiChat.LlmCatalog;
-import org.example.Config.BotProperties;
-import org.example.Settings.SettingsService;
+import org.example.aichat.LlmCatalog;
+import org.example.config.BotProperties;
+import org.example.settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -15,10 +15,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
-import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
-import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
-import static org.example.Settings.Settings.DEFAULT_AI_MODEL;
-import static org.example.Settings.Settings.OWNER_CHAT_ID;
+import static org.example.settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.settings.Settings.DEFAULT_AI_MODEL;
+import static org.example.settings.Settings.OWNER_CHAT_ID;
 
 @Component
 public class StartupNotifier {

@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.Config.BotProperties;
+import org.example.config.BotProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

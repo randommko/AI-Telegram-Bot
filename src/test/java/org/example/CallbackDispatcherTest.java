@@ -1,6 +1,6 @@
 package org.example;
 
-import org.example.AiChat.AiService;
+import org.example.aichat.AiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

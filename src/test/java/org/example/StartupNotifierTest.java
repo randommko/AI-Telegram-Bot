@@ -1,15 +1,15 @@
 package org.example;
 
-import org.example.Config.BotProperties;
-import org.example.Settings.SettingsService;
+import org.example.config.BotProperties;
+import org.example.settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.example.Settings.Settings.AI_ANSWER_TEMPERATURE;
-import static org.example.Settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
-import static org.example.Settings.Settings.OWNER_CHAT_ID;
+import static org.example.settings.Settings.AI_ANSWER_TEMPERATURE;
+import static org.example.settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.settings.Settings.OWNER_CHAT_ID;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;

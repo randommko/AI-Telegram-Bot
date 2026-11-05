@@ -1,7 +1,7 @@
 package org.example;
 
-import org.example.Users.UsersService;
-import org.example.Chats.ChatsService;
+import org.example.users.UsersService;
+import org.example.chats.ChatsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

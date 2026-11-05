@@ -1,11 +1,11 @@
 package org.example;
 
-import org.example.AiChat.AiAddressParser;
-import org.example.AiChat.AiService;
-import org.example.AiChat.MessageAuthor;
-import org.example.AiChat.Persona;
-import org.example.AiChat.PersonaService;
-import org.example.Config.BotProperties;
+import org.example.aichat.AiAddressParser;
+import org.example.aichat.AiService;
+import org.example.aichat.MessageAuthor;
+import org.example.aichat.Persona;
+import org.example.aichat.PersonaService;
+import org.example.config.BotProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 import java.util.List;
 import java.util.Optional;
 
-import static org.example.Settings.Settings.USER_ROLE;
+import static org.example.settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
