@@ -5,9 +5,7 @@ import org.example.AiChat.AiService;
 import org.example.AiChat.MessageAuthor;
 import org.example.AiChat.Persona;
 import org.example.AiChat.PersonaService;
-import org.example.CockSize.CockSizeGame;
 import org.example.Config.BotProperties;
-import org.example.PidorGame.PidorGame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,10 +49,6 @@ class CommandDispatcherTest {
     @Mock
     private MessageSender messageSender;
     @Mock
-    private CockSizeGame cockSizeGame;
-    @Mock
-    private PidorGame pidorGame;
-    @Mock
     private AiService aiService;
     @Mock
     private PersonaService personaService;
@@ -64,8 +58,7 @@ class CommandDispatcherTest {
     @BeforeEach
     void setUp() {
         BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null);
-        dispatcher = new CommandDispatcher(messageSender, cockSizeGame, pidorGame, aiService,
-                new AiAddressParser(), personaService, properties);
+        dispatcher = new CommandDispatcher(messageSender, aiService, new AiAddressParser(), personaService, properties);
     }
 
     @Test

@@ -81,7 +81,7 @@ class AdminPersonaValidatorTest {
 
         assertTrue(validator.validate(form("aliases", "юр\nclear")).errors().get("aliases")
                 .contains("командой"));
-        assertTrue(validator.validate(form("aliases", "summary")).errors().containsKey("aliases"));
+        assertTrue(validator.validate(form("aliases", "bot_info")).errors().containsKey("aliases"));
         assertTrue(validator.validate(form("aliases", "ai")).errors().containsKey("aliases"));
     }
 
@@ -190,8 +190,10 @@ class AdminPersonaValidatorTest {
     @Test
     void forbidsPlainCommandsButNotPersonaNames() {
         assertTrue(AdminPersonaValidator.forbiddenCommands().contains("clear"));
-        assertTrue(AdminPersonaValidator.forbiddenCommands().contains("summary"));
+        assertTrue(AdminPersonaValidator.forbiddenCommands().contains("bot_info"));
+        assertTrue(AdminPersonaValidator.forbiddenCommands().contains("help"));
         assertTrue(AdminPersonaValidator.forbiddenCommands().contains("ai"));
+        assertFalse(AdminPersonaValidator.forbiddenCommands().contains("summary"));
         assertFalse(AdminPersonaValidator.forbiddenCommands().contains("юра"));
         assertFalse(AdminPersonaValidator.forbiddenCommands().contains("юрец"));
     }

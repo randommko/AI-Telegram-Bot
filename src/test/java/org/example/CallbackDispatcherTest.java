@@ -1,8 +1,6 @@
 package org.example;
 
 import org.example.AiChat.AiService;
-import org.example.CockSize.CockSizeGame;
-import org.example.Horoscope.HoroscopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,10 +35,6 @@ class CallbackDispatcherTest {
     @Mock
     private MessageSender messageSender;
     @Mock
-    private HoroscopeService horoscopeService;
-    @Mock
-    private CockSizeGame cockSizeGame;
-    @Mock
     private AiService aiService;
     @Mock
     private TelegramLongPollingBot bot;
@@ -51,18 +45,7 @@ class CallbackDispatcherTest {
     void setUp() throws Exception {
         when(messageSender.getBot()).thenReturn(bot);
         when(bot.execute(any(AnswerCallbackQuery.class))).thenReturn(true);
-        dispatcher = new CallbackDispatcher(messageSender, horoscopeService, cockSizeGame, aiService);
-    }
-
-    @Test
-    void plainHandlerAnswersOnceWithoutText() throws Exception {
-        dispatcher.dispatch(callback("avg_cock_size_button_pressed", AUTHOR_ID));
-
-        verify(cockSizeGame).sendAVGCockSize(any());
-
-        ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
-        verify(bot, times(1)).execute(captor.capture());
-        assertNull(captor.getValue().getText());
+        dispatcher = new CallbackDispatcher(messageSender, aiService);
     }
 
     @Test
@@ -99,6 +82,16 @@ class CallbackDispatcherTest {
         ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
         verify(bot, times(1)).execute(captor.capture());
         assertNull(captor.getValue().getText());
+    }
+
+    @Test
+    void unknownCallbackAnswersWithToast() throws Exception {
+        dispatcher.dispatch(callback("unknown", AUTHOR_ID));
+
+        ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
+        verify(bot).execute(captor.capture());
+        assertEquals("Неизвестная кнопка", captor.getValue().getText());
+        verify(aiService, never()).clearChatHistory(any());
     }
 
     private String clearData(Long authorId, AiClearCallback.Decision decision) {
