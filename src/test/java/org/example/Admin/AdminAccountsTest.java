@@ -66,8 +66,7 @@ class AdminAccountsTest {
     @BeforeEach
     void owner() {
         when(access.isOwner()).thenReturn(true);
-        when(access.author()).thenReturn(Optional.of(
-                Actor.owner(270459384L, "@vajnaya_sobaka", "Алексей")));
+        when(access.authorId()).thenReturn(Optional.of(270459384L));
     }
 
     @Test
@@ -93,7 +92,7 @@ class AdminAccountsTest {
                 .andExpect(redirectedUrl("/admin/moderators"))
                 .andExpect(flash().attribute("error", containsString("закреплён за владельцем")));
 
-        verify(accounts, never()).create(anyLong(), any(), any(), any());
+        verify(accounts, never()).create(anyLong(), any(), any());
     }
 
     @Test
@@ -107,7 +106,7 @@ class AdminAccountsTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(flash().attribute("error", containsString("Человек не найден")));
 
-        verify(accounts, never()).create(anyLong(), any(), any(), any());
+        verify(accounts, never()).create(anyLong(), any(), any());
     }
 
     @Test
@@ -124,7 +123,7 @@ class AdminAccountsTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/moderators"));
 
-        verify(accounts).create(eq(777L), eq("vasya"), argThat(hash -> hash.startsWith("{bcrypt}")), any());
+        verify(accounts).create(eq(777L), eq("vasya"), argThat(hash -> hash.startsWith("{bcrypt}")));
     }
 
     @Test

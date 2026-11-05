@@ -1,7 +1,5 @@
 package org.example.AiChat;
 
-import org.example.Admin.Actor;
-import org.example.Admin.ChangeJournal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
@@ -47,11 +45,9 @@ public class MemoryRepository {
                     " WHERE m.persona_id = ? AND m.deleted_at IS NULL ";
 
     private final DataSource dataSource;
-    private final ChangeJournal journal;
 
-    public MemoryRepository(DataSource dataSource, ChangeJournal journal) {
+    public MemoryRepository(DataSource dataSource) {
         this.dataSource = dataSource;
-        this.journal = journal;
     }
 
     public record MessageRow(long id, String content, Instant createdAt, MessageAuthor author) {
@@ -538,7 +534,7 @@ public class MemoryRepository {
 
     /** Ручное воспоминание: источник manual, ядро ставится сразу, если человек отметил. */
     public void createManual(int personaId, String category, String content, int importance,
-                             boolean core, LocalDate eventDate, List<Long> personIds, Actor actor) {
+                             boolean core, LocalDate eventDate, List<Long> personIds) {
         String query = "INSERT INTO " + PERSONA_MEMORIES_TABLE
                 + " (persona_id, category, content, importance, is_core, event_date, source)"
                 + " VALUES (?, ?, ?, ?, ?, ?, 'manual') RETURNING id";
@@ -562,8 +558,6 @@ public class MemoryRepository {
                     }
                 }
 
-                journal.record(connection, actor, ChangeJournal.MEMORY, memoryId, null, personaId, Map.of(),
-                        memoryFields(category, content, importance, core, eventDate, personIds));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -578,7 +572,7 @@ public class MemoryRepository {
 
     /** Правка карточки: источник не меняется, люди заменяются целиком. */
     public void updateManual(int memoryId, String category, String content, int importance,
-                             boolean core, LocalDate eventDate, List<Long> personIds, Actor actor) {
+                             boolean core, LocalDate eventDate, List<Long> personIds) {
         String query = "UPDATE " + PERSONA_MEMORIES_TABLE
                 + " SET category = ?, content = ?, importance = ?, is_core = ?, event_date = ?,"
                 + " updated_at = now() WHERE id = ?";
@@ -586,7 +580,6 @@ public class MemoryRepository {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Optional<MemoryRow> before = readRow(connection, memoryId);
                 try (PreparedStatement statement = connection.prepareStatement(query)) {
                     statement.setString(1, category);
                     statement.setString(2, content);
@@ -598,21 +591,6 @@ public class MemoryRepository {
                 }
                 replacePeople(connection, memoryId, personIds);
 
-                Map<String, Object> changesBefore = new java.util.LinkedHashMap<>();
-                Map<String, Object> changesAfter = new java.util.LinkedHashMap<>();
-                before.ifPresent(row -> {
-                    ChangeJournal.diff(changesBefore, changesAfter, "category", row.category(), category);
-                    ChangeJournal.diff(changesBefore, changesAfter, "content", row.content(), content);
-                    ChangeJournal.diff(changesBefore, changesAfter, "importance", row.importance(), importance);
-                    ChangeJournal.diff(changesBefore, changesAfter, "core", row.core(), core);
-                    ChangeJournal.diff(changesBefore, changesAfter, "eventDate",
-                            row.eventDate() == null ? null : row.eventDate().toString(),
-                            eventDate == null ? null : eventDate.toString());
-                    ChangeJournal.diff(changesBefore, changesAfter, "people", row.personIds(), personIds);
-                });
-
-                journal.record(connection, actor, ChangeJournal.MEMORY, memoryId, null,
-                        before.map(MemoryRow::personaId).orElse(null), changesBefore, changesAfter);
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -625,12 +603,11 @@ public class MemoryRepository {
         }
     }
 
-    /** Удаление мягкое: запись остаётся в таблице и возвращается из журнала. */
-    public void deleteManual(int memoryId, Actor actor) {
+    /** Удаление мягкое: запись остаётся в таблице и возвращается из списка «удалённые». */
+    public void deleteManual(int memoryId) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Optional<MemoryRow> before = readRow(connection, memoryId);
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE " + PERSONA_MEMORIES_TABLE
                                 + " SET deleted_at = now() WHERE id = ? AND deleted_at IS NULL")) {
@@ -638,9 +615,6 @@ public class MemoryRepository {
                     statement.executeUpdate();
                 }
 
-                journal.record(connection, actor, ChangeJournal.MEMORY, memoryId, null,
-                        before.map(MemoryRow::personaId).orElse(null),
-                        Map.of("deleted", false), Map.of("deleted", true));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -654,11 +628,10 @@ public class MemoryRepository {
     }
 
     /** Возврат удалённого воспоминания: запись снова видна в списке и в промпте. */
-    public void restoreManual(int memoryId, Actor actor) {
+    public void restoreManual(int memoryId) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Optional<MemoryRow> before = readRow(connection, memoryId);
                 try (PreparedStatement statement = connection.prepareStatement(
                         "UPDATE " + PERSONA_MEMORIES_TABLE
                                 + " SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL")) {
@@ -666,9 +639,6 @@ public class MemoryRepository {
                     statement.executeUpdate();
                 }
 
-                journal.record(connection, actor, ChangeJournal.MEMORY, memoryId, null,
-                        before.map(MemoryRow::personaId).orElse(null),
-                        Map.of("deleted", true), Map.of("deleted", false));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -679,43 +649,6 @@ public class MemoryRepository {
         } catch (Exception e) {
             logger.error("Ошибка возврата воспоминания {}: ", memoryId, e);
         }
-    }
-
-    private record MemoryRow(int personaId, String category, String content, int importance,
-                             boolean core, LocalDate eventDate, List<Long> personIds) {
-    }
-
-    private Optional<MemoryRow> readRow(Connection connection, int memoryId) throws Exception {
-        String query = "SELECT persona_id, category, content, importance, is_core, event_date"
-                + " FROM " + PERSONA_MEMORIES_TABLE + " WHERE id = ?";
-
-        try (PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setInt(1, memoryId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next())
-                    return Optional.of(new MemoryRow(
-                            resultSet.getInt("persona_id"),
-                            resultSet.getString("category"),
-                            resultSet.getString("content"),
-                            resultSet.getInt("importance"),
-                            resultSet.getBoolean("is_core"),
-                            resultSet.getObject("event_date", LocalDate.class),
-                            personIds(connection, memoryId)));
-            }
-        }
-        return Optional.empty();
-    }
-
-    private Map<String, Object> memoryFields(String category, String content, int importance,
-                                             boolean core, LocalDate eventDate, List<Long> personIds) {
-        Map<String, Object> fields = new java.util.LinkedHashMap<>();
-        fields.put("category", category);
-        fields.put("content", content);
-        fields.put("importance", importance);
-        fields.put("core", core);
-        fields.put("eventDate", eventDate == null ? null : eventDate.toString());
-        fields.put("people", personIds);
-        return fields;
     }
 
     public List<CategoryRef> categoriesWithTitles() {

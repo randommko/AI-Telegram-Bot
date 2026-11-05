@@ -1,8 +1,6 @@
 package org.example.Admin;
 
 import org.example.AiChat.PersonaRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
@@ -22,7 +20,6 @@ import java.util.Optional;
 @Controller
 @Conditional(AdminPasswordPresentCondition.class)
 public class AdminAccountsController {
-    private static final Logger logger = LoggerFactory.getLogger(AdminAccountsController.class);
     private static final int MIN_PASSWORD = 6;
 
     private final AdminAccountsRepository accounts;
@@ -85,14 +82,14 @@ public class AdminAccountsController {
         }
 
         accounts.create(found.get().tgUserId(), cleanLogin,
-                passwordEncoder.encode(cleanPassword), actor());
+                passwordEncoder.encode(cleanPassword));
         redirect.addFlashAttribute("saved", "Учётка «" + cleanLogin + "» создана, пароль передайте лично");
         return "redirect:/admin/moderators";
     }
 
     @PostMapping("/admin/moderators/{id}/delete")
     String delete(@PathVariable int id, RedirectAttributes redirect) {
-        accounts.delete(id, actor());
+        accounts.delete(id);
         redirect.addFlashAttribute("saved", "Учётка " + id + " удалена");
         return "redirect:/admin/moderators";
     }
@@ -105,7 +102,7 @@ public class AdminAccountsController {
             return "redirect:/admin/moderators";
         }
 
-        accounts.resetPassword(id, passwordEncoder.encode(password), actor());
+        accounts.resetPassword(id, passwordEncoder.encode(password));
         redirect.addFlashAttribute("saved", "Пароль учётки " + id + " изменён");
         return "redirect:/admin/moderators";
     }
@@ -125,7 +122,7 @@ public class AdminAccountsController {
             return "redirect:/admin/moderators";
         }
 
-        moderators.grant(tgUserId.get(), chatId, access.author().map(Actor::tgUserId).orElse(null));
+        moderators.grant(tgUserId.get(), chatId, access.authorId().orElse(null));
         redirect.addFlashAttribute("saved", "Чат " + chatId + " выдан");
         return "redirect:/admin/moderators";
     }
@@ -141,12 +138,5 @@ public class AdminAccountsController {
         moderators.revoke(tgUserId.get(), chatId);
         redirect.addFlashAttribute("saved", "Чат " + chatId + " отозван");
         return "redirect:/admin/moderators";
-    }
-
-    private Actor actor() {
-        return access.author().orElseGet(() -> {
-            logger.warn("Действие в разделе модераторов без вошедшего пользователя");
-            return new Actor(null, AdminSecurityConfig.ADMIN_USERNAME, null, null);
-        });
     }
 }

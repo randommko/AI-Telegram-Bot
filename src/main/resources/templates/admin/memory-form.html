@@ -73,33 +73,6 @@
             <a class="button secondary" th:href="@{/admin/memories}">Отмена</a>
         </div>
     </form>
-
-    <section th:if="${!#lists.isEmpty(history)}">
-        <h2 class="section">История изменений</h2>
-        <table class="list">
-            <thead>
-            <tr>
-                <th>Когда</th>
-                <th>Кто</th>
-                <th>Что</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="entry : ${history}">
-                <td th:text="${#temporals.format(entry.at, 'dd.MM.yyyy HH:mm')}">—</td>
-                <td th:text="${entry.actorLogin}">admin</td>
-                <td th:text="${entry.fieldsTitle()}">content</td>
-                <td>
-                    <form th:if="${entry.after['deleted'] == true}"
-                          th:action="@{/admin/memories/restore/{changeId}(changeId=${entry.id})}" method="post">
-                        <button class="button secondary" type="submit">Вернуть</button>
-                    </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
-    </section>
 </main>
 </body>
 </html>

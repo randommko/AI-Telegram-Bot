@@ -77,8 +77,7 @@ public class AdminChatController {
         }
 
         String joinText = personaId == null ? null : JOIN_PREFIX + personaName(personaId);
-        Actor actor = access.author().orElse(new Actor(null, AdminSecurityConfig.ADMIN_USERNAME, null, null));
-        personas.switchPersona(chatId, personaId, joinText, actor);
+        personas.switchPersona(chatId, personaId, joinText);
 
         redirect.addFlashAttribute("saved", "Привязка сохранена, история чата обновлена");
         return "redirect:/admin/chats";

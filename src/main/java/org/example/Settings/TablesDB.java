@@ -19,6 +19,5 @@ public final class TablesDB {
     public static final String PERSONA_FIELD_NOTES_TABLE = "public.persona_field_notes";
     public static final String ADMIN_ACCOUNTS_TABLE = "public.admin_accounts";
     public static final String CHAT_MODERATORS_TABLE = "public.chat_moderators";
-    public static final String ADMIN_CHANGES_TABLE = "public.admin_changes";
     public  static final String SETTINGS_TABLE = "bot_settings";
 }

@@ -90,7 +90,7 @@ public class AdminAccess {
         return Optional.of(personas.editablePersonaIds(chats));
     }
 
-    public Optional<Actor> author() {
-        return current.actor();
+    public Optional<Long> authorId() {
+        return current.actorTgUserId();
     }
 }

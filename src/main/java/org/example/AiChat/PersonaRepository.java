@@ -1,7 +1,5 @@
 package org.example.AiChat;
 
-import org.example.Admin.Actor;
-import org.example.Admin.ChangeJournal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
@@ -33,12 +31,10 @@ public class PersonaRepository {
     private static final Logger logger = LoggerFactory.getLogger(PersonaRepository.class);
     private final DataSource dataSource;
     private final EmotionRepository emotions;
-    private final ChangeJournal journal;
 
-    public PersonaRepository(DataSource dataSource, EmotionRepository emotions, ChangeJournal journal) {
+    public PersonaRepository(DataSource dataSource, EmotionRepository emotions) {
         this.dataSource = dataSource;
         this.emotions = emotions;
-        this.journal = journal;
     }
 
     public Optional<Persona> findForChat(long chatId) {
@@ -244,13 +240,11 @@ public class PersonaRepository {
     }
 
     /** Создание персоны, её алиасов и базовых значений эмоций одной транзакцией. */
-    public void create(PersonaDetails details, Actor actor) {
+    public void create(PersonaDetails details) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                int personaId = insertPersona(connection, details);
-                journal.record(connection, actor, ChangeJournal.PERSONA, personaId, null, personaId,
-                        Map.of(), fieldsOf(details));
+                insertPersona(connection, details);
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -267,7 +261,7 @@ public class PersonaRepository {
      * Персона модератора: карточка и привязка к его чату одной транзакцией.
      * Беспризорных персон у модератора не появляется.
      */
-    public void createInChat(PersonaDetails details, long chatId, Actor actor) {
+    public void createInChat(PersonaDetails details, long chatId) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -281,10 +275,6 @@ public class PersonaRepository {
                     statement.executeUpdate();
                 }
 
-                journal.record(connection, actor, ChangeJournal.PERSONA, personaId, null, personaId,
-                        Map.of(), fieldsOf(details));
-                journal.record(connection, actor, ChangeJournal.BINDING, personaId, chatId, personaId,
-                        Map.of("personaId", "без персоны"), Map.of("personaId", personaId));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -298,7 +288,7 @@ public class PersonaRepository {
     }
 
     /** Обновление карточки, полная замена алиасов и базовых значений эмоций одной транзакцией. */
-    public void update(PersonaDetails details, Actor actor) {
+    public void update(PersonaDetails details) {
         String query = "UPDATE " + PERSONAS_TABLE + " SET name = ?, prompt = ?, aggression_threshold = ?,"
                 + " hysteria_replies = ?, hysteria_cooldown_hours = ?, max_replies = ?, reply_delay_ms = ?,"
                 + " initiative_enabled = ?, initiative_cooldown_messages = ?, updated_at = now() WHERE id = ?";
@@ -306,11 +296,6 @@ public class PersonaRepository {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Optional<PersonaDetails> current = readDetails(connection, details.id());
-                Map<String, Object> before = new LinkedHashMap<>();
-                Map<String, Object> after = new LinkedHashMap<>();
-                current.ifPresent(previous -> diff(previous, details, before, after));
-
                 try (PreparedStatement statement = connection.prepareStatement(query)) {
                     bindPersona(statement, details);
                     statement.setInt(10, details.id());
@@ -318,8 +303,6 @@ public class PersonaRepository {
                 }
                 replaceAliases(connection, details.id(), details.aliases());
                 emotions.saveBaseValues(connection, details.id(), details.emotionBaseValues());
-                journal.record(connection, actor, ChangeJournal.PERSONA, details.id(), null, details.id(),
-                        before, after);
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -332,24 +315,15 @@ public class PersonaRepository {
         }
     }
 
-    public void delete(int id, Actor actor) {
+    public void delete(int id) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Optional<PersonaDetails> current = readDetails(connection, id);
                 try (PreparedStatement statement = connection.prepareStatement(
                         "DELETE FROM " + PERSONAS_TABLE + " WHERE id = ?")) {
                     statement.setInt(1, id);
                     statement.executeUpdate();
                 }
-                current.ifPresent(previous -> {
-                    try {
-                        journal.record(connection, actor, ChangeJournal.PERSONA, id, null, null,
-                                Map.of("name", previous.name()), Map.of());
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
-                });
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -530,45 +504,6 @@ public class PersonaRepository {
         }
     }
 
-    private Map<String, Object> fieldsOf(PersonaDetails details) {
-        Map<String, Object> fields = new LinkedHashMap<>();
-        fields.put("name", details.name());
-        fields.put("prompt", details.prompt());
-        fields.put("aliases", details.aliases());
-        fields.put("emotionValues", details.emotionBaseValues());
-        fields.put("aggressionThreshold", details.aggressionThreshold());
-        fields.put("hysteriaReplies", details.hysteriaReplies());
-        fields.put("hysteriaCooldownHours", details.hysteriaCooldownHours());
-        fields.put("maxReplies", details.maxReplies());
-        fields.put("replyDelayMs", details.replyDelayMs());
-        fields.put("initiativeEnabled", details.initiativeEnabled());
-        fields.put("initiativeCooldownMessages", details.initiativeCooldownMessages());
-        return fields;
-    }
-
-    /** Только изменившиеся поля: журнал не хранит копию карточки целиком. */
-    private void diff(PersonaDetails before, PersonaDetails after,
-                      Map<String, Object> changesBefore, Map<String, Object> changesAfter) {
-        ChangeJournal.diff(changesBefore, changesAfter, "name", before.name(), after.name());
-        ChangeJournal.diff(changesBefore, changesAfter, "prompt", before.prompt(), after.prompt());
-        ChangeJournal.diff(changesBefore, changesAfter, "aliases", before.aliases(), after.aliases());
-        ChangeJournal.diff(changesBefore, changesAfter, "emotionValues",
-                before.emotionBaseValues(), after.emotionBaseValues());
-        ChangeJournal.diff(changesBefore, changesAfter, "aggressionThreshold",
-                before.aggressionThreshold(), after.aggressionThreshold());
-        ChangeJournal.diff(changesBefore, changesAfter, "hysteriaReplies",
-                before.hysteriaReplies(), after.hysteriaReplies());
-        ChangeJournal.diff(changesBefore, changesAfter, "hysteriaCooldownHours",
-                before.hysteriaCooldownHours(), after.hysteriaCooldownHours());
-        ChangeJournal.diff(changesBefore, changesAfter, "maxReplies", before.maxReplies(), after.maxReplies());
-        ChangeJournal.diff(changesBefore, changesAfter, "replyDelayMs",
-                before.replyDelayMs(), after.replyDelayMs());
-        ChangeJournal.diff(changesBefore, changesAfter, "initiativeEnabled",
-                before.initiativeEnabled(), after.initiativeEnabled());
-        ChangeJournal.diff(changesBefore, changesAfter, "initiativeCooldownMessages",
-                before.initiativeCooldownMessages(), after.initiativeCooldownMessages());
-    }
-
     private PersonaDetails details(ResultSet resultSet, List<String> aliases,
                                    Map<String, Integer> emotionBaseValues) throws Exception {
         return new PersonaDetails(
@@ -629,12 +564,10 @@ public class PersonaRepository {
      * Смена персоны одной транзакцией: привязка, очистка истории и сообщение о входе.
      * Отметка анализа и счётчик сбросов не трогаются. personaId = null снимает привязку.
      */
-    public void switchPersona(long chatId, Integer personaId, String joinMessage, Actor actor) {
+    public void switchPersona(long chatId, Integer personaId, String joinMessage) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Integer previousId = currentPersona(connection, chatId);
-
                 if (personaId == null) {
                     try (PreparedStatement statement = connection.prepareStatement(
                             "DELETE FROM " + CHAT_PERSONAS_TABLE + " WHERE chat_id = ?")) {
@@ -668,10 +601,6 @@ public class PersonaRepository {
                     }
                 }
 
-                Integer journalPersona = personaId != null ? personaId : previousId;
-                journal.record(connection, actor, ChangeJournal.BINDING, journalPersona, chatId, journalPersona,
-                        Map.of("personaId", String.valueOf(previousId)),
-                        Map.of("personaId", String.valueOf(personaId)));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -682,17 +611,5 @@ public class PersonaRepository {
         } catch (Exception e) {
             logger.error("Ошибка смены персоны в чате {}: ", chatId, e);
         }
-    }
-
-    private Integer currentPersona(Connection connection, long chatId) throws Exception {
-        try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT persona_id FROM " + CHAT_PERSONAS_TABLE + " WHERE chat_id = ?")) {
-            statement.setLong(1, chatId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next())
-                    return resultSet.getObject("persona_id", Integer.class);
-            }
-        }
-        return null;
     }
 }

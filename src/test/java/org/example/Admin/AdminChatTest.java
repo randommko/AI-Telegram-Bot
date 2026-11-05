@@ -46,7 +46,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties(BotProperties.class)
 class AdminChatTest {
     private static final long CHAT = -1001347887839L;
-    private static final Actor OWNER = Actor.owner(270459384L, "@vajnaya_sobaka", "Алексей");
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,7 +65,6 @@ class AdminChatTest {
         when(access.visibleChats()).thenReturn(Optional.empty());
         when(access.seesChat(anyLong())).thenReturn(true);
         when(access.canEditPersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
-        when(access.author()).thenReturn(Optional.of(OWNER));
     }
 
     @Test
@@ -111,7 +109,7 @@ class AdminChatTest {
                 .andExpect(redirectedUrl("/admin/chats"))
                 .andExpect(flash().attribute("saved", containsString("Привязка сохранена")));
 
-        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"), any(Actor.class));
+        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"));
     }
 
     @Test
@@ -125,7 +123,7 @@ class AdminChatTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/chats"));
 
-        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"), any(Actor.class));
+        verify(personas).switchPersona(eq(CHAT), eq(1), eq("В чат приходит Юра"));
     }
 
     @Test
@@ -139,7 +137,7 @@ class AdminChatTest {
                 .andExpect(redirectedUrl("/admin/chats"));
 
         verify(personas).switchPersona(eq(CHAT), org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.isNull(), any(Actor.class));
+                org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test
@@ -153,7 +151,7 @@ class AdminChatTest {
                 .andExpect(redirectedUrl("/admin/chats"))
                 .andExpect(flash().attribute("saved", containsString("уже эта персона")));
 
-        verify(personas, never()).switchPersona(anyLong(), any(), any(), any());
+        verify(personas, never()).switchPersona(anyLong(), any(), any());
     }
 
     @Test
@@ -167,7 +165,7 @@ class AdminChatTest {
                 .andExpect(redirectedUrl("/admin/chats"))
                 .andExpect(flash().attribute("error", containsString("не выдан")));
 
-        verify(personas, never()).switchPersona(anyLong(), any(), any(), any());
+        verify(personas, never()).switchPersona(anyLong(), any(), any());
     }
 
     @Test

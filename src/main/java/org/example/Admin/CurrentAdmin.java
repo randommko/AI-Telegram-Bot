@@ -6,7 +6,6 @@ import org.example.Users.UsersRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.util.Optional;
 
@@ -42,25 +41,16 @@ public class CurrentAdmin {
         return principal().filter(principal -> !principal.owner()).map(AdminPrincipal::tgUserId);
     }
 
-    /** Автор действия с актуальными ником и именем; пустой, если никто не вошёл. */
-    public Optional<Actor> actor() {
+    /** Telegram id того, кто действует: модератор или владелец из настройки. */
+    public Optional<Long> actorTgUserId() {
         Optional<AdminPrincipal> principal = principal();
         if (principal.isEmpty())
             return Optional.empty();
 
         AdminPrincipal current = principal.get();
-        if (!current.owner()) {
-            User user = users.getUserByID(current.tgUserId());
-            return Optional.of(new Actor(current.tgUserId(), current.login(),
-                    user == null ? null : user.getUserName(),
-                    user == null ? null : user.getFirstName()));
-        }
-
-        Long ownerId = ownerChatId();
-        User owner = ownerId == null ? null : users.getUserByID(ownerId);
-        return Optional.of(Actor.owner(ownerId,
-                owner == null ? null : owner.getUserName(),
-                owner == null ? null : owner.getFirstName()));
+        return current.owner()
+                ? Optional.ofNullable(ownerChatId())
+                : Optional.of(current.tgUserId());
     }
 
     /** Telegram id владельца из настройки: тот же получатель, что и у уведомления о запуске. */

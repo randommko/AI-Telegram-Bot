@@ -68,17 +68,12 @@ class AdminMemoryTest {
     @MockitoBean
     private AdminUserDetailsService adminUserDetailsService;
 
-    @MockitoBean
-    private ChangeJournal journal;
-
     @BeforeEach
     void permissions() {
         when(access.isOwner()).thenReturn(true);
         when(access.canEditPersona(anyInt())).thenReturn(true);
         when(access.visibleChats()).thenReturn(java.util.Optional.empty());
         when(access.visiblePersonaIds()).thenReturn(java.util.Optional.empty());
-        when(access.author()).thenReturn(java.util.Optional.of(
-                Actor.owner(270459384L, "@vajnaya_sobaka", "Алексей")));
     }
 
     @Test
@@ -145,7 +140,7 @@ class AdminMemoryTest {
                 .andExpect(redirectedUrl("/admin/memories"));
 
         verify(memories).createManual(eq(1), eq("работа"), eq("играет в шахматы"), eq(7), eq(false),
-                eq(LocalDate.of(2024, 3, 21)), eq(List.of(42L)), any());
+                eq(LocalDate.of(2024, 3, 21)), eq(List.of(42L)));
     }
 
     @Test
@@ -157,7 +152,7 @@ class AdminMemoryTest {
                 .andExpect(content().string(containsString("Важность")));
 
         verify(memories, never()).createManual(anyInt(), anyString(), anyString(), anyInt(),
-                any(Boolean.class), any(), any(), any());
+                any(Boolean.class), any(), any());
     }
 
     @Test
@@ -166,7 +161,7 @@ class AdminMemoryTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/memories/5/delete"));
 
-        verify(memories, never()).deleteManual(anyInt(), any());
+        verify(memories, never()).deleteManual(anyInt());
     }
 
     @Test
@@ -180,7 +175,7 @@ class AdminMemoryTest {
                         .with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(redirectedUrl("/admin/memories"));
 
-        verify(memories).deleteManual(eq(5), any());
+        verify(memories).deleteManual(eq(5));
     }
 
     @Test
@@ -197,19 +192,6 @@ class AdminMemoryTest {
                 org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
         verify(memories).search(filter.capture());
         org.junit.jupiter.api.Assertions.assertEquals(List.of(2), filter.getValue().visiblePersonas());
-    }
-
-    @Test
-    void restoresDeletedMemoryFromJournal() throws Exception {
-        when(journal.find(9)).thenReturn(java.util.Optional.of(new ChangeJournal.Entry(9,
-                java.time.OffsetDateTime.now(), "admin", ChangeJournal.MEMORY, 5, null, 1,
-                Map.of("deleted", false), Map.of("deleted", true))));
-
-        mockMvc.perform(post("/admin/memories/restore/9")
-                        .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/memories"));
-
-        verify(memories).restoreManual(eq(5), any());
     }
 
     @Test

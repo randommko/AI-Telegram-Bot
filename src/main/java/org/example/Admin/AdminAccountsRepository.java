@@ -24,11 +24,9 @@ import static org.example.Settings.TablesDB.TG_USERS_TABLE;
 public class AdminAccountsRepository {
     private static final Logger logger = LoggerFactory.getLogger(AdminAccountsRepository.class);
     private final DataSource dataSource;
-    private final ChangeJournal journal;
 
-    public AdminAccountsRepository(DataSource dataSource, ChangeJournal journal) {
+    public AdminAccountsRepository(DataSource dataSource) {
         this.dataSource = dataSource;
-        this.journal = journal;
     }
 
     /** Данные для проверки пароля: без ника и имени, они нужны только странице. */
@@ -181,8 +179,8 @@ public class AdminAccountsRepository {
         return false;
     }
 
-    /** Новая учётка и запись в журнале — одной транзакцией. */
-    public void create(long tgUserId, String login, String passwordHash, Actor actor) {
+    /** Новая учётка одной транзакцией. */
+    public void create(long tgUserId, String login, String passwordHash) {
         String query = "INSERT INTO " + ADMIN_ACCOUNTS_TABLE
                 + " (tg_user_id, login, password_hash) VALUES (?, ?, ?) RETURNING id";
 
@@ -200,8 +198,6 @@ public class AdminAccountsRepository {
                     }
                 }
 
-                journal.record(connection, actor, ChangeJournal.ACCOUNT, id, null, null, Map.of(),
-                        Map.of("login", login, "tg_user_id", tgUserId));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -214,29 +210,16 @@ public class AdminAccountsRepository {
         }
     }
 
-    public void delete(int id, Actor actor) {
+    public void delete(int id) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                String login = null;
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "SELECT login FROM " + ADMIN_ACCOUNTS_TABLE + " WHERE id = ?")) {
-                    statement.setInt(1, id);
-                    try (ResultSet resultSet = statement.executeQuery()) {
-                        if (resultSet.next())
-                            login = resultSet.getString("login");
-                    }
-                }
-
                 try (PreparedStatement statement = connection.prepareStatement(
                         "DELETE FROM " + ADMIN_ACCOUNTS_TABLE + " WHERE id = ?")) {
                     statement.setInt(1, id);
                     statement.executeUpdate();
                 }
 
-                if (login != null)
-                    journal.record(connection, actor, ChangeJournal.ACCOUNT, id, null, null,
-                            Map.of("login", login), Map.of());
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -249,8 +232,7 @@ public class AdminAccountsRepository {
         }
     }
 
-    /** Хеш пароля в журнал не попадает: хранится только факт смены. */
-    public void resetPassword(int id, String passwordHash, Actor actor) {
+    public void resetPassword(int id, String passwordHash) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -261,8 +243,6 @@ public class AdminAccountsRepository {
                     statement.executeUpdate();
                 }
 
-                journal.record(connection, actor, ChangeJournal.ACCOUNT, id, null, null, Map.of(),
-                        Map.of("password", "изменён"));
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();

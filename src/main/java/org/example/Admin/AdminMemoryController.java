@@ -22,22 +22,18 @@ import java.util.Optional;
 @Conditional(AdminPasswordPresentCondition.class)
 public class AdminMemoryController {
     private static final int PAGE_SIZE = 25;
-    private static final int HISTORY_LIMIT = 50;
 
     private final MemoryRepository memories;
     private final PersonaRepository personas;
     private final AdminMemoryValidator validator;
     private final AdminAccess access;
-    private final ChangeJournal journal;
 
     public AdminMemoryController(MemoryRepository memories, PersonaRepository personas,
-                                 AdminMemoryValidator validator,
-                                 AdminAccess access, ChangeJournal journal) {
+                                 AdminMemoryValidator validator, AdminAccess access) {
         this.memories = memories;
         this.personas = personas;
         this.validator = validator;
         this.access = access;
-        this.journal = journal;
     }
 
     @GetMapping("/admin/memories")
@@ -97,14 +93,13 @@ public class AdminMemoryController {
             return "redirect:/admin/memories";
         }
 
-        Actor actor = actor();
         if (form.id() == null) {
             memories.createManual(details.personaId(), details.category(), details.content(),
-                    details.importance(), details.core(), details.eventDate(), details.personIds(), actor);
+                    details.importance(), details.core(), details.eventDate(), details.personIds());
             redirect.addFlashAttribute("saved", "Воспоминание добавлено");
         } else {
             memories.updateManual(details.id(), details.category(), details.content(),
-                    details.importance(), details.core(), details.eventDate(), details.personIds(), actor);
+                    details.importance(), details.core(), details.eventDate(), details.personIds());
             redirect.addFlashAttribute("saved", "Воспоминание сохранено");
         }
         return "redirect:/admin/memories";
@@ -138,27 +133,8 @@ public class AdminMemoryController {
             return "redirect:/admin/memories";
         }
 
-        memories.deleteManual(id, actor());
-        redirect.addFlashAttribute("saved", "Воспоминание " + id + " удалено — его можно вернуть из журнала");
-        return "redirect:/admin/memories";
-    }
-
-    /** Возврат удалённого воспоминания из журнала. */
-    @PostMapping("/admin/memories/restore/{changeId}")
-    String restore(@PathVariable long changeId, RedirectAttributes redirect) {
-        Optional<ChangeJournal.Entry> entry = journal.find(changeId);
-        if (entry.isEmpty() || !ChangeJournal.MEMORY.equals(entry.get().entity())
-                || entry.get().entityId() == null || entry.get().personaId() == null) {
-            redirect.addFlashAttribute("error", "Запись журнала не относится к воспоминанию");
-            return "redirect:/admin/memories";
-        }
-        if (!access.canEditPersona(entry.get().personaId())) {
-            redirect.addFlashAttribute("error", "Память этой персоны вам недоступна");
-            return "redirect:/admin/memories";
-        }
-
-        memories.restoreManual(entry.get().entityId(), actor());
-        redirect.addFlashAttribute("saved", "Воспоминание возвращено");
+        memories.deleteManual(id);
+        redirect.addFlashAttribute("saved", "Воспоминание " + id + " удалено");
         return "redirect:/admin/memories";
     }
 
@@ -174,10 +150,6 @@ public class AdminMemoryController {
         return editablePersonas().stream().map(PersonaSummary::id).findFirst().orElse(null);
     }
 
-    private Actor actor() {
-        return access.author().orElse(new Actor(null, AdminSecurityConfig.ADMIN_USERNAME, null, null));
-    }
-
     private String form(Model model, MemoryForm form, List<Long> people, Map<String, String> errors) {
         model.addAttribute("title", form.id() == null ? "Новое воспоминание" : "Воспоминание " + form.id());
         model.addAttribute("form", form);
@@ -187,7 +159,6 @@ public class AdminMemoryController {
         model.addAttribute("allPeople", memories.allUsers());
         model.addAttribute("personas", editablePersonas());
         model.addAttribute("editable", true);
-        model.addAttribute("history", form.id() == null ? List.of() : journal.historyOfMemory(form.id(), HISTORY_LIMIT));
         return "admin/memory-form";
     }
 }

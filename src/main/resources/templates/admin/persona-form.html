@@ -207,38 +207,6 @@
             <a class="button secondary" th:href="@{/admin/personas}">Назад</a>
         </div>
     </form>
-
-    <section th:if="${!#lists.isEmpty(history)}">
-        <h2 class="section">История изменений</h2>
-        <table class="list">
-            <thead>
-            <tr>
-                <th>Когда</th>
-                <th>Кто</th>
-                <th>Что</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="entry : ${history}">
-                <td th:text="${#temporals.format(entry.at, 'dd.MM.yyyy HH:mm')}">—</td>
-                <td th:text="${entry.actorLogin}">admin</td>
-                <td>
-                    <span th:text="${entry.entityTitle()}">персона</span>:
-                    <span th:text="${entry.fieldsTitle()}">prompt</span>
-                    <span class="hint" th:if="${entry.entity == 'binding'}">(привязку возвращают только через «Чаты»)</span>
-                </td>
-                <td>
-                    <form th:if="${entry.restorable() and editable}"
-                          th:action="@{/admin/personas/{id}/restore/{changeId}(id=${form.id}, changeId=${entry.id})}"
-                          method="post">
-                        <button class="button secondary" type="submit">Вернуть</button>
-                    </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
-    </section>
 </main>
 </body>
 </html>
