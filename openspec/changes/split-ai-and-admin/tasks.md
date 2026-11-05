@@ -11,29 +11,29 @@
 
 ## 1. Каркас модулей
 
-- [ ] 1.1 Создать parent `pom.xml` (packaging `pom`) и модули `core`, `bot`, `admin` с пустыми приложениями; проверить, что `mvn clean package` собирает оба jar и в `bot` нет веб-зависимостей.
+- [x] 1.1 Создать parent `pom.xml` (packaging `pom`) и модули `core`, `bot`, `admin` с пустыми приложениями; проверить, что `mvn clean package` собирает оба jar и в `bot` нет веб-зависимостей.
 - [x] 1.2 Убрать из parent неиспользуемые `okhttp` и `jackson-dataformat-xml`; сделано коммитом `1453220` вместе с играми.
-- [ ] 1.3 Настроить `Main` каждого приложения на сканирование только своего пакета и `org.example.core`; проверить тестом, что в контексте `admin` нет `LlmClient` и планировщика анализа, а в контексте `bot` нет контроллеров.
+- [x] 1.3 Настроить `Main` каждого приложения на сканирование только своего пакета и `org.example.core`; проверить тестом, что в контексте `admin` нет `LlmClient` и планировщика анализа, а в контексте `bot` нет контроллеров.
 
 ## 2. Модуль core
 
-- [ ] 2.1 Перенести в `core` инфраструктуру: `BotProperties`, `InfrastructureConfig`, `MessageSender`, `TextSplitter`, `BotLifecycle`, `UserChatManager`, `Users*`, `Chats*`, `Settings`, `SettingsService`, `TablesDB`; проверить `BotPropertiesBindingTest` и сборку обоих модулей.
-- [ ] 2.2 Перенести в `core` домен: модели и репозитории персон, памяти, эмоций, заметок, `PromptComposer`, `PromptSection`, `PromptDefaults`, `MemoryPromptBuilder`, `LlmCatalog`, `EmotionService`, `PersonaService`, `AiChatRepository`, `AiHistory`; проверить 22 теста `AiChat`, переехавших вместе с классами.
-- [ ] 2.3 Сделать имена таблиц явными по схемам (`shared.*`, `config.*`, `ai.*`, `configurator.*`), включая `config.bot_settings`; проверить, что в `TablesDB` нет имён без схемы, и тесты репозиториев проходят.
+- [x] 2.1 Перенести в `core` инфраструктуру: `BotProperties`, `InfrastructureConfig`, `Users*`, `Chats*`, `Settings`, `SettingsService`, `TablesDB`, `TextSplitter`; `BotLifecycle`, `MessageSender` и `UserChatManager` уходят в `bot`, потому что админка не должна видеть Telegram. Проверить `BotPropertiesBindingTest` и сборку обоих модулей.
+- [x] 2.2 Перенести в `core` домен: модели и репозитории персон, памяти, эмоций, заметок, `PromptComposer`, `PromptSection`, `PromptDefaults`, `MemoryPromptBuilder`, `LlmCatalog`, `EmotionService`, `PersonaService`, `AiChatRepository`, `AiHistory`; проверить 22 теста `AiChat`, переехавших вместе с классами.
+- [x] 2.3 Сделать имена таблиц явными по схемам (`shared.*`, `config.*`, `ai.*`, `configurator.*`), включая `config.bot_settings`; проверить, что в `TablesDB` нет имён без схемы, и тесты репозиториев проходят.
 
 ## 3. Модуль bot
 
-- [ ] 3.1 Собрать headless-приложение: `Main`, `TelegramBot`, `CommandDispatcher`, `CallbackDispatcher`, `KeyboardBuilder` (часть `/clear`), `AiClearCallback`, `StartupNotifier`, сервисы AI и памяти; проверить запуск без HTTP-порта и ответ на `/ai` в тесте.
+- [x] 3.1 Собрать headless-приложение: `Main`, `TelegramBot`, `CommandDispatcher`, `CallbackDispatcher`, `KeyboardBuilder` (часть `/clear`), `AiClearCallback`, `StartupNotifier`, сервисы AI и памяти; проверить запуск без HTTP-порта и ответ на `/ai` в тесте.
 - [x] 3.2 Убрать игры, гороскоп, `/summary` и лишние команды из помощи; сделано коммитом `1453220`.
-- [ ] 3.3 Публиковать `ai.provider_key_status` при старте по каталогу `LlmCatalog`; проверить тестом upsert: ключ есть, ключа нет, повторный старт обновляет `updated_at`.
-- [ ] 3.4 Обновить README бота под headless-запуск и новые переменные; проверить, что команды из README выполняются на локальной сборке.
+- [x] 3.3 Публиковать `ai.provider_key_status` при старте по каталогу `LlmCatalog`; проверить тестом upsert: ключ есть, ключа нет, повторный старт обновляет `updated_at`.
+- [x] 3.4 Обновить README бота под headless-запуск и новые переменные; проверить, что команды из README выполняются на локальной сборке.
 
 ## 4. Модуль admin
 
-- [ ] 4.1 Перенести `Admin/*`, шаблоны, Security и `Main` в модуль `admin`; проверить 15 тестов админки и вход владельцем и модератором.
-- [ ] 4.2 Перевести страницу настроек и `AdminSettingsValidator` на `ai.provider_key_status`; проверить тестами: модель без ключа недоступна, сохранённая модель выбираема, сохранение без ключа отклоняется.
-- [ ] 4.3 Убедиться, что в контексте админки нет `TelegramLongPollingBot`, `MessageSender` и прокси-бинов: админка не подключается к Telegram. Проверить тестом состава контекста.
-- [ ] 4.4 Обновить README админки: отдельный процесс, порт, env без `BOT_TOKEN` и `BOT_PROXY_*`, отсутствие уведомлений в Telegram.
+- [x] 4.1 Перенести `Admin/*`, шаблоны, Security и `Main` в модуль `admin`; проверить 15 тестов админки и вход владельцем и модератором.
+- [x] 4.2 Перевести страницу настроек и `AdminSettingsValidator` на `ai.provider_key_status`; проверить тестами: модель без ключа недоступна, сохранённая модель выбираема, сохранение без ключа отклоняется.
+- [x] 4.3 Убедиться, что в контексте админки нет `TelegramLongPollingBot`, `MessageSender` и прокси-бинов: админка не подключается к Telegram. Проверить тестом состава контекста.
+- [x] 4.4 Обновить README админки: отдельный процесс, порт, env без `BOT_TOKEN` и `BOT_PROXY_*`, отсутствие уведомлений в Telegram.
 
 ## 5. Данные и миграции
 
@@ -46,7 +46,7 @@
 
 - [ ] 6.1 Подготовить два unit-файла и два env-шаблона (`bot.env`, `admin.env`); в `admin.env` нет `BOT_TOKEN` и `BOT_PROXY_*`; проверить `systemd-analyze verify` и локальный запуск каждого jar с этими переменными.
 - [ ] 6.2 Разделить CI на `deploy-bot.yml` и `deploy-admin.yml` с фильтрами путей; проверить, что изменение только в `admin/**` не перезапускает бота, а изменение в `core/**` запускает оба workflow.
-- [ ] 6.3 Обновить README репозитория: два jar, два юнита, два env-файла, порт 8081 только у админки; проверить, что все команды и пути совпадают с unit-файлами.
+- [x] 6.3 Обновить README репозитория: два jar, два юнита, два env-файла, порт 8081 только у админки; проверить, что все команды и пути совпадают с unit-файлами.
 
 ## 7. Интеграция и приёмка
 

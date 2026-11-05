@@ -1,7 +1,7 @@
 package org.example.admin;
 
 import org.example.core.aichat.LlmCatalog;
-import org.example.core.config.BotProperties;
+import org.example.core.aichat.ProviderKeyStatusRepository;
 import org.example.core.settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,13 +108,13 @@ public class AdminSettingsController {
 
     private final SettingsService settings;
     private final AdminSettingsValidator validator;
-    private final BotProperties properties;
+    private final ProviderKeyStatusRepository providerKeys;
 
     public AdminSettingsController(SettingsService settings, AdminSettingsValidator validator,
-                                   BotProperties properties) {
+                                   ProviderKeyStatusRepository providerKeys) {
         this.settings = settings;
         this.validator = validator;
-        this.properties = properties;
+        this.providerKeys = providerKeys;
     }
 
     @GetMapping("/admin/settings")
@@ -324,7 +324,7 @@ public class AdminSettingsController {
 
             hints.add(new KeyHint(provider.envName(), provider.title(),
                     KEY_URLS.getOrDefault(provider.id(), ""), scope,
-                    properties.ai().keyFor(provider.id()) != null));
+                    providerKeys.hasKey(provider.id())));
         }
         return hints;
     }
@@ -333,7 +333,7 @@ public class AdminSettingsController {
     private List<OptionGroup> modelGroups(Selection selection) {
         List<OptionGroup> groups = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.directProviders()) {
-            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
+            boolean hasKey = providerKeys.hasKey(provider.id());
             List<Option> options = LlmCatalog.modelsOf(provider.id()).stream()
                     .map(model -> new Option(model.id(), model.title(),
                             hasKey || isCurrent(selection, provider.id(), model.id())))
@@ -347,7 +347,7 @@ public class AdminSettingsController {
     private List<Choice> providerChoices(Selection selection) {
         List<Choice> choices = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
-            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
+            boolean hasKey = providerKeys.hasKey(provider.id());
             boolean enabled = hasKey || isCurrent(selection, provider.id(), selection.modelId());
             choices.add(new Choice(provider.id(),
                     hasKey ? provider.title() : provider.title() + " — нет ключа",
@@ -371,7 +371,7 @@ public class AdminSettingsController {
     private List<Choice> doorModelChoices(Selection selection) {
         List<Choice> choices = new ArrayList<>();
         for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
-            boolean hasKey = properties.ai().keyFor(provider.id()) != null;
+            boolean hasKey = providerKeys.hasKey(provider.id());
             for (LlmCatalog.Model model : LlmCatalog.modelsOf(provider.id()))
                 choices.add(new Choice(model.id(), model.id(), door(provider.id(), model.group()),
                         model.title(), hasKey || isCurrent(selection, provider.id(), model.id())));

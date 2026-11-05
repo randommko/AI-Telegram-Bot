@@ -1,5 +1,6 @@
 package org.example.admin;
 
+import org.example.core.aichat.ProviderKeyStatusRepository;
 import org.example.core.config.BotProperties;
 import org.example.core.settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,11 +60,16 @@ class AdminSettingsTest {
     private AdminAccess access;
 
     @MockitoBean
+    private ProviderKeyStatusRepository providerKeys;
+
+    @MockitoBean
     private AdminUserDetailsService adminUserDetailsService;
 
     @BeforeEach
     void ownerAccess() {
         when(access.isOwner()).thenReturn(true);
+        when(providerKeys.hasKey("deepseek")).thenReturn(true);
+        when(providerKeys.hasKey("aitunnel")).thenReturn(true);
     }
 
     @Test

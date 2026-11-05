@@ -1,0 +1,19 @@
+[Unit]
+Description=Telegram bot admin panel (telegram-bot-admin-1.0.jar)
+Wants=network-online.target postgresql.service
+After=network-online.target postgresql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/bin/tg_bot_admin
+# Секреты передаются переменными окружения: аргументы командной строки видны в ps.
+EnvironmentFile=/etc/telegram-bot/admin.env
+ExecStart=/usr/bin/java -jar /usr/bin/tg_bot_admin/telegram-bot-admin-1.0.jar
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

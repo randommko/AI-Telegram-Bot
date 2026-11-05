@@ -1,14 +1,17 @@
-name: Build and Deploy Java Application
+name: Deploy bot
 
 on:
   push:
     branches:
-      - main # Укажите нужную ветку, например, "main" или "master"
-    # Документация не влияет на jar и systemd-юнит, поэтому не перезапускает бота.
-    paths-ignore:
-      - '**/*.md'
-      - 'openspec/**'
-      - '.agents/**'
+      - main
+    # Бот перезапускается только от своих путей и от общего core.
+    paths:
+      - 'bot/**'
+      - 'core/**'
+      - 'pom.xml'
+      - 'migrations/ai/**'
+      - 'deploy/telegram-bot.service'
+      - '.github/workflows/deploy-bot.yml'
 
 jobs:
   build:
@@ -25,7 +28,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Maven
-        run: mvn clean install -DskipTests
+        run: mvn -pl bot -am clean package -DskipTests
 
       - name: Deploy to VPS
         run: |
@@ -64,7 +67,7 @@ jobs:
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "install -d -m 700 /etc/telegram-bot"
           scp bot.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/telegram-bot/bot.env
           rm -f bot.env
-          scp target/telegram-bot-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot/
+          scp bot/target/telegram-bot-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot/
           scp deploy/telegram-bot.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/systemd/system/telegram-bot.service
 
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'

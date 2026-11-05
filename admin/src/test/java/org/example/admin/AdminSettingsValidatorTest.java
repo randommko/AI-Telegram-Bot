@@ -1,6 +1,6 @@
 package org.example.admin;
 
-import org.example.core.config.BotProperties;
+import org.example.core.aichat.ProviderKeyStatusRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -24,11 +24,12 @@ import static org.example.core.settings.Settings.AI_ROUTE_KEY;
 import static org.example.core.settings.Settings.OWNER_CHAT_ID;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AdminSettingsValidatorTest {
 
-    private final AdminSettingsValidator validator = new AdminSettingsValidator(new BotProperties(
-            "1:dummy", null, new BotProperties.Ai(Map.of("deepseek", "sk-deep")), null, null));
+    private final AdminSettingsValidator validator = validatorWith(Map.of("deepseek", "sk-deep"));
 
     @Test
     void acceptsValidForm() {
@@ -230,8 +231,10 @@ class AdminSettingsValidatorTest {
     }
 
     private AdminSettingsValidator validatorWith(Map<String, String> keys) {
-        return new AdminSettingsValidator(new BotProperties(
-                "1:dummy", null, new BotProperties.Ai(keys), null, null));
+        ProviderKeyStatusRepository repository = mock(ProviderKeyStatusRepository.class);
+        for (String providerId : keys.keySet())
+            when(repository.hasKey(providerId)).thenReturn(true);
+        return new AdminSettingsValidator(repository);
     }
 
     static Map<String, String> validForm() {

@@ -1,7 +1,7 @@
 package org.example.admin;
 
 import org.example.core.aichat.LlmCatalog;
-import org.example.core.config.BotProperties;
+import org.example.core.aichat.ProviderKeyStatusRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -32,10 +32,10 @@ public class AdminSettingsValidator {
     static final int MAX_TOKENS_LIMIT = 8192;
     static final int MAX_ANALYSIS_MESSAGES = 1000;
 
-    private final BotProperties properties;
+    private final ProviderKeyStatusRepository providerKeys;
 
-    public AdminSettingsValidator(BotProperties properties) {
-        this.properties = properties;
+    public AdminSettingsValidator(ProviderKeyStatusRepository providerKeys) {
+        this.providerKeys = providerKeys;
     }
 
     public Map<String, String> validate(Map<String, String> values) {
@@ -108,8 +108,8 @@ public class AdminSettingsValidator {
             return;
 
         LlmCatalog.Provider provider = LlmCatalog.providerOf(found.get()).orElse(null);
-        if (provider != null && properties.ai().keyFor(provider.id()) == null)
-            errors.put(errorKey, "У поставщика " + provider.title() + " нет ключа в окружении ("
+        if (provider != null && !providerKeys.hasKey(provider.id()))
+            errors.put(errorKey, "У поставщика " + provider.title() + " нет ключа ("
                     + provider.envName() + "): выберите модель другого поставщика");
     }
 

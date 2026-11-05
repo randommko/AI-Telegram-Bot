@@ -7,11 +7,13 @@
 
 ## Запуск
 
-Требуется JDK 17. Сборка:
+Требуется JDK 17. Сборка из корня репозитория собирает три модуля — `core`, `bot`, `admin` — и даёт два jar: `bot/target/telegram-bot-1.0.jar` и `admin/target/telegram-bot-admin-1.0.jar`.
 
 ```
 mvn clean package
 ```
+
+Бот запускается headless, без HTTP-порта; админка — отдельный процесс на своём порту. Переменные админки и её запуск описаны в `admin/README.md`, бота — в `bot/README.md`.
 
 Конфигурация передаётся только переменными окружения — позиционные аргументы командной строки не поддерживаются (они видны в `ps` любому локальному пользователю):
 
@@ -34,7 +36,7 @@ set BOT_DB_URL=jdbc:postgresql://host:5432/db
 set BOT_DB_USER=<dbUser>
 set BOT_DB_PASSWORD=<dbPassword>
 set BOT_AI_KEY_DEEPSEEK=<aiKey>
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 Linux:
@@ -42,7 +44,7 @@ Linux:
 ```
 BOT_TOKEN=<token> BOT_DB_URL=jdbc:postgresql://host:5432/db \
 BOT_DB_USER=<dbUser> BOT_DB_PASSWORD=<dbPassword> BOT_AI_KEY_DEEPSEEK=<aiKey> \
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 Обязательные переменные проверяются при старте: если значение пустое или не задано, приложение завершается с ненулевым кодом и сообщением, в котором указано имя переменной, не подключаясь к базе и Telegram.
@@ -98,7 +100,7 @@ ON CONFLICT (setting_key) DO UPDATE SET value = EXCLUDED.value;
 
 ## Веб-админка
 
-Админка живёт в том же jar и в том же процессе, что и бот: long polling не прерывается, а правки из админки применяются к следующему запросу без перезапуска.
+Админка — отдельный jar и отдельный процесс: перезапуск страниц не прерывает ответы бота, а правки из админки применяются к следующему запросу без перезапуска бота.
 
 Вход открыт только по двум адресам: loopback (SSH-туннель владельца) и VPN-подсеть `10.8.0.0/24`. На сервере приложение слушает `BOT_ADMIN_BIND=0.0.0.0`, а доступ ограничивает правило файрвола на порт `8081`:
 
@@ -116,10 +118,10 @@ nft add rule inet filter input tcp dport 8081 drop
 
 ```
 set BOT_ADMIN_PASSWORD=<пароль>
-java -jar target/telegram-bot-1.0.jar
+java -jar admin/target/telegram-bot-admin-1.0.jar
 ```
 
-Без `BOT_ADMIN_PASSWORD` админских страниц не существует: `/admin/**` отвечает 404, в лог пишется `WARN`, бот работает как обычно.
+Без `BOT_ADMIN_PASSWORD` админских страниц не существует: `/admin/**` отвечает 404, в лог пишется `WARN`.
 
 ### Два вида учёток
 
@@ -228,7 +230,7 @@ ssh -L 8081:127.0.0.1:8081 <user>@<host>
 ### Без прокси (системный VPN в режиме TUN)
 
 ```
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 ### HTTP-прокси (например, локальный прокси VPN-клиента)
@@ -239,14 +241,14 @@ Windows (cmd):
 set BOT_PROXY_TYPE=HTTP
 set BOT_PROXY_HOST=127.0.0.1
 set BOT_PROXY_PORT=12334
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 Linux:
 
 ```
 BOT_PROXY_TYPE=HTTP BOT_PROXY_HOST=127.0.0.1 BOT_PROXY_PORT=12334 \
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 ### SOCKS5-прокси (например, на VPS)
@@ -257,11 +259,13 @@ BOT_PROXY_HOST=<socks-host> \
 BOT_PROXY_PORT=<socks-port> \
 BOT_PROXY_USER=<login> \
 BOT_PROXY_PASS=<password> \
-java -jar target/telegram-bot-1.0.jar
+java -jar bot/target/telegram-bot-1.0.jar
 ```
 
 В CI/CD эти же переменные передаются из GitHub Secrets.
 
 ## Деплой
 
-Пуш в `main` собирает jar и перезапускает службу на сервере (`.github/workflows/deploy.yml`). Коммиты, которые меняют только документацию — `**/*.md`, `openspec/**`, `.agents/**` — деплой не запускают, потому что ни на jar, ни на systemd-юнит они не влияют.
+Два workflow: `deploy-bot.yml` собирает и выкатывает `telegram-bot-1.0.jar`, `deploy-admin.yml` — `telegram-bot-admin-1.0.jar`. Изменение в `core/**` или `pom.xml` запускает оба; изменение только в `admin/**` не перезапускает бота, а только в `bot/**` — не трогает админку. Документация (`**/*.md`, `openspec/**`, `.agents/**`) деплой не запускает.
+
+Юниты и шаблоны окружения: `deploy/telegram-bot.service`, `deploy/telegram-bot-admin.service`, `deploy/bot.env.example`, `deploy/admin.env.example`.

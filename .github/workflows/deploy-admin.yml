@@ -1,0 +1,67 @@
+name: Deploy admin
+
+on:
+  push:
+    branches:
+      - main
+    # Админка перезапускается только от своих путей и от общего core.
+    paths:
+      - 'admin/**'
+      - 'core/**'
+      - 'pom.xml'
+      - 'migrations/config/**'
+      - 'migrations/configurator/**'
+      - 'deploy/telegram-bot-admin.service'
+      - '.github/workflows/deploy-admin.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build with Maven
+        run: mvn -pl admin -am clean package -DskipTests
+
+      - name: Deploy to VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+          # Секреты уходят в systemd через env-файл: аргументы командной строки видны в ps.
+          # Токена Telegram и прокси здесь нет: админка не обращается к Telegram.
+          cat > admin.env <<'ENVFILE'
+          BOT_DB_URL=${{ secrets.DB_ADDR_TG_BOT }}
+          BOT_DB_USER=${{ secrets.DB_USER_ADMIN }}
+          BOT_DB_PASSWORD=${{ secrets.DB_PASS_ADMIN }}
+          BOT_ADMIN_PASSWORD=${{ secrets.BOT_ADMIN_PASSWORD }}
+          BOT_ADMIN_PORT=8081
+          # Админку открывает VPN-подсеть 10.8.0.0/24, порт ограничен правилом ufw.
+          BOT_ADMIN_BIND=0.0.0.0
+          ENVFILE
+
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "install -d -m 700 /etc/telegram-bot /usr/bin/tg_bot_admin"
+          scp admin.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/telegram-bot/admin.env
+          rm -f admin.env
+          scp admin/target/telegram-bot-admin-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot_admin/
+          scp deploy/telegram-bot-admin.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/systemd/system/telegram-bot-admin.service
+
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            chmod 600 /etc/telegram-bot/admin.env
+            systemctl daemon-reload
+            systemctl enable telegram-bot-admin
+            systemctl restart telegram-bot-admin
+            sleep 15
+            journalctl -u telegram-bot-admin --no-pager -n 20
+            systemctl is-active telegram-bot-admin
+          EOF
