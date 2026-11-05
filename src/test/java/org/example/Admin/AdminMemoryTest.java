@@ -195,6 +195,32 @@ class AdminMemoryTest {
     }
 
     @Test
+    void deletedFilterAsksOnlyDeletedRows() throws Exception {
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
+
+        mockMvc.perform(get("/admin/memories?deleted=true").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
+        verify(memories).search(filter.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(filter.getValue().deletedOnly());
+    }
+
+    @Test
+    void restoresDeletedMemoryFromList() throws Exception {
+        when(memories.findAnyDetails(5)).thenReturn(java.util.Optional.of(
+                new MemoryRepository.MemoryDetails(5, 1, "семья", "день рождения 1 января", 10,
+                        true, LocalDate.of(1990, 1, 1), "manual", List.of())));
+
+        mockMvc.perform(post("/admin/memories/5/restore")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/memories?deleted=true"));
+
+        verify(memories).restoreManual(eq(5));
+    }
+
+    @Test
     void showsCoreWarningOnDeletePage() throws Exception {
         when(memories.findDetails(5)).thenReturn(java.util.Optional.of(
                 new MemoryRepository.MemoryDetails(5, 1, "семья", "день рождения 1 января", 10,

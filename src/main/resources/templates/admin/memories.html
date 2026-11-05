@@ -46,6 +46,10 @@
             <input type="checkbox" name="coreOnly" value="true" th:checked="${filter.coreOnly}"/>
             только ядро
         </label>
+        <label class="inline">
+            <input type="checkbox" name="deleted" value="true" th:checked="${filter.deletedOnly}"/>
+            удалённые
+        </label>
         <button class="primary" type="submit">Применить</button>
         <a class="button" th:href="@{/admin/memories/new(personaId=${filter.personaId})}">Добавить</a>
     </form>
@@ -75,8 +79,14 @@
             <td th:text="${#lists.isEmpty(memory.people) ? '—' : #strings.listJoin(memory.people, ', ')}">—</td>
             <td th:text="${memory.source}">auto</td>
             <td>
-                <a class="button secondary" th:href="@{/admin/memories/{id}(id=${memory.id})}">Править</a>
-                <a class="button secondary" th:href="@{/admin/memories/{id}/delete(id=${memory.id})}">Удалить</a>
+                <form th:if="${filter.deletedOnly}"
+                      th:action="@{/admin/memories/{id}/restore(id=${memory.id})}" method="post">
+                    <button class="button secondary" type="submit">Восстановить</button>
+                </form>
+                <a th:unless="${filter.deletedOnly}" class="button secondary"
+                   th:href="@{/admin/memories/{id}(id=${memory.id})}">Править</a>
+                <a th:unless="${filter.deletedOnly}" class="button secondary"
+                   th:href="@{/admin/memories/{id}/delete(id=${memory.id})}">Удалить</a>
             </td>
         </tr>
         </tbody>

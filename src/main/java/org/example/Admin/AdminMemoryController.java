@@ -42,13 +42,14 @@ public class AdminMemoryController {
                 @RequestParam(required = false) Long personId,
                 @RequestParam(required = false) String q,
                 @RequestParam(required = false) Boolean coreOnly,
+                @RequestParam(required = false) Boolean deleted,
                 @RequestParam(required = false) String sort,
                 @RequestParam(required = false) Integer page,
                 Model model) {
         int requestedPage = page == null ? 1 : page;
         MemoryRepository.MemoryFilter filter = new MemoryRepository.MemoryFilter(
                 personaId, category, personId, q, Boolean.TRUE.equals(coreOnly), sort, requestedPage, PAGE_SIZE,
-                access.visiblePersonaIds().orElse(null));
+                Boolean.TRUE.equals(deleted), access.visiblePersonaIds().orElse(null));
 
         model.addAttribute("title", "Воспоминания");
         model.addAttribute("page", memories.search(filter));
@@ -134,8 +135,23 @@ public class AdminMemoryController {
         }
 
         memories.deleteManual(id);
-        redirect.addFlashAttribute("saved", "Воспоминание " + id + " удалено");
+        redirect.addFlashAttribute("saved",
+                "Воспоминание " + id + " удалено — его можно вернуть в списке «удалённые»");
         return "redirect:/admin/memories";
+    }
+
+    /** Возврат удалённого воспоминания из списка «удалённые». */
+    @PostMapping("/admin/memories/{id}/restore")
+    String restore(@PathVariable int id, RedirectAttributes redirect) {
+        Optional<MemoryRepository.MemoryDetails> details = memories.findAnyDetails(id);
+        if (details.isEmpty() || !access.canEditPersona(details.get().personaId())) {
+            redirect.addFlashAttribute("error", "Воспоминание " + id + " не найдено");
+            return "redirect:/admin/memories";
+        }
+
+        memories.restoreManual(id);
+        redirect.addFlashAttribute("saved", "Воспоминание возвращено");
+        return "redirect:/admin/memories?deleted=true";
     }
 
     /** Персоны, память которых видна: у модератора — только те, что он вправе править. */

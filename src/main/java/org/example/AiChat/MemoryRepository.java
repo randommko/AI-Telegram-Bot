@@ -67,11 +67,17 @@ public class MemoryRepository {
     /** Фильтры страницы воспоминаний; null или false означает «не ограничивать». */
     public record MemoryFilter(Integer personaId, String category, Long personId, String text,
                                boolean coreOnly, String sort, int page, int pageSize,
-                               List<Integer> visiblePersonas) {
+                               boolean deletedOnly, List<Integer> visiblePersonas) {
+
+        public MemoryFilter(Integer personaId, String category, Long personId, String text,
+                            boolean coreOnly, String sort, int page, int pageSize,
+                            boolean deletedOnly) {
+            this(personaId, category, personId, text, coreOnly, sort, page, pageSize, deletedOnly, null);
+        }
 
         public MemoryFilter(Integer personaId, String category, Long personId, String text,
                             boolean coreOnly, String sort, int page, int pageSize) {
-            this(personaId, category, personId, text, coreOnly, sort, page, pageSize, null);
+            this(personaId, category, personId, text, coreOnly, sort, page, pageSize, false, null);
         }
     }
 
@@ -441,8 +447,8 @@ public class MemoryRepository {
         List<String> conditions = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
-        // Удалённые записи не показываются никому: они живут только в журнале.
-        conditions.add("m.deleted_at IS NULL");
+        // Удалённые записи видны только в отдельном списке «удалённые».
+        conditions.add(filter.deletedOnly() ? "m.deleted_at IS NOT NULL" : "m.deleted_at IS NULL");
         if (filter.visiblePersonas() != null) {
             conditions.add("m.persona_id = ANY (?)");
             params.add(filter.visiblePersonas());
@@ -505,8 +511,18 @@ public class MemoryRepository {
     }
 
     public Optional<MemoryDetails> findDetails(int memoryId) {
+        return findDetails(memoryId, false);
+    }
+
+    /** Удалённая запись тоже находится: это нужно списку «удалённые» и возврату. */
+    public Optional<MemoryDetails> findAnyDetails(int memoryId) {
+        return findDetails(memoryId, true);
+    }
+
+    private Optional<MemoryDetails> findDetails(int memoryId, boolean includeDeleted) {
         String query = "SELECT id, persona_id, category, content, importance, is_core, event_date, source"
-                + " FROM " + PERSONA_MEMORIES_TABLE + " WHERE id = ? AND deleted_at IS NULL";
+                + " FROM " + PERSONA_MEMORIES_TABLE + " WHERE id = ?"
+                + (includeDeleted ? "" : " AND deleted_at IS NULL");
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
