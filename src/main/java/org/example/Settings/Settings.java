@@ -40,9 +40,7 @@ public class Settings {
     public static final String AI_GRUDGE_ANGER_DELTA = "aiGrudgeAngerDelta";
     public static final String AI_GRUDGE_DECAY_PER_HOUR = "aiGrudgeDecayPerHour";
     public static final String AI_GRUDGE_THRESHOLD = "aiGrudgeThreshold";
-    public static final Long BOT_ID_PROD = 7332966399L;
-    public static final Long BOT_ID_TEST = 7712595730L;
-    public final static Long AI_ID = 0L;
+    public static final Long AI_ID = 0L;
     public final static String AI_SYSTEM_ROLE = "system";
     public final static String AI_ASSISTANT_ROLE = "assistant";
     public final static String USER_ROLE = "user";
