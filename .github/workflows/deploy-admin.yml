@@ -80,16 +80,21 @@ jobs:
             sudo -n systemctl daemon-reload
             sudo -n systemctl enable telegram-bot-admin
             sudo -n systemctl restart telegram-bot-admin
-            status=""
-            for i in $(seq 1 12); do
-              status=$(sudo -n systemctl is-active telegram-bot-admin || true)
-              if [ "$status" = "active" ]; then break; fi
+            # is-active у Type=simple значит «процесс запущен», а не «порт открыт»:
+            # ждём ответа на /admin/login, иначе падение на старте выглядит успехом.
+            ready=""
+            for i in $(seq 1 24); do
+              if curl -sf -o /dev/null --max-time 3 http://127.0.0.1:8081/admin/login; then
+                ready="yes"
+                break
+              fi
               sleep 5
             done
+            status=$(sudo -n systemctl is-active telegram-bot-admin || true)
             journalctl -u telegram-bot-admin --no-pager -n 20
             rm -f /tmp/admin.env /tmp/telegram-bot-admin-1.0.jar /tmp/telegram-bot-admin.service
-            if [ "$status" != "active" ]; then
-              echo "админка не поднялась после деплоя: $status"
+            if [ "$status" != "active" ] || [ "$ready" != "yes" ]; then
+              echo "админка не поднялась после деплоя: служба $status, порт $ready"
               exit 1
             fi
           EOF
