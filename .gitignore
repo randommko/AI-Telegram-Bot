@@ -5,6 +5,7 @@ target/
 .agents/skills/github-issues
 openspec/brief/result.json
 openspec/brief/yura-persona.md
+*.ovpn
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
