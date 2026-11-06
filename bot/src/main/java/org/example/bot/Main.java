@@ -6,7 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"org.example.bot", "org.example.core"})
-@ConfigurationPropertiesScan
+// Сканирование свойств не наследует scanBasePackages: без core BotProperties не создаётся.
+@ConfigurationPropertiesScan(basePackages = {"org.example.bot", "org.example.core"})
 @EnableScheduling
 public class Main {
     public static void main(String[] args) {
