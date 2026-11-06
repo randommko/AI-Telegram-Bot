@@ -39,6 +39,7 @@ public class AiService {
     private static final float DEFAULT_ANSWER_TEMPERATURE = 1.0f;
     private static final float MAX_ANSWER_TEMPERATURE = 2.0f;
     private static final int HYSTERIA_TARGET_MESSAGES = 50;
+    static final String AI_UNAVAILABLE_NOTICE = "ИИ недоступен, попробуйте позже";
 
     private final SettingsService settings;
     private final MessageSender sender;
@@ -145,8 +146,11 @@ public class AiService {
         messages.insert(0, history.message(AI_SYSTEM_ROLE, promptComposer.compose(chatId).text()));
 
         String answer = llmClient.sendRequestToAi(messages, answerTemperature());
-        if (answer == null)
+        if (answer == null || answer.isBlank()) {
+            logger.warn("Модель не ответила в чате {}: отправлено уведомление о недоступности", chatId);
+            sender.sendMessage(chatId, AI_UNAVAILABLE_NOTICE);
             return;
+        }
 
         sender.sendLongMessage(chatId, answer);
         saveMessage(chatId, AI_ASSISTANT_ROLE, answer);
