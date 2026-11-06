@@ -64,26 +64,23 @@ jobs:
           BOT_PROXY_PASS=${{ secrets.BOT_PROXY_PASS }}
           ENVFILE
 
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "install -d -m 700 /etc/telegram-bot"
-          scp bot.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/telegram-bot/bot.env
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "true"
+          scp bot.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/bot.env
           rm -f bot.env
-          scp bot/target/telegram-bot-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot/
-          scp deploy/telegram-bot.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/systemd/system/telegram-bot.service
+          scp bot/target/telegram-bot-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot-1.0.jar
+          scp deploy/telegram-bot.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot.service
 
+          # deploy не имеет прав писать в /etc и /usr/bin: файлы кладутся в /tmp,
+          # а установку, рестарт и проверку разрешает sudoers по точным командам.
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-            chmod 600 /etc/telegram-bot/bot.env
-            systemctl daemon-reload
-            systemctl enable telegram-bot
-            systemctl restart telegram-bot
+            sudo -n install -m 600 -o root -g root /tmp/bot.env /etc/telegram-bot/bot.env
+            sudo -n install -m 644 /tmp/telegram-bot-1.0.jar /usr/bin/tg_bot/telegram-bot-1.0.jar
+            sudo -n install -m 644 /tmp/telegram-bot.service /etc/systemd/system/telegram-bot.service
+            sudo -n systemctl daemon-reload
+            sudo -n systemctl enable telegram-bot
+            sudo -n systemctl restart telegram-bot
             sleep 25
             journalctl -u telegram-bot --no-pager -n 20
-            systemctl is-active telegram-bot
+            sudo -n systemctl is-active telegram-bot
+            rm -f /tmp/bot.env /tmp/telegram-bot-1.0.jar /tmp/telegram-bot.service
           EOF
-
-        env:
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          BOT_TOKEN: ${{ secrets.TOKEN_TG_BOT }}
-          DB_ADDR: ${{ secrets.DB_ADDR_TG_BOT }}
-          DB_USER: ${{ secrets.DB_USER_TG_BOT }}
-          DB_PASS: ${{ secrets.DB_PASS_TG_BOT }}
-          GIGACHAT_API_KEY : ${{ secrets.DEEPSEEK_API_KEY }}

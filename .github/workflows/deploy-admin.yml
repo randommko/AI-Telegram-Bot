@@ -50,18 +50,23 @@ jobs:
           BOT_ADMIN_BIND=0.0.0.0
           ENVFILE
 
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "install -d -m 700 /etc/telegram-bot /usr/bin/tg_bot_admin"
-          scp admin.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/telegram-bot/admin.env
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "true"
+          scp admin.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/admin.env
           rm -f admin.env
-          scp admin/target/telegram-bot-admin-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/usr/bin/tg_bot_admin/
-          scp deploy/telegram-bot-admin.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/etc/systemd/system/telegram-bot-admin.service
+          scp admin/target/telegram-bot-admin-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot-admin-1.0.jar
+          scp deploy/telegram-bot-admin.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot-admin.service
 
+          # deploy не имеет прав писать в /etc и /usr/bin: файлы кладутся в /tmp,
+          # а установку, рестарт и проверку разрешает sudoers по точным командам.
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-            chmod 600 /etc/telegram-bot/admin.env
-            systemctl daemon-reload
-            systemctl enable telegram-bot-admin
-            systemctl restart telegram-bot-admin
+            sudo -n install -m 600 -o root -g root /tmp/admin.env /etc/telegram-bot/admin.env
+            sudo -n install -m 644 /tmp/telegram-bot-admin-1.0.jar /usr/bin/tg_bot_admin/telegram-bot-admin-1.0.jar
+            sudo -n install -m 644 /tmp/telegram-bot-admin.service /etc/systemd/system/telegram-bot-admin.service
+            sudo -n systemctl daemon-reload
+            sudo -n systemctl enable telegram-bot-admin
+            sudo -n systemctl restart telegram-bot-admin
             sleep 15
             journalctl -u telegram-bot-admin --no-pager -n 20
-            systemctl is-active telegram-bot-admin
+            sudo -n systemctl is-active telegram-bot-admin
+            rm -f /tmp/admin.env /tmp/telegram-bot-admin-1.0.jar /tmp/telegram-bot-admin.service
           EOF
