@@ -36,6 +36,7 @@ import static org.example.core.settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -138,6 +139,7 @@ class AiServiceTest {
         verify(generator, never()).generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(),
                 anyList(), org.mockito.ArgumentMatchers.anyBoolean(), anyFloat());
         verify(sender, never()).sendLongMessage(anyLong(), anyString());
+        verify(sender, never()).sendMessage(anyLong(), anyString());
     }
 
     @Test
@@ -148,6 +150,7 @@ class AiServiceTest {
         aiService.askAi(CHAT_ID, "вопрос?");
 
         verify(llmClient).sendRequestToAi(any(), eq(1.0f));
+        verify(sender, never()).sendMessage(anyLong(), anyString());
         verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
         verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "ответ фолбэка", 100);
     }
@@ -174,6 +177,49 @@ class AiServiceTest {
 
         verify(planner, never()).plan(anyLong(), org.mockito.ArgumentMatchers.anyInt());
         verify(sender).sendLongMessage(CHAT_ID, "ответ");
+    }
+
+    @Test
+    void failedFallbackNotifiesChatOnce() {
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn(null);
+
+        aiService.askAi(CHAT_ID, "вопрос?");
+
+        verify(sender, times(1)).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+    }
+
+    @Test
+    void chatWithoutPersonaNotifiesOnFailure() {
+        when(personaRepository.findSettingsForChat(CHAT_ID)).thenReturn(Optional.empty());
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn(null);
+
+        aiService.askAi(CHAT_ID, "привет");
+
+        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+    }
+
+    @Test
+    void blankFallbackAnswerIsFailure() {
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("");
+
+        aiService.askAi(CHAT_ID, "вопрос?");
+
+        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+    }
+
+    @Test
+    void notificationIsNotSavedToHistory() {
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn(null);
+
+        aiService.askAi(CHAT_ID, "вопрос?");
+
+        verify(repository, never()).saveMessage(anyLong(), anyString(), anyString(), anyInt());
     }
 
     @Test
