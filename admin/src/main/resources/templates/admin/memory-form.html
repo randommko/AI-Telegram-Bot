@@ -6,17 +6,16 @@
 <main>
     <h1 th:text="${title}">Воспоминание</h1>
 
-    <form class="setting" th:action="@{/admin/memories}" th:object="${form}" method="post">
+    <form class="setting"
+          th:action="@{/admin/personas/{personaId}/memories(personaId=${form.personaId})}"
+          th:object="${form}" method="post">
         <input type="hidden" th:field="*{id}"/>
+        <input type="hidden" th:field="*{personaId}"/>
 
-        <div class="field">
-            <label for="personaId">Персона</label>
-            <select id="personaId" th:field="*{personaId}">
-                <option th:each="persona : ${personas}" th:value="${persona.id}"
-                        th:text="${persona.name}">Персона</option>
-            </select>
-            <span class="error" th:if="${errors['personaId']}" th:text="${errors['personaId']}"></span>
-        </div>
+        <p class="hint">
+            Персона: <strong th:text="${personaName}">Имя</strong> — воспоминание принадлежит только ей.
+        </p>
+        <span class="error" th:if="${errors['personaId']}" th:text="${errors['personaId']}"></span>
 
         <div class="field">
             <label for="content">Текст воспоминания</label>
@@ -70,7 +69,8 @@
 
         <div class="toolbar">
             <button class="primary" type="submit">Сохранить</button>
-            <a class="button secondary" th:href="@{/admin/memories}">Отмена</a>
+            <a class="button secondary"
+               th:href="@{/admin/personas/{id}(id=${form.personaId},tab='memories')}">Отмена</a>
         </div>
     </form>
 </main>

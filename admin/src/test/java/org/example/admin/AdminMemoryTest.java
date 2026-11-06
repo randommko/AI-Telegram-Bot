@@ -1,9 +1,7 @@
 package org.example.admin;
 
-import org.example.core.aichat.MemoryRecord;
 import org.example.core.aichat.MemoryRepository;
 import org.example.core.aichat.PersonaRepository;
-import org.example.core.aichat.PersonaSummary;
 import org.example.core.config.BotProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,11 +13,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -29,7 +27,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -72,32 +69,40 @@ class AdminMemoryTest {
     void permissions() {
         when(access.isOwner()).thenReturn(true);
         when(access.canEditPersona(anyInt())).thenReturn(true);
-        when(access.visibleChats()).thenReturn(java.util.Optional.empty());
-        when(access.visiblePersonaIds()).thenReturn(java.util.Optional.empty());
+        when(access.visibleChats()).thenReturn(Optional.empty());
+        when(access.visiblePersonaIds()).thenReturn(Optional.empty());
     }
 
     @Test
-    void rendersMemoriesWithCoreBadge() throws Exception {
-        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(
-                List.of(new MemoryRecord(1, "работа", "играет в шахматы", 7, true,
-                        LocalDate.of(2024, 3, 21), List.of("@clerfe"), "manual", Instant.EPOCH)),
-                1, 1, 25));
-        when(personas.findAllWithCounts(any())).thenReturn(List.of(new PersonaSummary(1, "Юра", 5, 26, null)));
+    void legacyAddressRedirectsToPersonaTab() throws Exception {
+        mockMvc.perform(get("/admin/memories").param("personaId", "1")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(redirectedUrl("/admin/personas/1?tab=memories"));
+    }
 
+    @Test
+    void legacyAddressWithoutPersonaOpensPersonaList() throws Exception {
         mockMvc.perform(get("/admin/memories").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("играет в шахматы")))
-                .andExpect(content().string(containsString("ядро")))
-                .andExpect(content().string(containsString("Найдено: 1")));
+                .andExpect(redirectedUrl("/admin/personas"));
+    }
+
+    @Test
+    void legacyAddressOfForeignPersonaOpensPersonaList() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(7)).thenReturn(false);
+
+        mockMvc.perform(get("/admin/memories").param("personaId", "7")
+                        .with(user("vasya").roles("MODERATOR")))
+                .andExpect(redirectedUrl("/admin/personas"));
     }
 
     @Test
     void rendersPeopleAsCheckboxesToUnlink() throws Exception {
-        when(memories.findDetails(5)).thenReturn(java.util.Optional.of(new MemoryRepository.MemoryDetails(
+        when(memories.findDetails(5)).thenReturn(Optional.of(new MemoryRepository.MemoryDetails(
                 5, 1, "семья", "день рождения 1 января", 10, false, null, "manual", List.of(7L))));
         when(memories.allUsers()).thenReturn(List.of(new MemoryRepository.PersonRef(7L, "@nick")));
 
-        mockMvc.perform(get("/admin/memories/5").with(user("admin").roles("ADMIN")))
+        mockMvc.perform(get("/admin/personas/1/memories/5").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("name=\"people\"")))
                 .andExpect(content().string(containsString("type=\"checkbox\"")))
@@ -105,31 +110,24 @@ class AdminMemoryTest {
     }
 
     @Test
-    void passesFiltersToRepository() throws Exception {
-        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
+    void foreignPersonaInPathDoesNotOpenMemory() throws Exception {
+        when(memories.findDetails(5)).thenReturn(Optional.of(new MemoryRepository.MemoryDetails(
+                5, 1, "семья", "день рождения 1 января", 10, false, null, "manual", List.of())));
 
-        mockMvc.perform(get("/admin/memories")
-                        .param("personaId", "3")
-                        .param("category", "семья")
-                        .param("personId", "42")
-                        .param("q", "шахмат")
-                        .param("coreOnly", "true")
-                        .param("sort", "date")
-                        .param("page", "2")
-                        .with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/personas/2/memories/5").with(user("admin").roles("ADMIN")))
+                .andExpect(redirectedUrl("/admin/personas/2?tab=memories"))
+                .andExpect(flash().attribute("error", containsString("не найдено")));
+    }
 
-        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
-                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
-        verify(memories).search(filter.capture());
+    @Test
+    void moderatorCannotOpenMemoryForm() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(1)).thenReturn(false);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, filter.getValue().personaId());
-        org.junit.jupiter.api.Assertions.assertEquals("семья", filter.getValue().category());
-        org.junit.jupiter.api.Assertions.assertEquals(42L, filter.getValue().personId());
-        org.junit.jupiter.api.Assertions.assertEquals("шахмат", filter.getValue().text());
-        org.junit.jupiter.api.Assertions.assertTrue(filter.getValue().coreOnly());
-        org.junit.jupiter.api.Assertions.assertEquals("date", filter.getValue().sort());
-        org.junit.jupiter.api.Assertions.assertEquals(2, filter.getValue().page());
+        mockMvc.perform(get("/admin/personas/1/memories/new")
+                        .with(user("vasya").roles("MODERATOR")))
+                .andExpect(redirectedUrl("/admin/personas/1"))
+                .andExpect(flash().attribute("error", containsString("недоступна")));
     }
 
     @Test
@@ -137,7 +135,7 @@ class AdminMemoryTest {
         when(memories.categories()).thenReturn(Set.of("работа", "семья", "другое"));
 
         mockMvc.perform(saveForm())
-                .andExpect(redirectedUrl("/admin/memories"));
+                .andExpect(redirectedUrl("/admin/personas/1?tab=memories"));
 
         verify(memories).createManual(eq(1), eq("работа"), eq("играет в шахматы"), eq(7), eq(false),
                 eq(LocalDate.of(2024, 3, 21)), eq(List.of(42L)));
@@ -156,77 +154,64 @@ class AdminMemoryTest {
     }
 
     @Test
-    void requiresSeparateDeleteConfirmation() throws Exception {
-        mockMvc.perform(post("/admin/memories/5/delete")
+    void formPersonaMustMatchPath() throws Exception {
+        mockMvc.perform(post("/admin/personas/2/memories")
+                        .param("personaId", "1")
+                        .param("category", "работа")
+                        .param("content", "играет в шахматы")
+                        .param("importance", "7")
                         .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/memories/5/delete"));
+                .andExpect(redirectedUrl("/admin/personas/2?tab=memories"))
+                .andExpect(flash().attribute("error", containsString("другой персоне")));
+
+        verify(memories, never()).createManual(anyInt(), anyString(), anyString(), anyInt(),
+                any(Boolean.class), any(), any());
+    }
+
+    @Test
+    void requiresSeparateDeleteConfirmation() throws Exception {
+        mockMvc.perform(post("/admin/personas/1/memories/5/delete")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/personas/1/memories/5/delete"));
 
         verify(memories, never()).deleteManual(anyInt());
     }
 
     @Test
     void deletesAfterConfirmation() throws Exception {
-        when(memories.findDetails(5)).thenReturn(java.util.Optional.of(
+        when(memories.findDetails(5)).thenReturn(Optional.of(
                 new MemoryRepository.MemoryDetails(5, 1, "семья", "день рождения 1 января", 10,
                         true, LocalDate.of(1990, 1, 1), "manual", List.of())));
 
-        mockMvc.perform(post("/admin/memories/5/delete")
+        mockMvc.perform(post("/admin/personas/1/memories/5/delete")
                         .param("confirm", "true")
                         .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/memories"));
+                .andExpect(redirectedUrl("/admin/personas/1?tab=memories"));
 
         verify(memories).deleteManual(eq(5));
     }
 
     @Test
-    void moderatorFilterCarriesOnlyHisPersonas() throws Exception {
-        when(access.isOwner()).thenReturn(false);
-        when(access.visibleChats()).thenReturn(java.util.Optional.of(List.of(-100200L)));
-        when(access.visiblePersonaIds()).thenReturn(java.util.Optional.of(List.of(2)));
-        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
-
-        mockMvc.perform(get("/admin/memories").with(user("vasya").roles("MODERATOR")))
-                .andExpect(status().isOk());
-
-        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
-                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
-        verify(memories).search(filter.capture());
-        org.junit.jupiter.api.Assertions.assertEquals(List.of(2), filter.getValue().visiblePersonas());
-    }
-
-    @Test
-    void deletedFilterAsksOnlyDeletedRows() throws Exception {
-        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
-
-        mockMvc.perform(get("/admin/memories?deleted=true").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk());
-
-        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
-                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
-        verify(memories).search(filter.capture());
-        org.junit.jupiter.api.Assertions.assertTrue(filter.getValue().deletedOnly());
-    }
-
-    @Test
-    void restoresDeletedMemoryFromList() throws Exception {
-        when(memories.findAnyDetails(5)).thenReturn(java.util.Optional.of(
+    void restoresDeletedMemoryFromTab() throws Exception {
+        when(memories.findAnyDetails(5)).thenReturn(Optional.of(
                 new MemoryRepository.MemoryDetails(5, 1, "семья", "день рождения 1 января", 10,
                         true, LocalDate.of(1990, 1, 1), "manual", List.of())));
 
-        mockMvc.perform(post("/admin/memories/5/restore")
+        mockMvc.perform(post("/admin/personas/1/memories/5/restore")
                         .with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(redirectedUrl("/admin/memories?deleted=true"));
+                .andExpect(redirectedUrl("/admin/personas/1?tab=memories&deleted=true"));
 
         verify(memories).restoreManual(eq(5));
     }
 
     @Test
     void showsCoreWarningOnDeletePage() throws Exception {
-        when(memories.findDetails(5)).thenReturn(java.util.Optional.of(
+        when(memories.findDetails(5)).thenReturn(Optional.of(
                 new MemoryRepository.MemoryDetails(5, 1, "семья", "день рождения 1 января", 10,
                         true, LocalDate.of(1990, 1, 1), "manual", List.of())));
 
-        mockMvc.perform(get("/admin/memories/5/delete").with(user("admin").roles("ADMIN")))
+        mockMvc.perform(get("/admin/personas/1/memories/5/delete")
+                        .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("не восстановит")));
     }
@@ -241,7 +226,7 @@ class AdminMemoryTest {
         for (int i = 0; i + 1 < overrides.length; i += 2)
             values.put(overrides[i], overrides[i + 1]);
 
-        MockHttpServletRequestBuilder builder = post("/admin/memories")
+        MockHttpServletRequestBuilder builder = post("/admin/personas/1/memories")
                 .with(user("admin").roles("ADMIN"))
                 .with(csrf());
         values.forEach(builder::param);

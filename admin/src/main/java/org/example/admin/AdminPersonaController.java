@@ -3,6 +3,7 @@ package org.example.admin;
 import org.example.core.aichat.Emotion;
 import org.example.core.aichat.EmotionRepository;
 import org.example.core.aichat.FieldNoteRepository;
+import org.example.core.aichat.MemoryRepository;
 import org.example.core.aichat.PersonaDetails;
 import org.example.core.aichat.PersonaRepository;
 import org.springframework.context.annotation.Conditional;
@@ -26,6 +27,8 @@ import java.util.Set;
 public class AdminPersonaController {
     static final String TAB_GENERAL = "general";
     static final String TAB_EMOTIONS = "emotions";
+    static final String TAB_MEMORIES = "memories";
+    private static final int PAGE_SIZE = 25;
     private static final Set<String> EMOTION_TAB_FIELDS = Set.of(
             "aggressionThreshold", "hysteriaReplies", "hysteriaCooldownHours",
             "maxReplies", "replyDelayMs", "initiativeCooldownMessages", "initiativeEnabled");
@@ -34,15 +37,17 @@ public class AdminPersonaController {
     private final PersonaRepository personas;
     private final EmotionRepository emotions;
     private final FieldNoteRepository fieldNotes;
+    private final MemoryRepository memories;
     private final AdminPersonaValidator validator;
     private final AdminAccess access;
 
     public AdminPersonaController(PersonaRepository personas, EmotionRepository emotions,
-                                  FieldNoteRepository fieldNotes, AdminPersonaValidator validator,
-                                  AdminAccess access) {
+                                  FieldNoteRepository fieldNotes, MemoryRepository memories,
+                                  AdminPersonaValidator validator, AdminAccess access) {
         this.personas = personas;
         this.emotions = emotions;
         this.fieldNotes = fieldNotes;
+        this.memories = memories;
         this.validator = validator;
         this.access = access;
     }
@@ -62,15 +67,31 @@ public class AdminPersonaController {
     }
 
     @GetMapping("/admin/personas/{id}")
-    String edit(@PathVariable int id, @RequestParam(required = false) String tab,
+    String edit(@PathVariable int id,
+                @RequestParam(required = false) String tab,
+                @RequestParam(required = false) String category,
+                @RequestParam(required = false) Long personId,
+                @RequestParam(required = false) String q,
+                @RequestParam(required = false) Boolean coreOnly,
+                @RequestParam(required = false) Boolean deleted,
+                @RequestParam(required = false) String sort,
+                @RequestParam(required = false) Integer page,
                 Model model, RedirectAttributes redirect) {
         Optional<PersonaDetails> details = personas.findDetails(id);
         if (details.isEmpty() || !access.canSeePersona(id)) {
             redirect.addFlashAttribute("error", "Персона " + id + " не найдена");
             return "redirect:/admin/personas";
         }
+
+        String activeTab = TAB_MEMORIES.equals(tab) && access.canEditPersona(id)
+                ? TAB_MEMORIES : tabId(tab);
         List<Emotion> catalog = emotions.findCatalog();
-        return form(model, PersonaForm.of(details.get(), catalog), null, catalog, tabId(tab), id);
+        String view = form(model, PersonaForm.of(details.get(), catalog), null, catalog, activeTab, id);
+
+        if (TAB_MEMORIES.equals(activeTab))
+            memoryTab(model, id, category, personId, q, coreOnly, deleted, sort, page);
+
+        return view;
     }
 
     @PostMapping("/admin/personas")
@@ -122,6 +143,24 @@ public class AdminPersonaController {
         personas.delete(id);
         redirect.addFlashAttribute("saved", "Персона " + id + " удалена");
         return "redirect:/admin/personas";
+    }
+
+    /** Данные списка памяти для вкладки: персона берётся из пути, фильтр по персоне не нужен. */
+    private void memoryTab(Model model, int personaId, String category, Long personId, String q,
+                           Boolean coreOnly, Boolean deleted, String sort, Integer page) {
+        int requestedPage = page == null ? 1 : page;
+        MemoryRepository.MemoryFilter filter = new MemoryRepository.MemoryFilter(
+                personaId, category, personId, q, Boolean.TRUE.equals(coreOnly), sort, requestedPage, PAGE_SIZE,
+                Boolean.TRUE.equals(deleted), access.visiblePersonaIds().orElse(null));
+
+        boolean filtered = (category != null && !category.isBlank()) || personId != null
+                || (q != null && !q.isBlank()) || Boolean.TRUE.equals(coreOnly) || Boolean.TRUE.equals(deleted);
+
+        model.addAttribute("memoryPage", memories.search(filter));
+        model.addAttribute("memoryFilter", filter);
+        model.addAttribute("memoryFilterActive", filtered);
+        model.addAttribute("categories", memories.categoriesWithTitles());
+        model.addAttribute("people", memories.allUsers());
     }
 
     /** Вкладка ошибки: первая ошибка решает, какую вкладку показать. */

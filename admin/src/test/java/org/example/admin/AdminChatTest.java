@@ -177,7 +177,9 @@ class AdminChatTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Воспоминания"), "меню модератора");
+        org.junit.jupiter.api.Assertions.assertFalse(body.contains("Воспоминания"), "меню модератора");
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("/admin/personas"), "персоны видны");
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("/admin/chats"), "чаты видны");
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/settings"), "настройки скрыты");
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/moderators"), "модераторы скрыты");
         org.junit.jupiter.api.Assertions.assertFalse(body.contains("/admin/prompt"), "промпт скрыт");
