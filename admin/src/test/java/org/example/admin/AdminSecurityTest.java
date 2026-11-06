@@ -61,7 +61,8 @@ class AdminSecurityTest {
     void showsLoginPage() throws Exception {
         mockMvc.perform(get("/admin/login"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Вход в админку")));
+                .andExpect(content().string(Matchers.containsString("Вход в админку")))
+                .andExpect(content().string(Matchers.containsString("class=\"login-page\"")));
     }
 
     @Test

@@ -96,6 +96,20 @@ class AdminEmotionsTest {
     }
 
     @Test
+    void phraseFieldsAreShortAndParametersHaveHints() throws Exception {
+        when(emotions.findCatalog()).thenReturn(List.of(JOY, ANGER));
+        when(emotions.findPhrases()).thenReturn(ALL_PHRASES);
+
+        String html = page("/admin/emotions").getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(html.contains("class=\"phrase\""), "у фраз свой короткий класс");
+        assertTrue(html.contains("rows=\"2\""), "фраза занимает две строки");
+        assertTrue(html.contains("Насколько эмоция усиливает агрессию"), "подсказка веса");
+        assertTrue(html.contains("Сколько единиц эмоция теряет за час"), "подсказка затухания");
+        assertTrue(html.contains("Значение, к которому эмоция возвращается со временем"), "подсказка базы");
+    }
+
+    @Test
     void eachTabKeepsPhrasesOfItsOwnEmotion() throws Exception {
         when(emotions.findCatalog()).thenReturn(List.of(JOY, ANGER, AGGRESSION));
         when(emotions.findPhrases()).thenReturn(ALL_PHRASES);

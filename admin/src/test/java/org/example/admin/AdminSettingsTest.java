@@ -140,7 +140,25 @@ class AdminSettingsTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Уведомления")))
                 .andExpect(content().string(containsString(org.example.core.settings.Settings.OWNER_CHAT_ID)))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Температура ответа"))));
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Температура ответа"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Текущая модель"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Ключи провайдеров"))));
+    }
+
+    @Test
+    void modelBlocksAreShownOnlyOnModelTab() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Текущая модель")))
+                .andExpect(content().string(containsString("Ключи провайдеров")))
+                .andExpect(content().string(containsString("Как добавить ключ провайдера")));
+
+        mockMvc.perform(get("/admin/settings?tab=memory").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("Как добавить ключ провайдера"))));
     }
 
     @Test
@@ -410,6 +428,8 @@ class AdminSettingsTest {
         mockMvc.perform(get("/admin/settings?tab=notifications").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Присылать обновления памяти")))
+                .andExpect(content().string(containsString("class=\"checkbox-line\"")))
+                .andExpect(content().string(containsString("<span>Присылать обновления памяти</span>")))
                 .andExpect(content().string(containsString("type=\"checkbox\"")))
                 .andExpect(content().string(containsString("name=\"" + AI_MEMORY_NOTIFY_OWNER + "\"")))
                 .andExpect(content().string(containsString("value=\"false\"")))

@@ -113,45 +113,55 @@
             </td>
             <td>
                 <span class="hint" th:if="${#lists.isEmpty(account.chatIds)}">нет</span>
-                <form th:each="chatId : ${account.chatIds}" style="display:inline"
-                      th:action="@{/admin/moderators/{id}/chats/{chatId}/delete(id=${account.id}, chatId=${chatId})}"
-                      method="post">
-                    <button class="danger" type="submit" th:text="${chatId} + ' ×'">-100 ×</button>
-                </form>
+                <div th:each="chatId : ${account.chatIds}"
+                     th:text="${chatTitles[chatId]}">чат</div>
             </td>
             <td>
                 <span class="hint" th:if="${#lists.isEmpty(row.personas)}">нет</span>
                 <div th:each="persona : ${row.personas}">
                     <span th:text="${persona.name}">Персона</span>
                     <span class="hint" th:text="${persona.source.label}">чат</span>
-                    <form th:if="${persona.source.revocable}" style="display:inline"
-                          th:action="@{/admin/moderators/{id}/personas/{personaId}/delete(id=${account.id}, personaId=${persona.personaId})}"
-                          method="post">
-                        <button class="danger" type="submit" title="Отозвать доступ">×</button>
-                    </form>
                 </div>
             </td>
             <td th:text="${account.lastLoginAt != null ? #temporals.format(account.lastLoginAt, 'dd.MM.yyyy HH:mm') : 'не входил'}">
                 не входил
             </td>
             <td>
-                <form class="toolbar" th:action="@{/admin/moderators/{id}/chats(id=${account.id})}" method="post">
-                    <select name="chatId">
-                        <option th:each="chat : ${chats}" th:value="${chat.chatId}"
-                                th:text="${chat.chatId} + ' · ' + ${chat.title != null ? chat.title : 'без названия'}">
-                            чат
-                        </option>
-                    </select>
-                    <button class="button secondary" type="submit">Выдать чат</button>
-                </form>
+                <form class="access-form" th:action="@{/admin/moderators/{id}/access(id=${account.id})}"
+                      method="post">
+                    <details class="access">
+                        <summary>Чаты</summary>
+                        <input type="text" class="people-search access-search" autocomplete="off"
+                               placeholder="Поиск чата"/>
+                        <div class="people-list">
+                            <label class="checkbox-line" th:each="chat : ${chats}"
+                                   th:attr="data-search=${chatTitles[chat.chatId]}">
+                                <input type="checkbox" name="chatIds" th:value="${chat.chatId}"
+                                       th:checked="${#lists.contains(account.chatIds, chat.chatId)}"/>
+                                <span th:text="${chatTitles[chat.chatId]}">чат</span>
+                            </label>
+                        </div>
+                    </details>
 
-                <form class="toolbar" th:action="@{/admin/moderators/{id}/personas(id=${account.id})}" method="post">
-                    <select name="personaId">
-                        <option th:each="persona : ${personas}" th:value="${persona.id}"
-                                th:text="${persona.name}">персона
-                        </option>
-                    </select>
-                    <button class="button secondary" type="submit">Выдать персону</button>
+                    <details class="access">
+                        <summary>Персоны</summary>
+                        <input type="text" class="people-search access-search" autocomplete="off"
+                               placeholder="Поиск персоны"/>
+                        <div class="people-list">
+                            <label class="checkbox-line" th:each="persona : ${personas}"
+                                   th:with="source=${row.personaSources[persona.id]}"
+                                   th:attr="data-search=${persona.name}">
+                                <input th:if="${source == null or source == 'GRANTED'}" type="checkbox"
+                                       name="personaIds" th:value="${persona.id}"
+                                       th:checked="${source == 'GRANTED'}"/>
+                                <span th:text="${persona.name}">Персона</span>
+                                <span class="hint" th:if="${source == 'CREATED'}">— создал</span>
+                                <span class="hint" th:if="${source == 'CHAT'}">— через чат</span>
+                            </label>
+                        </div>
+                    </details>
+
+                    <button class="button secondary" type="submit">Сохранить</button>
                 </form>
 
                 <form class="toolbar" th:action="@{/admin/moderators/{id}/password(id=${account.id})}" method="post">
@@ -169,6 +179,32 @@
         </tbody>
     </table>
     <p class="hint" th:if="${#lists.isEmpty(rows)}">Учёток пока нет.</p>
+
+    <style>
+        .access-form { margin-bottom: 8px; }
+        .access { margin: 6px 0; }
+        .access summary { cursor: pointer; font-size: 13px; color: #3b4a5f; }
+        .access .people-list { min-width: 240px; margin-top: 6px; }
+        .access-search { width: 240px; padding: 7px; border: 1px solid #c4c8ce;
+                         border-radius: 4px; font: inherit; font-size: 14px; }
+    </style>
+
+    <script>
+        (function () {
+            Array.prototype.forEach.call(document.querySelectorAll('.access-search'), function (search) {
+                var list = search.closest('details').querySelector('.people-list');
+                if (!list) return;
+
+                search.addEventListener('input', function () {
+                    var needle = search.value.trim().toLowerCase();
+                    Array.prototype.forEach.call(list.querySelectorAll('label'), function (label) {
+                        var text = (label.dataset.search || label.textContent || '').toLowerCase();
+                        label.hidden = needle !== '' && text.indexOf(needle) === -1;
+                    });
+                });
+            });
+        })();
+    </script>
 </main>
 </body>
 </html>

@@ -46,7 +46,10 @@
                 </div>
 
                 <div class="field">
-                    <label th:for="${'weight_' + tab.code}">Вес в агрессию (-1..1)</label>
+                    <label th:for="${'weight_' + tab.code}">Вес в агрессию (-1..1)
+                        <i class="tip" tabindex="0"
+                           data-tip="Насколько эмоция усиливает агрессию: положительный вес поднимает её, отрицательный снижает.">i</i>
+                    </label>
                     <input type="number" step="0.01" min="-1" max="1"
                            th:id="${'weight_' + tab.code}"
                            th:name="${'weight_' + tab.code}"
@@ -56,7 +59,10 @@
                 </div>
 
                 <div class="field">
-                    <label th:for="${'decay_' + tab.code}">Затухание в час</label>
+                    <label th:for="${'decay_' + tab.code}">Затухание в час
+                        <i class="tip" tabindex="0"
+                           data-tip="Сколько единиц эмоция теряет за час: чем больше, тем быстрее она возвращается к базовому значению.">i</i>
+                    </label>
                     <input type="number" step="0.01" min="0"
                            th:id="${'decay_' + tab.code}"
                            th:name="${'decay_' + tab.code}"
@@ -66,7 +72,10 @@
                 </div>
 
                 <div class="field">
-                    <label th:for="${'base_' + tab.code}">Базовое значение (0..10)</label>
+                    <label th:for="${'base_' + tab.code}">Базовое значение (0..10)
+                        <i class="tip" tabindex="0"
+                           data-tip="Значение, к которому эмоция возвращается со временем, от 0 до 10.">i</i>
+                    </label>
                     <input type="number" min="0" max="10"
                            th:id="${'base_' + tab.code}"
                            th:name="${'base_' + tab.code}"
@@ -79,7 +88,8 @@
             <p class="hint">Полосы 0-1, 2-4, 5-6, 7-8, 9-10: текст попадает в промпт, когда значение эмоции в этой полосе.</p>
             <div class="field" th:each="row : ${tab.phrases}">
                 <label th:for="${row.fieldKey}" th:text="'Полоса ' + ${row.from} + '-' + ${row.to}">Полоса 0-1</label>
-                <textarea th:id="${row.fieldKey}" th:name="${row.fieldKey}"
+                <textarea class="phrase" rows="2"
+                          th:id="${row.fieldKey}" th:name="${row.fieldKey}"
                           th:text="${row.phrase}"></textarea>
                 <span class="error" th:if="${errors[row.fieldKey]}"
                       th:text="${errors[row.fieldKey]}"></span>

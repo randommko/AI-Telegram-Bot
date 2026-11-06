@@ -20,7 +20,9 @@
         .error { color: #b3261e; }
         .ok { color: #1e6b3a; }
         form.login { background: #fff; border: 1px solid #dcdfe4; border-radius: 6px;
-                     padding: 20px; max-width: 320px; display: flex; flex-direction: column; gap: 12px; }
+                     padding: 20px; max-width: 320px; margin: 0 auto;
+                     display: flex; flex-direction: column; gap: 12px; }
+        .login-page h1 { text-align: center; }
         form.login label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
         form.login input { padding: 8px; border: 1px solid #c4c8ce; border-radius: 4px; font-size: 15px; }
         form.login button { background: #1d2129; color: #fff; border: 0; border-radius: 4px;
@@ -41,6 +43,7 @@
                                         font: inherit; font-size: 14px; }
         .field textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, monospace;
                           font-size: 13px; }
+        .field textarea.phrase { min-height: 0; height: 3.2em; }
         .field .error { color: #b3261e; font-size: 13px; }
         button.primary { background: #1d2129; color: #fff; border: 0; border-radius: 4px;
                          padding: 10px 18px; font-size: 15px; cursor: pointer; }
@@ -82,6 +85,7 @@
         .people-search { width: 100%; }
         .people-list { max-height: 15em; overflow-y: auto; border: 1px solid #dcdfe4;
                        border-radius: 4px; padding: 8px 10px; background: #fbfbfc; }
+        .people-list label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
         .people-list label[hidden] { display: none; }
         h2.section { font-size: 16px; margin: 24px 0 8px; }
         .field label { display: flex; align-items: center; }
