@@ -31,6 +31,9 @@ import static org.example.core.settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +57,8 @@ class PromptComposerTest {
     private MemoryRepository memoryRepository;
     @Mock
     private AiChatRepository aiChatRepository;
+    @Mock
+    private MemoryDecay memoryDecay;
 
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
     private final Logger logger = (Logger) LoggerFactory.getLogger(PromptComposer.class);
@@ -64,8 +69,10 @@ class PromptComposerTest {
     void setUp() {
         logger.addAppender(logs);
         logs.start();
+        when(memoryDecay.effective(any(MemoryRecord.class), anyInt(), any()))
+                .thenAnswer(invocation -> ((MemoryRecord) invocation.getArgument(0)).importance());
         composer = new PromptComposer(settings, personaService, emotionService, memoryRepository,
-                new MemoryPromptBuilder(), aiChatRepository, CLOCK);
+                new MemoryPromptBuilder(memoryDecay), aiChatRepository, memoryDecay, CLOCK);
     }
 
     @AfterEach
@@ -343,17 +350,60 @@ class PromptComposerTest {
     }
 
     @Test
-    void memoryPoolExposesCoreAndTopRegular() {
+    void memoryPoolTakesEventsOfAuthorAndTenPerCategory() {
         withPersona();
         when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(
                 new MemoryRecord(1, "семья", "ядро", 10, true, null, List.of())));
-        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
-                .thenReturn(List.of(memory(2, "шахматы")));
+        when(memoryRepository.findEvents(PERSONA_ID, 222L)).thenReturn(List.of(event(2, "с автором")));
+        when(memoryRepository.findEvents(PERSONA_ID, null)).thenReturn(List.of(event(3, "чужое")));
+        when(memoryRepository.findRegular(PERSONA_ID)).thenReturn(List.of(memory(4, "шахматы")));
 
-        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID);
+        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID, 222L);
 
         assertEquals(1, pool.core().size());
-        assertEquals(2, pool.regular().get(0).id());
+        assertEquals(List.of(2, 4), pool.regular().stream().map(MemoryRecord::id).toList());
+    }
+
+    @Test
+    void poolKeepsTenPerCategory() {
+        withPersona();
+        List<MemoryRecord> regular = new ArrayList<>();
+        for (int i = 1; i <= 12; i++)
+            regular.add(new MemoryRecord(i, "друзья", "друг " + i, 5, false, null, List.of()));
+        for (int i = 1; i <= 3; i++)
+            regular.add(new MemoryRecord(100 + i, "хобби", "хобби " + i, 5, false, null, List.of()));
+        when(memoryRepository.findRegular(PERSONA_ID)).thenReturn(regular);
+
+        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID, null);
+
+        assertEquals(13, pool.regular().size());
+        assertEquals(10, pool.regular().stream()
+                .filter(memory -> "друзья".equals(memory.category())).count());
+    }
+
+    @Test
+    void poolFallsBackToCommonEventsForNewParticipant() {
+        withPersona();
+        when(memoryRepository.findEvents(PERSONA_ID, 777L)).thenReturn(List.of());
+        when(memoryRepository.findEvents(PERSONA_ID, null)).thenReturn(List.of(event(9, "общее")));
+
+        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID, 777L);
+
+        assertEquals(9, pool.regular().get(0).id());
+    }
+
+    @Test
+    void poolRanksByEffectiveImportanceNotBase() {
+        withPersona();
+        MemoryRecord stale = event(1, "старое");
+        MemoryRecord fresh = event(2, "свежее");
+        when(memoryRepository.findEvents(PERSONA_ID, null)).thenReturn(List.of(stale, fresh));
+        when(memoryDecay.effective(eq(stale), anyInt(), any())).thenReturn(2);
+        when(memoryDecay.effective(eq(fresh), anyInt(), any())).thenReturn(9);
+
+        PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID, null);
+
+        assertEquals(List.of(2, 1), pool.regular().stream().map(MemoryRecord::id).toList());
     }
 
     @Test
@@ -369,7 +419,7 @@ class PromptComposerTest {
         List<PromptSection> keys = context.sections().stream()
                 .map(PromptComposer.Section::spec)
                 .toList();
-        assertEquals(List.of(PromptSection.EMOTIONS, PromptSection.MEMORY,
+        assertEquals(List.of(PromptSection.EMOTIONS,
                 PromptSection.PEOPLE, PromptSection.TIME), keys);
         assertFalse(context.text().contains("Ты Юра"), "характер в план не попадает");
         assertFalse(context.text().contains("Ты участник этого чата"), "техника в план не попадает");
@@ -424,6 +474,11 @@ class PromptComposerTest {
 
     private static MemoryRecord memory(int id, String content) {
         return new MemoryRecord(id, "другое", content, 5, false, null, List.of());
+    }
+
+    private static MemoryRecord event(int id, String content) {
+        return new MemoryRecord(id, MemoryRepository.EVENT_CATEGORY, content, 5, false,
+                LocalDate.of(2026, 11, 1), List.of());
     }
 
     private void withPersona() {

@@ -2,6 +2,7 @@ package org.example.bot.aichat;
 
 import org.example.core.aichat.AiHistory;
 import org.example.core.aichat.MemoryRecord;
+import org.example.core.aichat.MessageAuthor;
 import org.example.core.aichat.PromptComposer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.when;
 class AnswerPlannerTest {
 
     private static final long CHAT_ID = 7L;
+    private static final MessageAuthor AUTHOR = new MessageAuthor(111L, "@nick", "Ник");
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Mock
@@ -58,7 +60,7 @@ class AnswerPlannerTest {
 
         when(composer.composeForPlan(CHAT_ID)).thenReturn(
                 new PromptComposer.ComposedPrompt(List.of(), "КОНТЕКСТ БЕЗ ПЕРСОНЫ"));
-        when(composer.memoryPool(CHAT_ID)).thenReturn(new PromptComposer.MemoryPool(
+        when(composer.memoryPool(eq(CHAT_ID), any())).thenReturn(new PromptComposer.MemoryPool(
                 List.of(),
                 List.of(new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of()))));
         when(grudges.targeted(CHAT_ID)).thenReturn(List.of(
@@ -78,7 +80,7 @@ class AnswerPlannerTest {
         when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), eq(1500))).thenReturn(
                 "{\"topic\":\"приветствие\",\"intent\":\"remark\",\"replies\":2}");
 
-        Optional<AnswerPlan> plan = planner.plan(CHAT_ID, 4);
+        Optional<AnswerPlan> plan = planner.plan(CHAT_ID, 4, AUTHOR);
 
         assertTrue(plan.isPresent());
         assertEquals(PlanIntent.REMARK, plan.get().intent());
@@ -92,7 +94,7 @@ class AnswerPlannerTest {
         assertEquals("КОНТЕКСТ БЕЗ ПЕРСОНЫ", messages.get(0).get("content").asText());
         String instruction = messages.get(1).get("content").asText();
         assertTrue(instruction.contains("Ты планировщик"), instruction);
-        assertTrue(instruction.contains("2 | хобби | шахматы"), instruction);
+        assertTrue(instruction.contains("2 | хобби | 6 | шахматы"), instruction);
         assertTrue(instruction.contains("@nick (Ник), сила 6"), instruction);
         assertEquals("@nick (Ник): привет", messages.get(2).get("content").asText());
         assertEquals(USER_ROLE, messages.get(messages.size() - 1).get("role").asText());
@@ -104,14 +106,14 @@ class AnswerPlannerTest {
     void emptyModelAnswerGivesEmptyPlan() {
         when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(null);
 
-        assertTrue(planner.plan(CHAT_ID, 4).isEmpty());
+        assertTrue(planner.plan(CHAT_ID, 4, AUTHOR).isEmpty());
     }
 
     @Test
     void brokenPlanGivesEmptyPlan() {
         when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn("не json");
 
-        assertTrue(planner.plan(CHAT_ID, 4).isEmpty());
+        assertTrue(planner.plan(CHAT_ID, 4, AUTHOR).isEmpty());
     }
 
     @Test
@@ -120,7 +122,7 @@ class AnswerPlannerTest {
         when(llmClient.sendJsonRequestToAi(any(), eq(0.2f), anyInt())).thenReturn(
                 "{\"intent\":\"remark\",\"replies\":1}");
 
-        planner.plan(CHAT_ID, 4);
+        planner.plan(CHAT_ID, 4, AUTHOR);
 
         verify(llmClient).sendJsonRequestToAi(any(), eq(0.2f), eq(AnswerPlanner.DEFAULT_PLAN_MAX_TOKENS));
     }

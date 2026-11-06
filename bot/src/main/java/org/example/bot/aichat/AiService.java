@@ -107,7 +107,7 @@ public class AiService {
         }
 
         PersonaSettings persona = configured.get();
-        Optional<AnswerPlan> planned = planner.plan(chatId, persona.maxReplies());
+        Optional<AnswerPlan> planned = planner.plan(chatId, persona.maxReplies(), triggerAuthor);
         if (planned.isEmpty()) {
             fallback(chatId, triggerMessageId);
             return;

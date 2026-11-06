@@ -116,7 +116,7 @@ class AiServiceTest {
     @Test
     void threeRepliesAreSentWithDelaysAndSavedSeparately() {
         AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 3);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(eq(CHAT_ID), eq(plan), eq(3), anyList(), eq(false), anyFloat()))
                 .thenReturn(List.of("раз", "два", "три"));
 
@@ -133,7 +133,7 @@ class AiServiceTest {
 
     @Test
     void ignoreSendsNothing() {
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan(PlanIntent.IGNORE, Map.of(), 0)));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan(PlanIntent.IGNORE, Map.of(), 0)));
 
         aiService.askAi(CHAT_ID, "ну и?");
 
@@ -145,7 +145,7 @@ class AiServiceTest {
 
     @Test
     void planFailureFallsBackToOneRequest() {
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.empty());
         when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
 
         aiService.askAi(CHAT_ID, "вопрос?");
@@ -159,7 +159,7 @@ class AiServiceTest {
     @Test
     void emptyGenerationFallsBack() {
         AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 2);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of());
         when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("ответ фолбэка");
@@ -176,13 +176,13 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "привет");
 
-        verify(planner, never()).plan(anyLong(), org.mockito.ArgumentMatchers.anyInt());
+        verify(planner, never()).plan(anyLong(), org.mockito.ArgumentMatchers.anyInt(), any());
         verify(sender).sendLongMessage(CHAT_ID, "ответ", null);
     }
 
     @Test
     void failedFallbackNotifiesChatOnce() {
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.empty());
         when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn(null);
 
         aiService.askAi(CHAT_ID, "вопрос?");
@@ -204,7 +204,7 @@ class AiServiceTest {
 
     @Test
     void blankFallbackAnswerIsFailure() {
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.empty());
         when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn("");
 
         aiService.askAi(CHAT_ID, "вопрос?");
@@ -215,7 +215,7 @@ class AiServiceTest {
 
     @Test
     void notificationIsNotSavedToHistory() {
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.empty());
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.empty());
         when(llmClient.sendRequestToAi(any(), eq(1.0f))).thenReturn(null);
 
         aiService.askAi(CHAT_ID, "вопрос?");
@@ -226,7 +226,7 @@ class AiServiceTest {
     @Test
     void insultRaisesGrudgeAndAnger() {
         AnswerPlan plan = plan(PlanIntent.INSULT, Map.of("гнев", 1), 1);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ответ"));
         when(grudges.angerDelta()).thenReturn(2);
@@ -244,7 +244,7 @@ class AiServiceTest {
     @Test
     void apologyRemovesGrudge() {
         AnswerPlan plan = plan(PlanIntent.APOLOGY, Map.of(), 1);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ладно"));
 
@@ -257,7 +257,7 @@ class AiServiceTest {
     @Test
     void replyAttachesOnlyToFirstReply() {
         AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 2);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("раз", "два"));
 
@@ -270,7 +270,7 @@ class AiServiceTest {
     @Test
     void grudgeIsRecordedForTriggerAuthorNotHistory() {
         AnswerPlan plan = plan(PlanIntent.INSULT, Map.of(), 1);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ответ"));
         when(grudges.angerDelta()).thenReturn(2);
@@ -286,7 +286,7 @@ class AiServiceTest {
     @Test
     void hysteriaOverridesRepliesTargetsAndResetsAnger() {
         AnswerPlan plan = plan(PlanIntent.INSULT, Map.of(), 2);
-        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(planner.plan(eq(CHAT_ID), eq(4), any())).thenReturn(Optional.of(plan));
         when(emotionService.stateFor(PERSONA_ID)).thenReturn(
                 new EmotionState(List.of(), 9, "Агрессия", "психоз"));
         when(hysteriaService.shouldStart(any(), eq(PlanIntent.INSULT), eq(9))).thenReturn(true);
