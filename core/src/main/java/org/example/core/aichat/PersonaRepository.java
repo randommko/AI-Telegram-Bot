@@ -399,33 +399,6 @@ public class PersonaRepository {
         return false;
     }
 
-    /** Персона, которой уже принадлежит алиас, если это не она сама. */
-    public Optional<Integer> aliasOwner(String alias, Integer exceptPersonaId) {
-        String query = "SELECT persona_id FROM " + PERSONA_ALIASES_TABLE + " WHERE lower(alias) = lower(?)"
-                + " AND (? IS NULL OR persona_id <> ?) LIMIT 1";
-
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setString(1, alias);
-            if (exceptPersonaId == null)
-                statement.setNull(2, java.sql.Types.INTEGER);
-            else
-                statement.setInt(2, exceptPersonaId);
-            if (exceptPersonaId == null)
-                statement.setNull(3, java.sql.Types.INTEGER);
-            else
-                statement.setInt(3, exceptPersonaId);
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next())
-                    return Optional.of(resultSet.getInt("persona_id"));
-            }
-        } catch (Exception e) {
-            logger.error("Ошибка проверки алиаса {}: ", alias, e);
-        }
-        return Optional.empty();
-    }
-
     public List<Long> chatsOf(int personaId) {
         String query = "SELECT chat_id FROM " + CHAT_PERSONAS_TABLE + " WHERE persona_id = ? ORDER BY chat_id";
 

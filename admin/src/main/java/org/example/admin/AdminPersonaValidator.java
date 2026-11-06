@@ -53,7 +53,7 @@ public class AdminPersonaValidator {
             errors.put("prompt", "Промпт не может быть пустым");
 
         List<String> aliases = parseAliases(form.aliases());
-        checkAliases(aliases, form.id(), errors);
+        checkAliases(aliases, errors);
 
         Map<String, Integer> emotionValues = emotionBaseValues(form, errors);
         int threshold = number(form.aggressionThreshold(), "aggressionThreshold", 1, 10,
@@ -107,7 +107,8 @@ public class AdminPersonaValidator {
         return aliases;
     }
 
-    private void checkAliases(List<String> aliases, Integer personaId, Map<String, String> errors) {
+    /** Алиас — одно слово и не команда бота; совпадать с алиасом другой персоны он вправе. */
+    private void checkAliases(List<String> aliases, Map<String, String> errors) {
         if (aliases.isEmpty()) {
             errors.put("aliases", "Нужен хотя бы один алиас");
             return;
@@ -122,10 +123,6 @@ public class AdminPersonaValidator {
             }
             if (forbidden.contains(lower)) {
                 errors.put("aliases", "Алиас «" + alias + "» совпадает с командой бота");
-                return;
-            }
-            if (personas.aliasOwner(alias, personaId).isPresent()) {
-                errors.put("aliases", "Алиас «" + alias + "» уже занят другой персоной");
                 return;
             }
         }

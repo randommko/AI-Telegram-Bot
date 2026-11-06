@@ -56,7 +56,7 @@
             <div class="field">
                 <label for="aliases">Алиасы — по одному в строке или через запятую</label>
                 <textarea id="aliases" th:field="*{aliases}"></textarea>
-                <span class="hint">Одно слово, не команда бота и не занято другой персоной.</span>
+                <span class="hint">Одно слово, не команда бота. Совпадать с алиасом другой персоны может: в чате всегда одна персона.</span>
                 <span class="error" th:if="${errors['aliases']}" th:text="${errors['aliases']}"></span>
             </div>
         </section>

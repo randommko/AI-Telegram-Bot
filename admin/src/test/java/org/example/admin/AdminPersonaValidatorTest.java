@@ -109,11 +109,10 @@ class AdminPersonaValidatorTest {
     }
 
     @Test
-    void rejectsAliasOwnedByAnotherPersona() {
-        when(personas.aliasOwner(eq("юр"), any())).thenReturn(Optional.of(9));
+    void acceptsAliasOwnedByAnotherPersona() {
         when(emotions.findCatalog()).thenReturn(CATALOG);
 
-        assertTrue(validator.validate(form("aliases", "юр")).errors().containsKey("aliases"));
+        assertFalse(validator.validate(form("aliases", "юр")).errors().containsKey("aliases"));
     }
 
     @Test
