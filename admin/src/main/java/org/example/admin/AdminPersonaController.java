@@ -9,6 +9,7 @@ import org.example.core.aichat.MemoryRepository;
 import org.example.core.aichat.PersonaDetails;
 import org.example.core.aichat.PersonaRepository;
 import org.example.core.aichat.PromptComposer;
+import org.example.core.aichat.PromptDefaults;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -42,6 +44,7 @@ public class AdminPersonaController {
             "maxReplies", "replyDelayMs", "initiativeCooldownMessages", "initiativeEnabled");
     private static final String EMOTION_ERROR_PREFIX = "emotion.";
     private static final DateTimeFormatter CALCULATED_AT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final ZoneId MOSCOW = ZoneId.of(PromptDefaults.TIME_ZONE);
 
     private final PersonaRepository personas;
     private final EmotionRepository emotions;
@@ -214,7 +217,7 @@ public class AdminPersonaController {
      * читаются без добивки строк, поэтому открытие карточки ничего не пишет в базу.
      */
     private void emotionState(Model model, int personaId, List<Emotion> catalog) {
-        model.addAttribute("emotionAt", ZonedDateTime.ofInstant(clock.instant(), clock.getZone())
+        model.addAttribute("emotionAt", ZonedDateTime.ofInstant(clock.instant(), MOSCOW)
                 .format(CALCULATED_AT));
 
         EmotionState state = emotionStates.stateFor(personaId, true);

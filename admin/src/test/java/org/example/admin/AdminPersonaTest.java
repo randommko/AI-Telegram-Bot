@@ -27,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +91,6 @@ class AdminPersonaTest {
     @BeforeEach
     void catalog() {
         when(clock.instant()).thenReturn(Instant.parse("2026-11-06T12:00:00Z"));
-        when(clock.getZone()).thenReturn(ZoneId.of("Europe/Moscow"));
         when(access.isOwner()).thenReturn(true);
         when(access.canSeePersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
         when(access.canEditPersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
@@ -136,12 +134,16 @@ class AdminPersonaTest {
 
         mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Текущие эмоции бота")))
+                .andExpect(content().string(containsString("<details class=\"note\"")))
+                .andExpect(content().string(containsString("<summary>Текущие эмоции бота</summary>")))
                 .andExpect(content().string(containsString("Расчёт на")))
                 .andExpect(content().string(containsString("15:00")))
+                .andExpect(content().string(containsString("МСК")))
                 .andExpect(content().string(containsString("Фраза для промпта")))
                 .andExpect(content().string(containsString("Агрессия")))
-                .andExpect(content().string(containsString("## Твоё состояние сейчас")));
+                .andExpect(content().string(containsString("## Твоё состояние сейчас")))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("затухают"))));
     }
 
     @Test

@@ -15,11 +15,11 @@
     <p class="notice" th:if="${saved}" th:text="${saved}"></p>
     <p class="error" th:if="${error}" th:text="${error}"></p>
 
-    <section th:if="${form.id != null}">
-        <h2 class="section">Текущие эмоции бота</h2>
+    <details class="note" th:if="${form.id != null}">
+        <summary>Текущие эмоции бота</summary>
+
         <p class="hint" th:if="${emotionState != null}">
-            Расчёт на <span th:text="${emotionAt}">15:42</span>: значения считаются при открытии
-            страницы и затухают к характеру — в базе они не меняются.
+            Расчёт на <span th:text="${emotionAt}">15:00</span> МСК.
         </p>
         <p class="error" th:if="${emotionState == null}">
             Состояние эмоций не прочиталось — подробности в журнале админки.
@@ -59,7 +59,7 @@
                  style="white-space: pre-wrap; background: #fff; border: 1px solid #dcdfe4; border-radius: 6px; padding: 12px; font-size: 13px;">## Твоё состояние сейчас
 - Гнев 5/10: Ты злишься</pre>
         </div>
-    </section>
+    </details>
 
     <nav class="tabs">
         <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='general')}"
