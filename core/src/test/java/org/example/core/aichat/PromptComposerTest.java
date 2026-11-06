@@ -289,20 +289,22 @@ class PromptComposerTest {
         withPersona();
         when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(
                 new MemoryRecord(1, "семья", "ядровая запись", 10, true, null, List.of())));
-        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
-                .thenReturn(List.of(memory(2, "шахматы"), memory(3, "море")));
+        when(memoryRepository.findByIds(PERSONA_ID, List.of(3)))
+                .thenReturn(List.of(memory(3, "море")));
 
         String memory = section(composer.compose(CHAT_ID, List.of(3)), PromptSection.MEMORY);
 
         assertTrue(memory.contains("море"), memory);
         assertFalse(memory.contains("шахматы"), memory);
         assertTrue(memory.contains("ядровая запись"), "ядро не вытесняется выбором");
+        verify(memoryRepository, never()).findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE);
     }
 
     @Test
     void emptyOrUnknownSelectionFallsBackToAllRegularMemories() {
         withPersona();
         when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of());
+        when(memoryRepository.findByIds(PERSONA_ID, List.of(999))).thenReturn(List.of());
         when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
                 .thenReturn(List.of(memory(2, "шахматы"), memory(3, "море")));
 
@@ -311,6 +313,33 @@ class PromptComposerTest {
 
         assertTrue(empty.contains("шахматы") && empty.contains("море"), empty);
         assertTrue(unknown.contains("шахматы") && unknown.contains("море"), unknown);
+    }
+
+    @Test
+    void selectedMemoryOutsideTopNIsIncluded() {
+        withPersona();
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of());
+        when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
+                .thenReturn(List.of(memory(2, "шахматы")));
+        when(memoryRepository.findByIds(PERSONA_ID, List.of(40)))
+                .thenReturn(List.of(memory(40, "сороковое воспоминание")));
+
+        String memory = section(composer.compose(CHAT_ID, List.of(40)), PromptSection.MEMORY);
+
+        assertTrue(memory.contains("сороковое воспоминание"), memory);
+        assertFalse(memory.contains("шахматы"), "топ-N не подмешивается к выбору");
+    }
+
+    @Test
+    void selectedCoreIsNotDuplicated() {
+        withPersona();
+        MemoryRecord coreMemory = new MemoryRecord(1, "семья", "ядровая запись", 10, true, null, List.of());
+        when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(coreMemory));
+        when(memoryRepository.findByIds(PERSONA_ID, List.of(1))).thenReturn(List.of(coreMemory));
+
+        String memory = section(composer.compose(CHAT_ID, List.of(1)), PromptSection.MEMORY);
+
+        assertEquals(1, memory.lines().filter(line -> line.contains("ядровая запись")).count(), memory);
     }
 
     @Test

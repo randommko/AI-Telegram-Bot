@@ -230,16 +230,7 @@ public class PromptComposer {
         try {
             int personaId = persona.get().id();
             List<MemoryRecord> core = memoryRepository.findCore(personaId);
-            List<MemoryRecord> regular = memoryRepository.findTopRegular(personaId, memoryPromptSize());
-
-            if (regularMemoryIds != null && !regularMemoryIds.isEmpty()) {
-                List<MemoryRecord> selected = regular.stream()
-                        .filter(memory -> regularMemoryIds.contains(memory.id()))
-                        .toList();
-                // Пустой или неизвестный выбор не должен оставить генерацию без памяти.
-                if (!selected.isEmpty())
-                    regular = selected;
-            }
+            List<MemoryRecord> regular = selectedRegular(personaId, regularMemoryIds);
 
             String block = memoryPromptBuilder.build(
                     core, regular,
@@ -252,6 +243,29 @@ public class PromptComposer {
             logger.error("Ошибка сборки памяти персоны {}: {}", persona.get().id(), String.valueOf(e));
             return "";
         }
+    }
+
+    /**
+     * Выбранное планом тянется по id: раньше выбор искали только среди топ-N,
+     * и запись за его пределами терялась молча.
+     */
+    private List<MemoryRecord> selectedRegular(int personaId, Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty())
+            return memoryRepository.findTopRegular(personaId, memoryPromptSize());
+
+        List<MemoryRecord> found = memoryRepository.findByIds(personaId, ids);
+        if (found.isEmpty()) {
+            // Пустой или неизвестный выбор не должен оставить генерацию без памяти.
+            logger.warn("План выбрал воспоминания {}, но ни одно не найдено у персоны {}: приложены все обычные из топ-N",
+                    ids, personaId);
+            return memoryRepository.findTopRegular(personaId, memoryPromptSize());
+        }
+        if (found.size() < ids.size())
+            logger.warn("План выбрал {} воспоминаний, найдено {} у персоны {}: неизвестные идентификаторы отброшены",
+                    ids.size(), found.size(), personaId);
+
+        // Ядро приходит отдельным списком: выбранное ядро не дублируется.
+        return found.stream().filter(memory -> !memory.core()).toList();
     }
 
     /**
