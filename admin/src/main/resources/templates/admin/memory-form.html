@@ -45,13 +45,21 @@
         </div>
 
         <div class="field">
-            <span class="hint">Люди</span>
-            <label class="checkbox-line" th:each="person : ${allPeople}">
-                <input type="checkbox" name="people" th:value="${person.userId}"
-                       th:checked="${#lists.contains(people, person.userId)}"/>
-                <span th:text="${person.title}">Человек</span>
-            </label>
-            <span class="hint">Снимите галочку и сохраните, чтобы убрать связь воспоминания с человеком.</span>
+            <label for="peopleSearch">Люди</label>
+            <input type="text" id="peopleSearch" class="people-search" autocomplete="off"
+                   placeholder="Поиск по нику"/>
+            <div class="people-list">
+                <label class="checkbox-line" th:each="person : ${allPeople}"
+                       th:attr="data-search=${person.title}">
+                    <input type="checkbox" name="people" th:value="${person.userId}"
+                           th:checked="${#lists.contains(people, person.userId)}"/>
+                    <span th:text="${person.title}">Человек</span>
+                </label>
+            </div>
+            <span class="hint">
+                Отмеченные остаются выбранными при поиске. Снимите галочку и сохраните,
+                чтобы убрать связь воспоминания с человеком.
+            </span>
         </div>
 
         <div class="field">
@@ -73,6 +81,22 @@
                th:href="@{/admin/personas/{id}(id=${form.personaId},tab='memories')}">Отмена</a>
         </div>
     </form>
+
+    <script>
+        (function () {
+            var search = document.querySelector('.people-search');
+            var list = document.querySelector('.people-list');
+            if (!search || !list) return;
+
+            search.addEventListener('input', function () {
+                var needle = search.value.trim().toLowerCase();
+                Array.prototype.forEach.call(list.querySelectorAll('label'), function (label) {
+                    var text = (label.dataset.search || label.textContent || '').toLowerCase();
+                    label.hidden = needle !== '' && text.indexOf(needle) === -1;
+                });
+            });
+        })();
+    </script>
 </main>
 </body>
 </html>
