@@ -34,6 +34,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO ai_user;
 -- Админка: читает общие и ai, правит config и configurator, пишет память, базовые
 -- значения эмоций и историю чата при смене персоны.
 GRANT USAGE ON SCHEMA shared, config, ai, configurator TO admin_user;
+-- Владелец таблиц создаёт объекты в схеме конфигуратора: под ним идут миграции.
+GRANT CREATE ON SCHEMA configurator TO admin;
 GRANT SELECT ON ALL TABLES IN SCHEMA shared, ai TO admin_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA config, configurator TO admin_user;
 GRANT INSERT, UPDATE, DELETE ON ai.persona_memories, ai.memory_people,
