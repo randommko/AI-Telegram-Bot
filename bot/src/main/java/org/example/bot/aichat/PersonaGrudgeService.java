@@ -1,6 +1,7 @@
 package org.example.bot.aichat;
 
 import org.example.core.aichat.AuthorFormat;
+import org.example.core.aichat.GrudgeStrength;
 import org.example.core.aichat.MessageAuthor;
 import org.example.core.aichat.PersonaGrudgeRepository;
 
@@ -106,12 +107,7 @@ public class PersonaGrudgeService {
 
     /** Сила обиды на момент now: линейно падает, не уходя ниже нуля. */
     static int effective(int strength, Instant updatedAt, Instant now, int decayPerHour) {
-        if (updatedAt == null || decayPerHour <= 0)
-            return Math.max(0, Math.min(MAX_STRENGTH, strength));
-
-        double hours = Math.max(0, Duration.between(updatedAt, now).toMinutes() / 60.0);
-        int moved = (int) Math.floor(decayPerHour * hours);
-        return Math.max(0, strength - moved);
+        return GrudgeStrength.effective(strength, updatedAt, now, decayPerHour);
     }
 
     private static String title(PersonaGrudgeRepository.GrudgeRow row) {

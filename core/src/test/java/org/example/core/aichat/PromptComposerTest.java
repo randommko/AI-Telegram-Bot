@@ -59,6 +59,8 @@ class PromptComposerTest {
     private AiChatRepository aiChatRepository;
     @Mock
     private MemoryDecay memoryDecay;
+    @Mock
+    private PersonaGrudgeRepository grudgeRepository;
 
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
     private final Logger logger = (Logger) LoggerFactory.getLogger(PromptComposer.class);
@@ -72,7 +74,7 @@ class PromptComposerTest {
         when(memoryDecay.effective(any(MemoryRecord.class), anyInt(), any()))
                 .thenAnswer(invocation -> ((MemoryRecord) invocation.getArgument(0)).importance());
         composer = new PromptComposer(settings, personaService, emotionService, memoryRepository,
-                new MemoryPromptBuilder(memoryDecay), aiChatRepository, memoryDecay, CLOCK);
+                new MemoryPromptBuilder(memoryDecay), aiChatRepository, grudgeRepository, memoryDecay, CLOCK);
     }
 
     @AfterEach
@@ -87,8 +89,8 @@ class PromptComposerTest {
         when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of());
         when(memoryRepository.findTopRegular(PERSONA_ID, PromptComposer.DEFAULT_MEMORY_PROMPT_SIZE))
                 .thenReturn(List.of(new MemoryRecord(2, "хобби", "шахматы", 6, false, null, List.of())));
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
-                userMessage("привет", 111L, "@nick", "Ник")));
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(111L, "@nick", "Ник", 1, 100)));
 
         List<PromptSection> order = composer.compose(CHAT_ID).sections().stream()
                 .map(PromptComposer.Section::spec)
@@ -118,44 +120,44 @@ class PromptComposerTest {
     }
 
     @Test
-    void peopleListIsNewestFirstAndMarksCurrentAuthor() {
+    void peopleListShowsMessageCountsAndCurrentAuthor() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
-                userMessage("старое", 1L, "@old", "Старый"),
-                userMessage("среднее", 2L, "@mid", "Средний"),
-                userMessage("вопрос", 1L, "@old", "Старый")));
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(1L, "@old", "Старый", 34, 100),
+                new AiChatRepository.AuthorStat(2L, "@mid", "Средний", 1, 90)));
 
         String people = section(composer.compose(CHAT_ID), PromptSection.PEOPLE);
 
-        assertTrue(people.indexOf("@old") < people.indexOf("@mid"), people);
-        assertTrue(people.contains("@old (Старый) — сейчас пишет"), people);
-        assertFalse(people.contains("@mid (Средний) — сейчас пишет"), people);
+        assertTrue(people.contains("- @old (Старый) — 34 сообщения — сейчас пишет"), people);
+        assertTrue(people.contains("- @mid (Средний) — 1 сообщение"), people);
+        assertFalse(people.contains("@mid (Средний) — 1 сообщение — сейчас пишет"), people);
     }
 
     @Test
-    void peopleListIsCappedAtTenLines() {
-        List<AiMessage> messages = new ArrayList<>();
-        for (int i = 1; i <= 14; i++)
-            messages.add(userMessage("текст", (long) i, "@user" + i, "Имя" + i));
+    void peopleListShowsOnlyActiveGrudge() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(messages);
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(1L, "@old", "Старый", 5, 100),
+                new AiChatRepository.AuthorStat(2L, "@mid", "Средний", 3, 90)));
+        when(grudgeRepository.findForChat(CHAT_ID)).thenReturn(List.of(
+                new PersonaGrudgeRepository.GrudgeRow(1L, 4, CLOCK.instant(), "@old", "Старый"),
+                new PersonaGrudgeRepository.GrudgeRow(2L, 0, CLOCK.instant(), "@mid", "Средний")));
 
         String people = section(composer.compose(CHAT_ID), PromptSection.PEOPLE);
 
-        assertEquals(11, people.lines().count(), people);
-        assertTrue(people.contains("@user14"), people);
-        assertFalse(people.contains("(Имя1)"), people);
+        assertTrue(people.contains("@old (Старый) — 5 сообщений, обида 4"), people);
+        assertFalse(people.contains("@mid (Средний) — 3 сообщения, обида"), people);
     }
 
     @Test
     void personWithoutNameGoesWithoutEmptyBrackets() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
-                userMessage("привет", 5L, "@nick", null)));
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(5L, "@nick", null, 2, 100)));
 
         String people = section(composer.compose(CHAT_ID), PromptSection.PEOPLE);
 
-        assertTrue(people.contains("- @nick — сейчас пишет"), people);
+        assertTrue(people.contains("- @nick — 2 сообщения — сейчас пишет"), people);
         assertFalse(people.contains("()"), people);
     }
 
@@ -281,8 +283,8 @@ class PromptComposerTest {
         when(settings.getSettingValue(AI_PROMPT_PEOPLE_HEADER))
                 .thenReturn("Первые люди:")
                 .thenReturn("Вторые люди:");
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
-                userMessage("привет", 1L, "@nick", "Ник")));
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(1L, "@nick", "Ник", 1, 100)));
 
         String first = composer.compose(CHAT_ID).text();
         String second = composer.compose(CHAT_ID).text();
@@ -411,8 +413,8 @@ class PromptComposerTest {
         withPersona();
         when(emotionService.bodyFor(PERSONA_ID, true)).thenReturn("- Гнев 8/10: орёшь");
         when(memoryRepository.findCore(PERSONA_ID)).thenReturn(List.of(memory(1, "ядро")));
-        when(aiChatRepository.findLastMessages(CHAT_ID, PromptComposer.PEOPLE_MESSAGES)).thenReturn(List.of(
-                userMessage("привет", 1L, "@nick", "Ник")));
+        when(aiChatRepository.findAuthorStats(CHAT_ID, PromptComposer.MAX_PEOPLE_LINES)).thenReturn(List.of(
+                new AiChatRepository.AuthorStat(1L, "@nick", "Ник", 1, 100)));
 
         PromptComposer.ComposedPrompt context = composer.composeForPlan(CHAT_ID);
 
