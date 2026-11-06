@@ -27,7 +27,7 @@ public enum PromptSection {
     MEMORY("Память", "## Что ты помнишь", 4000, List.of(
             field(AI_PROMPT_MEMORY_CORE_HEADER, "Заголовок незыблемых", PromptDefaults.MEMORY_CORE_HEADER, true),
             field(AI_PROMPT_MEMORY_REGULAR_HEADER, "Заголовок обычных", PromptDefaults.MEMORY_REGULAR_HEADER, true))),
-    PEOPLE("Люди", "## Кто в чате", 800, List.of(
+    PEOPLE("Люди", "## Кто в чате", 1200, List.of(
             field(AI_PROMPT_PEOPLE_HEADER, "Заголовок раздела", PromptDefaults.PEOPLE_HEADER, true))),
     TIME("Время", "## Сейчас", 200, List.of(
             field(AI_PROMPT_TIME_TEMPLATE, "Строка времени", PromptDefaults.TIME_TEMPLATE, true),

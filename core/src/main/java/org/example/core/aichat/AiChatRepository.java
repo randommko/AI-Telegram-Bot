@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.example.core.settings.Settings.USER_ROLE;
 import static org.example.core.settings.TablesDB.AI_CHAT_STATE_TABLE;
 import static org.example.core.settings.TablesDB.AI_MESSAGES_TABLE;
 
@@ -54,6 +55,44 @@ public class AiChatRepository {
         } catch (Exception e) {
             logger.error("Ошибка сохранения сообщения AI в чате {}: ", chatId, e);
         }
+    }
+
+    /** Участник чата: сколько сообщений написал и когда последний раз. */
+    public record AuthorStat(long userId, String nick, String name, int messages, long lastMessageId) {
+    }
+
+    /**
+     * До limit самых свежих авторов чата со счётчиком сообщений. Окно — вся история,
+     * а не последние 50 сообщений: иначе замолчавший участник исчезает из промпта.
+     */
+    public List<AuthorStat> findAuthorStats(Long chatId, int limit) {
+        String query = "SELECT author_user_id, max(author_nick) AS nick, max(author_name) AS name,"
+                + " count(*) AS messages, max(id) AS last_id"
+                + " FROM " + AI_MESSAGES_TABLE
+                + " WHERE chat_id = ? AND role = ? AND author_user_id IS NOT NULL"
+                + " GROUP BY author_user_id ORDER BY max(id) DESC LIMIT ?";
+
+        List<AuthorStat> authors = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setLong(1, chatId);
+            statement.setString(2, USER_ROLE);
+            statement.setInt(3, limit);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    authors.add(new AuthorStat(
+                            resultSet.getLong("author_user_id"),
+                            resultSet.getString("nick"),
+                            resultSet.getString("name"),
+                            resultSet.getInt("messages"),
+                            resultSet.getLong("last_id")));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения участников чата {}: ", chatId, e);
+            return List.of();
+        }
+        return authors;
     }
 
     public List<AiMessage> findLastMessages(Long chatId, int limit) {

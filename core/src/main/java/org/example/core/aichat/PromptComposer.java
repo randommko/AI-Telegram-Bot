@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.example.core.settings.Settings.AI_GRUDGE_DECAY_PER_HOUR;
 import static org.example.core.settings.Settings.AI_PROMPT_ANSWER_FORMAT;
 import static org.example.core.settings.Settings.AI_PROMPT_EMOTIONS_HEADER;
 import static org.example.core.settings.Settings.AI_PROMPT_MEMORY_CORE_HEADER;
@@ -43,6 +44,8 @@ public class PromptComposer {
 
     static final int PEOPLE_MESSAGES = 50;
     static final int MAX_PEOPLE_LINES = 10;
+    /** Совпадает с умолчанием PersonaGrudgeService: core не может зависеть от bot. */
+    static final int DEFAULT_GRUDGE_DECAY_PER_HOUR = 1;
     static final int DEFAULT_MEMORY_PROMPT_SIZE = 30;
     /** Пул кандидатов: события автора триггера и по десять записей каждого другого типа. */
     static final int POOL_EVENTS_PER_AUTHOR = 15;
@@ -65,18 +68,21 @@ public class PromptComposer {
     private final MemoryRepository memoryRepository;
     private final MemoryPromptBuilder memoryPromptBuilder;
     private final AiChatRepository aiChatRepository;
+    private final PersonaGrudgeRepository grudgeRepository;
     private final MemoryDecay memoryDecay;
     private final Clock clock;
 
     public PromptComposer(SettingsService settings, PersonaService personaService, EmotionService emotionService,
                           MemoryRepository memoryRepository, MemoryPromptBuilder memoryPromptBuilder,
-                          AiChatRepository aiChatRepository, MemoryDecay memoryDecay, Clock clock) {
+                          AiChatRepository aiChatRepository, PersonaGrudgeRepository grudgeRepository,
+                          MemoryDecay memoryDecay, Clock clock) {
         this.settings = settings;
         this.personaService = personaService;
         this.emotionService = emotionService;
         this.memoryRepository = memoryRepository;
         this.memoryPromptBuilder = memoryPromptBuilder;
         this.aiChatRepository = aiChatRepository;
+        this.grudgeRepository = grudgeRepository;
         this.memoryDecay = memoryDecay;
         this.clock = clock;
     }
@@ -250,6 +256,8 @@ public class PromptComposer {
             logger.warn("Техническая часть длиннее бюджета: {} из {} символов", length, TECHNICAL_BUDGET);
         if (spec == PromptSection.PERSONA && length > PERSONA_BUDGET)
             logger.warn("Промпт персоны длиннее {} символов: {}", PERSONA_BUDGET, length);
+        if (spec == PromptSection.PEOPLE && length > spec.budget())
+            logger.warn("Раздел «Люди» длиннее бюджета: {} из {} символов", length, spec.budget());
 
         logger.info("Раздел «{}»: {} символов", spec.title(), length);
         sections.add(new Section(spec, value));
@@ -353,43 +361,69 @@ public class PromptComposer {
     }
 
     /**
-     * Люди берутся из авторов последних сообщений, а не из справочника: таблицы
-     * участников чата нет, tg_users хранит всех, кого бот когда-либо видел.
+     * Люди берутся по всей истории чата, а не по последним 50 сообщениям: иначе
+     * замолчавший участник исчезает из промпта. К нику добавляются факты —
+     * сколько человек пишет и есть ли на него действующая обида.
      */
     private String people(long chatId) {
         try {
-            List<AiMessage> recent = aiChatRepository.findLastMessages(chatId, PEOPLE_MESSAGES);
-
-            Map<String, MessageAuthor> authors = new LinkedHashMap<>();
-            MessageAuthor current = null;
-            // От новых к старым: в разделе первыми идут самые свежие авторы.
-            for (int i = recent.size() - 1; i >= 0; i--) {
-                AiMessage message = recent.get(i);
-                if (!USER_ROLE.equals(message.role()) || message.author() == null || message.author().isEmpty())
-                    continue;
-                if (current == null)
-                    current = message.author();
-                authors.putIfAbsent(key(message.author()), message.author());
-            }
-
+            List<AiChatRepository.AuthorStat> authors = aiChatRepository.findAuthorStats(chatId, MAX_PEOPLE_LINES);
             if (authors.isEmpty())
                 return "";
 
-            List<MessageAuthor> people = new ArrayList<>(authors.values());
-            if (people.size() > MAX_PEOPLE_LINES) {
-                logger.warn("В чате {} авторов больше лимита: отброшено {}", chatId, people.size() - MAX_PEOPLE_LINES);
-                people = people.subList(0, MAX_PEOPLE_LINES);
-            }
+            Map<Long, Integer> grudges = grudgeStrengths(chatId);
+            // Первый в списке — автор последнего сообщения, он и «сейчас пишет».
+            long current = authors.get(0).userId();
 
             List<String> lines = new ArrayList<>();
-            for (MessageAuthor author : people)
-                lines.add("- " + AuthorFormat.sign(author) + (same(author, current) ? " — сейчас пишет" : ""));
+            for (AiChatRepository.AuthorStat author : authors) {
+                String title = AuthorFormat.sign(new MessageAuthor(author.userId(), author.nick(), author.name()));
+                if (title.isEmpty())
+                    continue;
+
+                StringBuilder line = new StringBuilder("- ").append(title)
+                        .append(" — ").append(messages(author.messages()));
+                int grudge = grudges.getOrDefault(author.userId(), 0);
+                if (grudge > 0)
+                    line.append(", обида ").append(grudge);
+                if (author.userId() == current)
+                    line.append(" — сейчас пишет");
+                lines.add(line.toString());
+            }
+
+            if (lines.isEmpty())
+                return "";
 
             return text(AI_PROMPT_PEOPLE_HEADER, PromptDefaults.PEOPLE_HEADER) + "\n" + String.join("\n", lines);
         } catch (Exception e) {
             logger.error("Ошибка сборки списка людей чата {}: {}", chatId, String.valueOf(e));
             return "";
         }
+    }
+
+    /** Действующие обиды чата: сила уже уменьшена на прошедшее время. */
+    private Map<Long, Integer> grudgeStrengths(long chatId) {
+        Map<Long, Integer> strengths = new LinkedHashMap<>();
+        int decayPerHour = settings.getInt(AI_GRUDGE_DECAY_PER_HOUR, DEFAULT_GRUDGE_DECAY_PER_HOUR);
+        Instant now = clock.instant();
+
+        for (PersonaGrudgeRepository.GrudgeRow row : grudgeRepository.findForChat(chatId)) {
+            int strength = GrudgeStrength.effective(row.strength(), row.updatedAt(), now, decayPerHour);
+            if (strength > 0)
+                strengths.put(row.userId(), strength);
+        }
+        return strengths;
+    }
+
+    /** «1 сообщение», «2 сообщения», «5 сообщений»: строка читается как русская речь. */
+    static String messages(int count) {
+        int lastTwo = count % 100;
+        int last = count % 10;
+        String word = lastTwo >= 11 && lastTwo <= 14 ? "сообщений"
+                : last == 1 ? "сообщение"
+                : last >= 2 && last <= 4 ? "сообщения"
+                : "сообщений";
+        return count + " " + word;
     }
 
     private String time() {
@@ -413,18 +447,6 @@ public class PromptComposer {
             logger.warn("Некорректный часовой пояс '{}': используется {}", configured, PromptDefaults.TIME_ZONE);
             return ZoneId.of(PromptDefaults.TIME_ZONE);
         }
-    }
-
-    private static boolean same(MessageAuthor left, MessageAuthor right) {
-        if (left == null || right == null)
-            return false;
-        if (left.userId() != null && right.userId() != null)
-            return left.userId().equals(right.userId());
-        return AuthorFormat.sign(left).equals(AuthorFormat.sign(right));
-    }
-
-    private static String key(MessageAuthor author) {
-        return author.userId() != null ? "id:" + author.userId() : "sign:" + AuthorFormat.sign(author);
     }
 
     private static String applyLength(String template) {
