@@ -192,22 +192,35 @@ public class PromptComposer {
         return PromptDefaults.PERSONA_FALLBACK;
     }
 
+    /** Раздел «Эмоции» ровно в том виде, в каком он попадает в системный промпт. */
+    public String emotionsSection(EmotionState state) {
+        if (state == null)
+            return "";
+
+        String body = emotionsBody(EmotionService.bodyText(state)).strip();
+        return body.isBlank() ? "" : render(new Section(PromptSection.EMOTIONS, body));
+    }
+
     private String emotions(Optional<Persona> persona, boolean readOnly) {
         if (persona.isEmpty())
             return "";
 
         try {
-            String body = emotionService.bodyFor(persona.get().id(), readOnly);
-            if (body == null || body.isBlank())
-                return "";
-            // Ровное состояние — одна строка, заголовок к ней не добавляется.
-            if (EmotionService.CALM_LINE.equals(body))
-                return body;
-            return text(AI_PROMPT_EMOTIONS_HEADER, PromptDefaults.EMOTIONS_HEADER) + "\n" + body;
+            return emotionsBody(emotionService.bodyFor(persona.get().id(), readOnly));
         } catch (Exception e) {
             logger.error("Ошибка сборки настроения для персоны {}: {}", persona.get().id(), String.valueOf(e));
             return "";
         }
+    }
+
+    /** Тело раздела: заголовок из настроек и строки состояния либо строка о ровном состоянии. */
+    private String emotionsBody(String stateText) {
+        if (stateText == null || stateText.isBlank())
+            return "";
+        // Ровное состояние — одна строка, заголовок к ней не добавляется.
+        if (EmotionService.CALM_LINE.equals(stateText))
+            return stateText;
+        return text(AI_PROMPT_EMOTIONS_HEADER, PromptDefaults.EMOTIONS_HEADER) + "\n" + stateText;
     }
 
     private String memories(Optional<Persona> persona, Collection<Integer> regularMemoryIds) {

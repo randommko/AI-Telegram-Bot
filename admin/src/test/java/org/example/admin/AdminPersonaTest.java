@@ -1,13 +1,17 @@
 package org.example.admin;
 
 import org.example.core.aichat.Emotion;
+import org.example.core.aichat.EmotionPhrase;
 import org.example.core.aichat.EmotionRepository;
+import org.example.core.aichat.EmotionService;
 import org.example.core.aichat.FieldNoteRepository;
 import org.example.core.aichat.MemoryRecord;
 import org.example.core.aichat.MemoryRepository;
 import org.example.core.aichat.PersonaDetails;
+import org.example.core.aichat.PersonaEmotion;
 import org.example.core.aichat.PersonaRepository;
 import org.example.core.aichat.PersonaSummary;
+import org.example.core.aichat.PromptComposer;
 import org.example.core.config.BotProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,8 +23,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +58,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "bot.db.password=secret",
                 "bot.ai.key.deepseek=sk-test"
         })
-@Import({AdminSecurityConfig.class, AdminPersonaValidator.class})
+@Import({AdminSecurityConfig.class, AdminPersonaValidator.class, EmotionService.class})
 @EnableConfigurationProperties(BotProperties.class)
 class AdminPersonaTest {
 
@@ -74,10 +81,18 @@ class AdminPersonaTest {
     private AdminAccess access;
 
     @MockitoBean
+    private PromptComposer promptComposer;
+
+    @MockitoBean
+    private Clock clock;
+
+    @MockitoBean
     private AdminUserDetailsService adminUserDetailsService;
 
     @BeforeEach
     void catalog() {
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-06T12:00:00Z"));
+        when(clock.getZone()).thenReturn(ZoneId.of("Europe/Moscow"));
         when(access.isOwner()).thenReturn(true);
         when(access.canSeePersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
         when(access.canEditPersona(org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
@@ -108,6 +123,96 @@ class AdminPersonaTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Ты Юра")))
                 .andExpect(content().string(containsString("юр")));
+    }
+
+    @Test
+    void personaCardShowsCurrentEmotionsAndPromptSection() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findPhrases()).thenReturn(phrases());
+        when(emotions.findStoredForPersona(1)).thenReturn(List.of(
+                stored("радость", 5), stored("гнев", 5)));
+        when(promptComposer.emotionsSection(any())).thenReturn(
+                "## Твоё состояние сейчас\n- Гнев 5/10: орёшь");
+
+        mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Текущие эмоции бота")))
+                .andExpect(content().string(containsString("Расчёт на")))
+                .andExpect(content().string(containsString("15:00")))
+                .andExpect(content().string(containsString("Фраза для промпта")))
+                .andExpect(content().string(containsString("Агрессия")))
+                .andExpect(content().string(containsString("## Твоё состояние сейчас")));
+    }
+
+    @Test
+    void emotionRowsFollowCatalogOrder() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findStoredForPersona(1)).thenReturn(List.of(
+                stored("сарказм", 5), stored("гнев", 2), stored("радость", 5)));
+        when(promptComposer.emotionsSection(any())).thenReturn("## Твоё состояние сейчас");
+
+        String html = mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        org.junit.jupiter.api.Assertions.assertTrue(html.indexOf("Радость") < html.indexOf("Гнев"), html);
+        org.junit.jupiter.api.Assertions.assertTrue(html.indexOf("Гнев") < html.indexOf("Сарказм"), html);
+    }
+
+    @Test
+    void readingCardDoesNotEnsureMissingRows() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findStoredForPersona(1)).thenReturn(List.of(stored("гнев", 2)));
+
+        mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk());
+
+        verify(emotions).findStoredForPersona(1);
+        verify(emotions, never()).findForPersona(anyInt());
+    }
+
+    @Test
+    void noSavedEmotionValuesShowsHintWithoutPromptSection() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findStoredForPersona(1)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Сохранённых значений эмоций ещё нет")));
+
+        verify(promptComposer, never()).emotionsSection(any());
+    }
+
+    @Test
+    void emotionBlockIsVisibleWithoutEditRight() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(1)).thenReturn(false);
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findStoredForPersona(1)).thenReturn(List.of(stored("гнев", 2)));
+
+        mockMvc.perform(get("/admin/personas/1").with(user("vasya").roles("MODERATOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Текущие эмоции бота")))
+                .andExpect(content().string(containsString("disabled")));
+    }
+
+    @Test
+    void unreadableEmotionStateShowsMessage() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(emotions.findStoredForPersona(1)).thenThrow(new IllegalStateException("db"));
+
+        mockMvc.perform(get("/admin/personas/1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Состояние эмоций не прочиталось")));
+    }
+
+    @Test
+    void newPersonaHasNoEmotionBlock() throws Exception {
+        mockMvc.perform(get("/admin/personas/new").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("Текущие эмоции бота"))));
+
+        verify(emotions, never()).findStoredForPersona(anyInt());
     }
 
     @Test
@@ -366,6 +471,17 @@ class AdminPersonaTest {
                 .andExpect(redirectedUrl("/admin/personas"));
 
         verify(personas).delete(eq(1));
+    }
+
+    private static PersonaEmotion stored(String code, int value) {
+        return new PersonaEmotion(1, code, value, value, Instant.now());
+    }
+
+    private static Map<String, List<EmotionPhrase>> phrases() {
+        return Map.of(
+                "радость", List.of(new EmotionPhrase("радость", 5, 6, "Приятно, можно пошутить")),
+                "гнев", List.of(new EmotionPhrase("гнев", 5, 6, "Злишься: говори резче")),
+                "сарказм", List.of(new EmotionPhrase("сарказм", 5, 6, "Шпильки")));
     }
 
     private MockHttpServletRequestBuilder saveForm(String... overrides) {

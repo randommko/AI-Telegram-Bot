@@ -15,6 +15,52 @@
     <p class="notice" th:if="${saved}" th:text="${saved}"></p>
     <p class="error" th:if="${error}" th:text="${error}"></p>
 
+    <section th:if="${form.id != null}">
+        <h2 class="section">Текущие эмоции бота</h2>
+        <p class="hint" th:if="${emotionState != null}">
+            Расчёт на <span th:text="${emotionAt}">15:42</span>: значения считаются при открытии
+            страницы и затухают к характеру — в базе они не меняются.
+        </p>
+        <p class="error" th:if="${emotionState == null}">
+            Состояние эмоций не прочиталось — подробности в журнале админки.
+        </p>
+        <p class="hint" th:if="${emotionState != null and #lists.isEmpty(emotionRows)}">
+            Сохранённых значений эмоций ещё нет: их создаст сохранение карточки.
+        </p>
+
+        <table class="list" th:if="${not #lists.isEmpty(emotionRows)}">
+            <thead>
+            <tr>
+                <th>Эмоция</th>
+                <th>Характер</th>
+                <th>Сейчас</th>
+                <th>Фраза для промпта</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="row : ${emotionRows}">
+                <td th:text="${row.title}">Гнев</td>
+                <td th:text="${row.baseValue}">2</td>
+                <td th:text="${row.value}">5</td>
+                <td th:text="${row.phrase}">Ты злишься: говори резче</td>
+            </tr>
+            <tr>
+                <td th:text="${emotionState.aggressionTitle}">Агрессия</td>
+                <td>—</td>
+                <td th:text="${emotionState.aggression}">3</td>
+                <td th:text="${emotionState.aggressionPhrase}">Слегка раздражён</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div th:if="${emotionSection != null and !#strings.isEmpty(emotionSection)}">
+            <p class="hint"><strong>Что получит модель в разделе «Эмоции»:</strong></p>
+            <pre th:text="${emotionSection}"
+                 style="white-space: pre-wrap; background: #fff; border: 1px solid #dcdfe4; border-radius: 6px; padding: 12px; font-size: 13px;">## Твоё состояние сейчас
+- Гнев 5/10: Ты злишься</pre>
+        </div>
+    </section>
+
     <nav class="tabs">
         <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='general')}"
            th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
