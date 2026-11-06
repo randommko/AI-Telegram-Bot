@@ -14,6 +14,11 @@ on:
       - 'deploy/telegram-bot-admin.service'
       - '.github/workflows/deploy-admin.yml'
 
+# Два пуша подряд не должны делить /tmp и удалять файлы друг друга: запуски идут по очереди.
+concurrency:
+  group: deploy-admin
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,6 +38,7 @@ jobs:
 
       - name: Deploy to VPS
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
@@ -56,17 +62,34 @@ jobs:
           scp admin/target/telegram-bot-admin-1.0.jar ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot-admin-1.0.jar
           scp deploy/telegram-bot-admin.service ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/telegram-bot-admin.service
 
+          # Обрыв scp раньше оставался незамеченным: сверяем размер и только потом ставим файл.
+          expected=$(stat -c %s admin/target/telegram-bot-admin-1.0.jar)
+          actual=$(ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "stat -c %s /tmp/telegram-bot-admin-1.0.jar")
+          if [ "$expected" != "$actual" ]; then
+            echo "jar загружен не полностью: $actual из $expected байт"
+            exit 1
+          fi
+
           # deploy не имеет прав писать в /etc и /usr/bin: файлы кладутся в /tmp,
           # а установку, рестарт и проверку разрешает sudoers по точным командам.
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            set -euo pipefail
             sudo -n install -m 600 -o root -g root /tmp/admin.env /etc/telegram-bot/admin.env
             sudo -n install -m 644 /tmp/telegram-bot-admin-1.0.jar /usr/bin/tg_bot_admin/telegram-bot-admin-1.0.jar
             sudo -n install -m 644 /tmp/telegram-bot-admin.service /etc/systemd/system/telegram-bot-admin.service
             sudo -n systemctl daemon-reload
             sudo -n systemctl enable telegram-bot-admin
             sudo -n systemctl restart telegram-bot-admin
-            sleep 15
+            status=""
+            for i in $(seq 1 12); do
+              status=$(sudo -n systemctl is-active telegram-bot-admin || true)
+              if [ "$status" = "active" ]; then break; fi
+              sleep 5
+            done
             journalctl -u telegram-bot-admin --no-pager -n 20
-            sudo -n systemctl is-active telegram-bot-admin
             rm -f /tmp/admin.env /tmp/telegram-bot-admin-1.0.jar /tmp/telegram-bot-admin.service
+            if [ "$status" != "active" ]; then
+              echo "админка не поднялась после деплоя: $status"
+              exit 1
+            fi
           EOF
