@@ -54,6 +54,7 @@ class AiServiceTest {
 
     private static final long CHAT_ID = 7L;
     private static final int PERSONA_ID = 3;
+    private static final MessageAuthor AUTHOR = new MessageAuthor(111L, "@nick", "Ник");
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Mock
@@ -121,9 +122,9 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
-        verify(sender).sendLongMessage(CHAT_ID, "раз");
-        verify(sender).sendLongMessage(CHAT_ID, "два");
-        verify(sender).sendLongMessage(CHAT_ID, "три");
+        verify(sender).sendLongMessage(CHAT_ID, "раз", null);
+        verify(sender).sendLongMessage(CHAT_ID, "два", null);
+        verify(sender).sendLongMessage(CHAT_ID, "три", null);
         verify(delay, times(2)).pause(1500);
         verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "раз", 100);
         verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "два", 100);
@@ -138,7 +139,7 @@ class AiServiceTest {
 
         verify(generator, never()).generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(),
                 anyList(), org.mockito.ArgumentMatchers.anyBoolean(), anyFloat());
-        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+        verify(sender, never()).sendLongMessage(anyLong(), anyString(), any());
         verify(sender, never()).sendMessage(anyLong(), anyString());
     }
 
@@ -151,7 +152,7 @@ class AiServiceTest {
 
         verify(llmClient).sendRequestToAi(any(), eq(1.0f));
         verify(sender, never()).sendMessage(anyLong(), anyString());
-        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
+        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка", null);
         verify(repository).saveMessage(CHAT_ID, AI_ASSISTANT_ROLE, "ответ фолбэка", 100);
     }
 
@@ -165,7 +166,7 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
-        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка");
+        verify(sender).sendLongMessage(CHAT_ID, "ответ фолбэка", null);
     }
 
     @Test
@@ -176,7 +177,7 @@ class AiServiceTest {
         aiService.askAi(CHAT_ID, "привет");
 
         verify(planner, never()).plan(anyLong(), org.mockito.ArgumentMatchers.anyInt());
-        verify(sender).sendLongMessage(CHAT_ID, "ответ");
+        verify(sender).sendLongMessage(CHAT_ID, "ответ", null);
     }
 
     @Test
@@ -186,8 +187,8 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
-        verify(sender, times(1)).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
-        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+        verify(sender, times(1)).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE, null);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString(), any());
     }
 
     @Test
@@ -197,8 +198,8 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "привет");
 
-        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
-        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE, null);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString(), any());
     }
 
     @Test
@@ -208,8 +209,8 @@ class AiServiceTest {
 
         aiService.askAi(CHAT_ID, "вопрос?");
 
-        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE);
-        verify(sender, never()).sendLongMessage(anyLong(), anyString());
+        verify(sender).sendMessage(CHAT_ID, AiService.AI_UNAVAILABLE_NOTICE, null);
+        verify(sender, never()).sendLongMessage(anyLong(), anyString(), any());
     }
 
     @Test
@@ -231,7 +232,7 @@ class AiServiceTest {
         when(grudges.angerDelta()).thenReturn(2);
         when(emotionService.applyShifts(eq(PERSONA_ID), any())).thenReturn(Map.of("гнев", 3));
 
-        aiService.askAi(CHAT_ID, "ты никто");
+        aiService.askAi(CHAT_ID, "ты никто", null, AUTHOR);
 
         verify(grudges).insult(CHAT_ID, 111L, "ты никто");
         @SuppressWarnings("unchecked")
@@ -247,10 +248,39 @@ class AiServiceTest {
         when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
                 org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ладно"));
 
-        aiService.askAi(CHAT_ID, "извини");
+        aiService.askAi(CHAT_ID, "извини", null, AUTHOR);
 
         verify(grudges).forgive(CHAT_ID, 111L);
         verify(grudges, never()).insult(anyLong(), anyLong(), anyString());
+    }
+
+    @Test
+    void replyAttachesOnlyToFirstReply() {
+        AnswerPlan plan = plan(PlanIntent.QUESTION, Map.of(), 2);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
+                org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("раз", "два"));
+
+        aiService.askAi(CHAT_ID, "вопрос?", 555, AUTHOR);
+
+        verify(sender).sendLongMessage(CHAT_ID, "раз", 555);
+        verify(sender).sendLongMessage(CHAT_ID, "два", null);
+    }
+
+    @Test
+    void grudgeIsRecordedForTriggerAuthorNotHistory() {
+        AnswerPlan plan = plan(PlanIntent.INSULT, Map.of(), 1);
+        when(planner.plan(CHAT_ID, 4)).thenReturn(Optional.of(plan));
+        when(generator.generate(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), anyList(),
+                org.mockito.ArgumentMatchers.anyBoolean(), anyFloat())).thenReturn(List.of("ответ"));
+        when(grudges.angerDelta()).thenReturn(2);
+        when(emotionService.applyShifts(eq(PERSONA_ID), any())).thenReturn(Map.of());
+
+        // В истории последним лежит автор 111, а сообщение-триггер написал 222.
+        aiService.askAi(CHAT_ID, "ты никто", 555, new MessageAuthor(222L, "@ann", "Анна"));
+
+        verify(grudges).insult(CHAT_ID, 222L, "ты никто");
+        verify(grudges, never()).insult(anyLong(), eq(111L), anyString());
     }
 
     @Test

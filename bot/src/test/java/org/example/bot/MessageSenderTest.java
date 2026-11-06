@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -85,5 +86,50 @@ class MessageSenderTest {
 
         assertEquals(2, sender.sendLongMessage(-1007777777777L, "a".repeat(9000)));
         verify(bot, times(3)).execute(any(SendMessage.class));
+    }
+
+    @Test
+    void replyGoesOnlyOnFirstPart() throws Exception {
+        TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<TelegramLongPollingBot> provider = mock(ObjectProvider.class);
+        when(provider.getObject()).thenReturn(bot);
+        Message sent = mock(Message.class);
+        when(sent.getMessageId()).thenReturn(1);
+        when(bot.execute(any(SendMessage.class))).thenReturn(sent);
+
+        MessageSender sender = new MessageSender(provider);
+
+        sender.sendLongMessage(-1007777777777L, "a".repeat(9000), 77);
+
+        ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
+        verify(bot, times(3)).execute(captor.capture());
+        List<SendMessage> parts = captor.getAllValues();
+        assertEquals(Integer.valueOf(77), parts.get(0).getReplyToMessageId());
+        assertNull(parts.get(1).getReplyToMessageId());
+        assertNull(parts.get(2).getReplyToMessageId());
+    }
+
+    @Test
+    void rejectedReplyIsSentWithoutQuote() throws Exception {
+        TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<TelegramLongPollingBot> provider = mock(ObjectProvider.class);
+        when(provider.getObject()).thenReturn(bot);
+        Message sent = mock(Message.class);
+        when(sent.getMessageId()).thenReturn(1);
+        when(bot.execute(any(SendMessage.class)))
+                .thenThrow(new TelegramApiException("message to be replied not found"))
+                .thenReturn(sent);
+
+        MessageSender sender = new MessageSender(provider);
+
+        assertEquals(1, sender.sendMessage(-1007777777777L, "ответ", 77));
+
+        ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
+        verify(bot, times(2)).execute(captor.capture());
+        assertEquals(Integer.valueOf(77), captor.getAllValues().get(0).getReplyToMessageId());
+        assertNull(captor.getAllValues().get(1).getReplyToMessageId());
+        assertEquals("ответ", captor.getAllValues().get(1).getText());
     }
 }

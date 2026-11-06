@@ -90,7 +90,7 @@ public class CommandDispatcher {
 
         // Ответ реплаем на сообщение самого бота — второй триггер, имя в тексте не нужно.
         if (isReplyToBot(message)) {
-            aiService.askAi(chatId, text);
+            askAi(message, text);
             return;
         }
 
@@ -101,8 +101,14 @@ public class CommandDispatcher {
                         + " на связи, но вопроса нет. Напиши его после обращения.");
                 return;
             }
-            aiService.askAi(chatId, question);
+            askAi(message, question);
         });
+    }
+
+    /** Триггер передаётся явно: в гонке потоков «последнее сообщение в базе» может быть чужим. */
+    private void askAi(Message message, String question) {
+        aiService.askAi(message.getChatId(), question,
+                AiService.replyToMessageId(message), MessageAuthor.from(message.getFrom()));
     }
 
     private boolean isReplyToBot(Message message) {

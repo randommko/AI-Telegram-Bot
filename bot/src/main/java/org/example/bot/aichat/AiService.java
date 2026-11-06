@@ -75,29 +75,41 @@ public class AiService {
         this.delay = delay;
     }
 
+    /** Запрос по слэш-команде: триггер — само сообщение команды. */
     public void askAi(Message message) {
         String[] parts = message.getText().split(" ", 2);
         String userQuestion = parts.length > 1 ? parts[1] : "";
-        askAi(message.getChatId(), userQuestion);
+        askAi(message.getChatId(), userQuestion, replyToMessageId(message), MessageAuthor.from(message.getFrom()));
     }
 
-    public void askAi(Long chatId, String userQuestion) {
+    /** Ответ без триггера: реплая нет, автор неизвестен. Нужен тестам и служебным вызовам. */
+    void askAi(Long chatId, String userQuestion) {
+        askAi(chatId, userQuestion, null, MessageAuthor.none());
+    }
+
+    /**
+     * @param triggerMessageId сообщение, вызвавшее ответ; реплай ставится на него,
+     * @param author          автор этого сообщения — к нему применяются обида и эмоции
+     */
+    public void askAi(Long chatId, String userQuestion, Integer triggerMessageId, MessageAuthor author) {
         if (userQuestion == null || userQuestion.isBlank()) {
             sender.sendMessage(chatId, "Напиши свой вопрос после команды /ai");
             return;
         }
 
+        MessageAuthor triggerAuthor = author == null ? MessageAuthor.none() : author;
+
         Optional<PersonaSettings> configured = personaRepository.findSettingsForChat(chatId);
         if (configured.isEmpty()) {
             // Чат без персоны живёт по прежним правилам: один запрос и один текст.
-            fallback(chatId);
+            fallback(chatId, triggerMessageId);
             return;
         }
 
         PersonaSettings persona = configured.get();
         Optional<AnswerPlan> planned = planner.plan(chatId, persona.maxReplies());
         if (planned.isEmpty()) {
-            fallback(chatId);
+            fallback(chatId, triggerMessageId);
             return;
         }
 
@@ -107,19 +119,30 @@ public class AiService {
             return;
         }
 
-        MessageAuthor author = currentAuthor(chatId);
         boolean hysteria = hysteriaService.shouldStart(persona, plan.intent(), aggression(persona.personaId()));
         int replyCount = hysteria ? persona.hysteriaReplies() : plan.replies();
         List<String> targets = hysteria ? recentAuthors(chatId) : plan.targets();
 
         List<String> replies = generator.generate(chatId, plan, replyCount, targets, hysteria, answerTemperature());
         if (replies.isEmpty()) {
-            fallback(chatId);
+            fallback(chatId, triggerMessageId);
             return;
         }
 
-        sendReplies(chatId, replies, persona.replyDelayMs());
-        applyOutcome(chatId, persona, plan, author, userQuestion, hysteria);
+        sendReplies(chatId, replies, persona.replyDelayMs(), triggerMessageId);
+        applyOutcome(chatId, persona, plan, triggerAuthor, userQuestion, hysteria);
+    }
+
+    /** Реплай только в группах: в личном чате цитата — шум. */
+    public static Integer replyToMessageId(Message message) {
+        if (message == null || message.getMessageId() == null)
+            return null;
+
+        var chat = message.getChat();
+        if (chat == null || !(chat.isGroupChat() || chat.isSuperGroupChat()))
+            return null;
+
+        return message.getMessageId();
     }
 
     public void saveMessage(Long chatId, String role, String messageToSave) {
@@ -141,24 +164,26 @@ public class AiService {
     }
 
     /** Один запрос и один текст: так отвечает чат без персоны и так работает фолбэк. */
-    private void fallback(Long chatId) {
+    private void fallback(Long chatId, Integer triggerMessageId) {
         ArrayNode messages = history.messages(chatId);
         messages.insert(0, history.message(AI_SYSTEM_ROLE, promptComposer.compose(chatId).text()));
 
         String answer = llmClient.sendRequestToAi(messages, answerTemperature());
         if (answer == null || answer.isBlank()) {
             logger.warn("Модель не ответила в чате {}: отправлено уведомление о недоступности", chatId);
-            sender.sendMessage(chatId, AI_UNAVAILABLE_NOTICE);
+            sender.sendMessage(chatId, AI_UNAVAILABLE_NOTICE, triggerMessageId);
             return;
         }
 
-        sender.sendLongMessage(chatId, answer);
+        sender.sendLongMessage(chatId, answer, triggerMessageId);
         saveMessage(chatId, AI_ASSISTANT_ROLE, answer);
     }
 
-    private void sendReplies(Long chatId, List<String> replies, int delayMs) {
+    private void sendReplies(Long chatId, List<String> replies, int delayMs, Integer triggerMessageId) {
         for (int i = 0; i < replies.size(); i++) {
-            sender.sendLongMessage(chatId, replies.get(i));
+            // Реплай только у первой реплики: остальные — продолжение того же ответа.
+            Integer replyId = i == 0 ? triggerMessageId : null;
+            sender.sendLongMessage(chatId, replies.get(i), replyId);
             saveMessage(chatId, AI_ASSISTANT_ROLE, replies.get(i));
             if (i < replies.size() - 1 && delayMs > 0)
                 delay.pause(delayMs);
@@ -193,13 +218,6 @@ public class AiService {
     private int aggression(int personaId) {
         EmotionState state = emotionService.stateFor(personaId);
         return state == null ? 0 : state.aggression();
-    }
-
-    private MessageAuthor currentAuthor(long chatId) {
-        List<AiMessage> last = repository.findLastMessages(chatId, 1);
-        if (last.isEmpty() || !USER_ROLE.equals(last.get(0).role()))
-            return MessageAuthor.none();
-        return last.get(0).author();
     }
 
     /** Все, кто писал в чате последние сообщения: адресаты срыва. */
