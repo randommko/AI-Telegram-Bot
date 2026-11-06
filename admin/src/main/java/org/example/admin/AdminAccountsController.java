@@ -11,8 +11,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Раздел «Модераторы»: единственное место, где создаётся учётка и выдаётся чат.
@@ -41,22 +46,38 @@ public class AdminAccountsController {
         this.access = access;
     }
 
-    /** Учётка вместе с персонами, к которым у неё есть доступ. */
+    /** Учётка, её доступ к персонам и источник каждого доступа для галочек. */
     public record ModeratorRow(AdminAccountsRepository.AdminAccount account,
-                               List<ModeratorPersonaRepository.PersonaAccessRow> personas) {
+                               List<ModeratorPersonaRepository.PersonaAccessRow> personas,
+                               Map<Integer, String> personaSources) {
     }
 
     @GetMapping("/admin/moderators")
     String list(Model model) {
         List<ModeratorRow> rows = accounts.findAll().stream()
-                .map(account -> new ModeratorRow(account,
-                        personaGrants.accessOf(account.tgUserId(), account.chatIds())))
+                .map(account -> {
+                    List<ModeratorPersonaRepository.PersonaAccessRow> access =
+                            personaGrants.accessOf(account.tgUserId(), account.chatIds());
+                    Map<Integer, String> sources = access.stream()
+                            .collect(Collectors.toMap(
+                                    ModeratorPersonaRepository.PersonaAccessRow::personaId,
+                                    row -> row.source().name()));
+                    return new ModeratorRow(account, access, sources);
+                })
                 .toList();
+
+        List<PersonaRepository.ChatSummary> chats = personas.findAllChats(Optional.empty());
+        Map<Long, String> chatTitles = new LinkedHashMap<>();
+        for (PersonaRepository.ChatSummary chat : chats) {
+            chatTitles.put(chat.chatId(), chat.title() == null || chat.title().isBlank()
+                    ? String.valueOf(chat.chatId()) : chat.title());
+        }
 
         model.addAttribute("title", "Модераторы");
         model.addAttribute("rows", rows);
         model.addAttribute("personas", personas.findAllWithCounts(PersonaRepository.Scope.owner()));
-        model.addAttribute("chats", personas.findAllChats(Optional.empty()));
+        model.addAttribute("chats", chats);
+        model.addAttribute("chatTitles", chatTitles);
         return "admin/moderators";
     }
 
@@ -121,66 +142,77 @@ public class AdminAccountsController {
         return "redirect:/admin/moderators";
     }
 
-    @PostMapping("/admin/moderators/{id}/chats")
-    String grant(@PathVariable int id, @RequestParam long chatId, RedirectAttributes redirect) {
-        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
-        if (tgUserId.isEmpty()) {
+    /** Одна кнопка на строку: отмеченное выдаётся, снятое отзывается. */
+    @PostMapping("/admin/moderators/{id}/access")
+    String saveAccess(@PathVariable int id,
+                      @RequestParam(required = false, name = "chatIds") List<Long> chatIds,
+                      @RequestParam(required = false, name = "personaIds") List<Integer> personaIds,
+                      RedirectAttributes redirect) {
+        Optional<AdminAccountsRepository.AdminAccount> found = accounts.findById(id);
+        if (found.isEmpty()) {
             redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
             return "redirect:/admin/moderators";
         }
 
-        boolean known = personas.findAllChats(Optional.empty()).stream()
-                .anyMatch(chat -> chat.chatId() == chatId);
-        if (!known) {
-            redirect.addFlashAttribute("error", "Чат " + chatId + " бот ещё не видел");
-            return "redirect:/admin/moderators";
+        AdminAccountsRepository.AdminAccount account = found.get();
+        Set<Long> requestedChats = new LinkedHashSet<>(chatIds == null ? List.of() : chatIds);
+        Set<Integer> requestedPersonas = new LinkedHashSet<>(personaIds == null ? List.of() : personaIds);
+
+        Set<Long> knownChats = personas.findAllChats(Optional.empty()).stream()
+                .map(PersonaRepository.ChatSummary::chatId)
+                .collect(Collectors.toSet());
+        for (Long chatId : requestedChats) {
+            if (!knownChats.contains(chatId)) {
+                redirect.addFlashAttribute("error", "Чат " + chatId + " бот ещё не видел");
+                return "redirect:/admin/moderators";
+            }
         }
 
-        moderators.grant(tgUserId.get(), chatId, access.authorId().orElse(null));
-        redirect.addFlashAttribute("saved", "Чат " + chatId + " выдан");
-        return "redirect:/admin/moderators";
-    }
+        List<ModeratorPersonaRepository.PersonaAccessRow> currentAccess =
+                personaGrants.accessOf(account.tgUserId(), account.chatIds());
+        Map<Integer, ModeratorPersonaRepository.Source> sources = currentAccess.stream()
+                .collect(Collectors.toMap(
+                        ModeratorPersonaRepository.PersonaAccessRow::personaId,
+                        ModeratorPersonaRepository.PersonaAccessRow::source));
+        Set<Integer> grantedPersonas = currentAccess.stream()
+                .filter(row -> row.source() == ModeratorPersonaRepository.Source.GRANTED)
+                .map(ModeratorPersonaRepository.PersonaAccessRow::personaId)
+                .collect(Collectors.toSet());
 
-    @PostMapping("/admin/moderators/{id}/chats/{chatId}/delete")
-    String revoke(@PathVariable int id, @PathVariable long chatId, RedirectAttributes redirect) {
-        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
-        if (tgUserId.isEmpty()) {
-            redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
-            return "redirect:/admin/moderators";
+        for (Integer personaId : requestedPersonas) {
+            if (personas.findDetails(personaId).isEmpty()) {
+                redirect.addFlashAttribute("error", "Персона " + personaId + " не найдена");
+                return "redirect:/admin/moderators";
+            }
+            ModeratorPersonaRepository.Source source = sources.get(personaId);
+            if (source == ModeratorPersonaRepository.Source.CREATED
+                    || source == ModeratorPersonaRepository.Source.CHAT) {
+                redirect.addFlashAttribute("error",
+                        "Доступ к персоне " + personaId + " выдаётся не в этой форме");
+                return "redirect:/admin/moderators";
+            }
         }
 
-        moderators.revoke(tgUserId.get(), chatId);
-        redirect.addFlashAttribute("saved", "Чат " + chatId + " отозван");
-        return "redirect:/admin/moderators";
-    }
-
-    @PostMapping("/admin/moderators/{id}/personas")
-    String grantPersona(@PathVariable int id, @RequestParam int personaId, RedirectAttributes redirect) {
-        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
-        if (tgUserId.isEmpty()) {
-            redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
-            return "redirect:/admin/moderators";
+        Long grantedBy = access.authorId().orElse(null);
+        for (Long chatId : requestedChats) {
+            if (!account.chatIds().contains(chatId))
+                moderators.grant(account.tgUserId(), chatId, grantedBy);
         }
-        if (personas.findDetails(personaId).isEmpty()) {
-            redirect.addFlashAttribute("error", "Персона " + personaId + " не найдена");
-            return "redirect:/admin/moderators";
+        for (Long chatId : account.chatIds()) {
+            if (!requestedChats.contains(chatId))
+                moderators.revoke(account.tgUserId(), chatId);
         }
 
-        personaGrants.grant(tgUserId.get(), personaId, access.authorId().orElse(null));
-        redirect.addFlashAttribute("saved", "Доступ к персоне " + personaId + " выдан");
-        return "redirect:/admin/moderators";
-    }
-
-    @PostMapping("/admin/moderators/{id}/personas/{personaId}/delete")
-    String revokePersona(@PathVariable int id, @PathVariable int personaId, RedirectAttributes redirect) {
-        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
-        if (tgUserId.isEmpty()) {
-            redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
-            return "redirect:/admin/moderators";
+        for (Integer personaId : requestedPersonas) {
+            if (!grantedPersonas.contains(personaId))
+                personaGrants.grant(account.tgUserId(), personaId, grantedBy);
+        }
+        for (Integer personaId : grantedPersonas) {
+            if (!requestedPersonas.contains(personaId))
+                personaGrants.revoke(account.tgUserId(), personaId);
         }
 
-        personaGrants.revoke(tgUserId.get(), personaId);
-        redirect.addFlashAttribute("saved", "Доступ к персоне " + personaId + " отозван");
+        redirect.addFlashAttribute("saved", "Доступы сохранены");
         return "redirect:/admin/moderators";
     }
 }

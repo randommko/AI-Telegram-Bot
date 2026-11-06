@@ -2,7 +2,7 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{admin/layout :: head('Вход')}"></head>
 <body>
-<main>
+<main class="login-page">
     <h1>Вход в админку</h1>
     <p class="error" th:if="${param.error}">Неверный логин или пароль.</p>
     <p class="ok" th:if="${param.logout}">Сессия завершена.</p>

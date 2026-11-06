@@ -96,6 +96,11 @@ public class AdminAccountsRepository {
         return accounts;
     }
 
+    /** Учётка по идентификатору: нужна сохранению строки со списком выданных чатов. */
+    public Optional<AdminAccount> findById(int id) {
+        return findAll().stream().filter(account -> account.id() == id).findFirst();
+    }
+
     /** Человек по {@code @нику} или числовому id; ник в tg_users хранится с ведущей «@». */
     public Optional<AdminPerson> findPerson(String input) {
         if (input == null || input.isBlank())

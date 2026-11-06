@@ -8,85 +8,6 @@
     <p th:replace="~{admin/layout :: liveData}"></p>
     <p class="notice" th:if="${saved}">Сохранено. Новые значения применяются к следующему запросу бота.</p>
 
-    <div class="current-model">
-        <span class="label">Текущая модель</span>
-        <strong th:text="${currentModel.model}">deepseek-flash</strong>
-        <span class="hint" th:if="${currentModel.known}"
-              th:text="|поставщик: ${currentModel.provider} · ${currentModel.door}|">поставщик: DeepSeek · прямое подключение</span>
-        <span class="error" th:unless="${currentModel.known}"
-              th:text="|«${currentModel.model}» нет в каталоге — бот ответит моделью по умолчанию ${currentModel.fallback}|">нет в каталоге</span>
-    </div>
-
-    <div class="keys-panel">
-        <h2>Ключи провайдеров</h2>
-        <div class="chips">
-            <span th:each="hint : ${keyHints}" class="key-chip"
-                  th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
-                  th:title="${hint.hasKey} ? hint.envName : hint.envName + ' не задана'"
-                  th:text="${hint.provider + (hint.hasKey ? ' — есть' : ' — нет')}">DeepSeek — есть</span>
-        </div>
-    </div>
-
-    <details class="note keys">
-        <summary>Как добавить ключ провайдера</summary>
-
-        <p>
-            Ключ приходит из переменной окружения <code>BOT_AI_KEY_&lt;ID&gt;</code>. Ни один ключ не обязателен:
-            без него поставщик виден в списке моделей с пометкой, но выбрать его модель нельзя.
-        </p>
-
-        <p>
-            <strong>Постоянный путь — секрет репозитория.</strong> Деплой на каждом пуше заново собирает
-            <code>/etc/telegram-bot/bot.env</code> из секретов, поэтому строка, вписанная в файл руками,
-            живёт только до следующего деплоя.
-        </p>
-        <ol>
-            <li>Создать ключ в кабинете поставщика — ссылка в таблице ниже.</li>
-            <li>GitHub → <em>Settings</em> → <em>Secrets and variables</em> → <em>Actions</em> → <em>New repository secret</em>.
-                Имя секрета — латиницей, например <code>VENICE_API_KEY</code>.</li>
-            <li>Убедиться, что в блоке <code>bot.env</code> файла <code>.github/workflows/deploy.yml</code> есть строка
-                <code>BOT_AI_KEY_VENICE=${{ secrets.VENICE_API_KEY }}</code>; для поставщиков из таблицы они уже есть.</li>
-            <li>Пуш в <code>main</code>: деплой пересоберёт <code>bot.env</code> и перезапустит бота.</li>
-        </ol>
-
-        <p><strong>Временно, без пуша</strong> — пока секрет не заведён:</p>
-        <pre><code>ssh root@45.141.103.51
-cp /etc/telegram-bot/bot.env /etc/telegram-bot/bot.env.bak-$(date +%F)
-nano /etc/telegram-bot/bot.env      # добавить, например: BOT_AI_KEY_VENICE=sk-...
-systemctl restart telegram-bot
-journalctl -u telegram-bot -n 30 --no-pager</code></pre>
-        <p class="hint">
-            Вписанная руками строка исчезнет после следующего деплоя. Ключ не коммитить в репозиторий —
-            он публичный; ключи живут только в GitHub Secrets и в <code>bot.env</code> на сервере.
-        </p>
-
-        <table class="list">
-            <thead>
-            <tr>
-                <th>Переменная</th>
-                <th>Поставщик</th>
-                <th>Что открывает</th>
-                <th>Ключ</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="hint : ${keyHints}">
-                <td><code th:text="${hint.envName}">BOT_AI_KEY_X</code></td>
-                <td>
-                    <a th:if="${hint.keyUrl != ''}" th:href="${hint.keyUrl}" th:text="${hint.provider}"
-                       target="_blank" rel="noreferrer">Поставщик</a>
-                    <span th:if="${hint.keyUrl == ''}" th:text="${hint.provider}">Поставщик</span>
-                </td>
-                <td th:text="${hint.scope}">модели</td>
-                <td>
-                    <span class="key-chip" th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
-                          th:text="${hint.hasKey} ? 'есть' : 'нет'">есть</span>
-                </td>
-            </tr>
-            </tbody>
-        </table>
-    </details>
-
     <nav class="tabs">
         <a th:each="tab : ${tabs}"
            th:href="@{/admin/settings(tab=${tab.id})}"
@@ -98,8 +19,89 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
         <input type="hidden" name="tab" th:value="${activeTab}"/>
 
         <section class="group" th:each="tab : ${tabs}" th:if="${tab.active}">
+            <div th:if="${tab.id == 'model'}">
+                <div class="current-model">
+                    <span class="label">Текущая модель</span>
+                    <strong th:text="${currentModel.model}">deepseek-flash</strong>
+                    <span class="hint" th:if="${currentModel.known}"
+                          th:text="|поставщик: ${currentModel.provider} · ${currentModel.door}|">поставщик: DeepSeek · прямое подключение</span>
+                    <span class="error" th:unless="${currentModel.known}"
+                          th:text="|«${currentModel.model}» нет в каталоге — бот ответит моделью по умолчанию ${currentModel.fallback}|">нет в каталоге</span>
+                </div>
+
+                <div class="keys-panel">
+                    <h2>Ключи провайдеров</h2>
+                    <div class="chips">
+                        <span th:each="hint : ${keyHints}" class="key-chip"
+                              th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
+                              th:title="${hint.hasKey} ? hint.envName : hint.envName + ' не задана'"
+                              th:text="${hint.provider + (hint.hasKey ? ' — есть' : ' — нет')}">DeepSeek — есть</span>
+                    </div>
+                </div>
+
+                <details class="note keys">
+                    <summary>Как добавить ключ провайдера</summary>
+
+                    <p>
+                        Ключ приходит из переменной окружения <code>BOT_AI_KEY_&lt;ID&gt;</code>. Ни один ключ не обязателен:
+                        без него поставщик виден в списке моделей с пометкой, но выбрать его модель нельзя.
+                    </p>
+
+                    <p>
+                        <strong>Постоянный путь — секрет репозитория.</strong> Деплой на каждом пуше заново собирает
+                        <code>/etc/telegram-bot/bot.env</code> из секретов, поэтому строка, вписанная в файл руками,
+                        живёт только до следующего деплоя.
+                    </p>
+                    <ol>
+                        <li>Создать ключ в кабинете поставщика — ссылка в таблице ниже.</li>
+                        <li>GitHub → <em>Settings</em> → <em>Secrets and variables</em> → <em>Actions</em> → <em>New repository secret</em>.
+                            Имя секрета — латиницей, например <code>VENICE_API_KEY</code>.</li>
+                        <li>Убедиться, что в блоке <code>bot.env</code> файла <code>.github/workflows/deploy.yml</code> есть строка
+                            <code>BOT_AI_KEY_VENICE=${{ secrets.VENICE_API_KEY }}</code>; для поставщиков из таблицы они уже есть.</li>
+                        <li>Пуш в <code>main</code>: деплой пересоберёт <code>bot.env</code> и перезапустит бота.</li>
+                    </ol>
+
+                    <p><strong>Временно, без пуша</strong> — пока секрет не заведён:</p>
+                    <pre><code>ssh root@45.141.103.51
+cp /etc/telegram-bot/bot.env /etc/telegram-bot/bot.env.bak-$(date +%F)
+nano /etc/telegram-bot/bot.env      # добавить, например: BOT_AI_KEY_VENICE=sk-...
+systemctl restart telegram-bot
+journalctl -u telegram-bot -n 30 --no-pager</code></pre>
+                    <p class="hint">
+                        Вписанная руками строка исчезнет после следующего деплоя. Ключ не коммитить в репозиторий —
+                        он публичный; ключи живут только в GitHub Secrets и в <code>bot.env</code> на сервере.
+                    </p>
+
+                    <table class="list">
+                        <thead>
+                        <tr>
+                            <th>Переменная</th>
+                            <th>Поставщик</th>
+                            <th>Что открывает</th>
+                            <th>Ключ</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="hint : ${keyHints}">
+                            <td><code th:text="${hint.envName}">BOT_AI_KEY_X</code></td>
+                            <td>
+                                <a th:if="${hint.keyUrl != ''}" th:href="${hint.keyUrl}" th:text="${hint.provider}"
+                                   target="_blank" rel="noreferrer">Поставщик</a>
+                                <span th:if="${hint.keyUrl == ''}" th:text="${hint.provider}">Поставщик</span>
+                            </td>
+                            <td th:text="${hint.scope}">модели</td>
+                            <td>
+                                <span class="key-chip" th:classappend="${hint.hasKey} ? 'ok' : 'missing'"
+                                      th:text="${hint.hasKey} ? 'есть' : 'нет'">есть</span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </details>
+            </div>
+
             <div class="field" th:each="field : ${tab.fields}">
-                <label th:for="${field.key}" th:if="${field.kind != 'hidden'}">
+                <label th:for="${field.key}" th:if="${field.kind != 'hidden' and field.kind != 'checkbox'}">
                     <span th:text="${field.title}">Поле</span>
                     <i class="tip" th:if="${field.note != null and field.note != ''}"
                        th:attr="data-tip=${field.note}" tabindex="0">i</i>
@@ -153,12 +155,15 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                 <input th:if="${field.kind == 'text'}" type="text"
                        th:id="${field.key}" th:name="${field.key}" th:value="${field.value}"/>
 
-                <div class="checkbox-row" th:if="${field.kind == 'checkbox'}">
+                <label class="checkbox-line" th:if="${field.kind == 'checkbox'}" th:for="${field.key}">
                     <input type="checkbox" th:id="${field.key}" th:name="${field.key}" value="true"
                            th:checked="${field.value == 'true'}"/>
+                    <span th:text="${field.title}">Присылать обновления памяти</span>
+                    <i class="tip" th:if="${field.note != null and field.note != ''}"
+                       th:attr="data-tip=${field.note}" tabindex="0">i</i>
                     <!-- Скрытое поле идёт после галочки: снятая галочка сохраняется как false, а не пустой строкой. -->
                     <input type="hidden" th:name="${field.key}" value="false"/>
-                </div>
+                </label>
 
                 <span class="error" th:if="${field.error}" th:text="${field.error}"></span>
             </div>
