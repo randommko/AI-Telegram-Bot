@@ -86,10 +86,11 @@ class AdminPersonaValidatorTest {
     }
 
     @Test
-    void acceptsPersonaAddressNameAsAlias() {
+    void acceptsAliasThatIsNotACommand() {
         when(emotions.findCatalog()).thenReturn(CATALOG);
 
         assertFalse(validator.validate(form("aliases", "юра")).hasErrors());
+        assertFalse(validator.validate(form("aliases", "юрий")).hasErrors());
         assertFalse(validator.validate(form("aliases", "юрец")).hasErrors());
     }
 

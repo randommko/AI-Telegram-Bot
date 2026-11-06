@@ -21,8 +21,6 @@ import java.util.Set;
  */
 @Component
 public class AdminPersonaValidator {
-    /** Имена-обращения команды AI: алиас персоны вправе с ними совпадать. */
-    static final Set<String> PERSONA_ADDRESS_NAMES = Set.of("юра", "юрий", "юрец");
     private static final String ALIAS_PATTERN = "[\\p{L}\\p{N}_]+";
     static final String EMOTION_FIELD_PREFIX = "emotion.";
 
@@ -133,16 +131,12 @@ public class AdminPersonaValidator {
         }
     }
 
-    /** Команды без слэша, кроме имён-обращений AI: по ним и так вызывается персона. */
+    /** Команды без слэша: такое имя нельзя занимать алиасом персоны. */
     static Set<String> forbiddenCommands() {
         Set<String> forbidden = new HashSet<>();
         for (Command command : Command.values()) {
-            for (String alias : command.aliases()) {
-                String clean = alias.replace("/", "").toLowerCase();
-                if (command == Command.AI && PERSONA_ADDRESS_NAMES.contains(clean))
-                    continue;
-                forbidden.add(clean);
-            }
+            for (String alias : command.aliases())
+                forbidden.add(alias.replace("/", "").toLowerCase());
         }
         return forbidden;
     }

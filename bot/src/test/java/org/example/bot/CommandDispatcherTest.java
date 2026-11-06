@@ -25,6 +25,7 @@ import java.util.Optional;
 import static org.example.core.settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -202,13 +203,60 @@ class CommandDispatcherTest {
     }
 
     @Test
-    void slashCommandStillWorksAsBefore() {
-        Update update = update("/юра как дела", BLUE_CHAT_ID);
+    void slashCommandInChatWithoutPersonaIsSentToAi() {
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.empty());
+
+        Update update = update("/ai как дела", BLUE_CHAT_ID);
 
         dispatcher.dispatch(update);
 
         verify(aiService).askAi(update.getMessage());
         verify(aiService, never()).askAi(anyLong(), anyString());
+    }
+
+    @Test
+    void slashCommandInChatWithPersonaAsksToAddressByName() {
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+
+        dispatcher.dispatch(update("/ai как дела", BLUE_CHAT_ID));
+
+        verify(messageSender).sendMessage(BLUE_CHAT_ID,
+                "В этом чате отвечает Юра. Напиши вопрос с обращением — например: «Юра, как дела?»");
+        verify(aiService, never()).askAi(any(Message.class));
+        verify(aiService, never()).askAi(anyLong(), anyString());
+        assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
+    }
+
+    @Test
+    void slashCommandWithoutQuestionInChatWithPersonaAsksToAddressByName() {
+        when(personaService.personaForChat(BLUE_CHAT_ID)).thenReturn(Optional.of(BLUE_PERSONA));
+
+        dispatcher.dispatch(update("/ai", BLUE_CHAT_ID));
+
+        verify(messageSender).sendMessage(BLUE_CHAT_ID,
+                "В этом чате отвечает Юра. Напиши вопрос с обращением — например: «Юра, как дела?»");
+        verify(aiService, never()).askAi(any(Message.class));
+    }
+
+    @Test
+    void hintInAnotherChatNamesItsOwnPersona() {
+        when(personaService.personaForChat(OTHER_CHAT_ID)).thenReturn(Optional.of(OTHER_PERSONA));
+
+        dispatcher.dispatch(update("/ии привет", OTHER_CHAT_ID));
+
+        verify(messageSender).sendMessage(OTHER_CHAT_ID,
+                "В этом чате отвечает Макс. Напиши вопрос с обращением — например: «Макс, как дела?»");
+        verify(aiService, never()).askAi(any(Message.class));
+    }
+
+    @Test
+    void personaNameWithSlashIsNotACommand() {
+        dispatcher.dispatch(update("/юра как дела", BLUE_CHAT_ID));
+
+        verify(aiService, never()).askAi(any(Message.class));
+        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(messageSender, never()).sendMessage(anyLong(), anyString());
+        assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
     }
 
     @Test

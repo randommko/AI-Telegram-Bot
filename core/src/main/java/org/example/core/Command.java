@@ -5,7 +5,7 @@ import java.util.List;
 /** Команды бота: одно место для имён и проверки алиасов персоны в админке. */
 public enum Command {
     BOT_INFO("/bot_info", "/help"),
-    AI("/ai", "/ии", "/аи", "/юра", "/юрий", "/юрец"),
+    AI("/ai", "/ии", "/аи"),
     AI_CLEAR_HISTORY("/clear");
 
     private final List<String> aliases;

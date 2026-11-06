@@ -127,6 +127,16 @@ public class CommandDispatcher {
     }
 
     private void handleAi(Message message) {
+        Long chatId = message.getChatId();
+        Optional<Persona> persona = personaService.personaForChat(chatId);
+        if (persona.isPresent()) {
+            String name = persona.get().name();
+            messageSender.sendMessage(chatId, "В этом чате отвечает " + name
+                    + ". Напиши вопрос с обращением — например: «" + name + ", как дела?»");
+            logger.info("Команда {} в чате {} отклонена: назначена персона {}",
+                    message.getText().split(" ", 2)[0], chatId, name);
+            return;
+        }
         aiService.askAi(message);
     }
 
