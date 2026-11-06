@@ -78,6 +78,11 @@
         .range-row { display: flex; align-items: center; gap: 10px; }
         .range-row output { min-width: 4ch; font-variant-numeric: tabular-nums; font-size: 13px; color: #3b4a5f; }
         .checkbox-line { flex-direction: row; align-items: center; gap: 8px; }
+        /* Список людей в форме памяти: высота примерно в десять строк, дальше прокрутка. */
+        .people-search { width: 100%; }
+        .people-list { max-height: 15em; overflow-y: auto; border: 1px solid #dcdfe4;
+                       border-radius: 4px; padding: 8px 10px; background: #fbfbfc; }
+        .people-list label[hidden] { display: none; }
         h2.section { font-size: 16px; margin: 24px 0 8px; }
         .field label { display: flex; align-items: center; }
         .tip { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;

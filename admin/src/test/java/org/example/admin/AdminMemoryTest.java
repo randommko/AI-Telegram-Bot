@@ -106,7 +106,10 @@ class AdminMemoryTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("name=\"people\"")))
                 .andExpect(content().string(containsString("type=\"checkbox\"")))
-                .andExpect(content().string(containsString("checked=\"checked\"")));
+                .andExpect(content().string(containsString("checked=\"checked\"")))
+                .andExpect(content().string(containsString("class=\"people-search\"")))
+                .andExpect(content().string(containsString("class=\"people-list\"")))
+                .andExpect(content().string(containsString("data-search=\"@nick\"")));
     }
 
     @Test
