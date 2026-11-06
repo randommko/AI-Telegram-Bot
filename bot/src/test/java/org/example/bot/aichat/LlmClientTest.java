@@ -244,7 +244,7 @@ class LlmClientTest {
     }
 
     private LlmClient clientWith(Map<String, String> keys) {
-        BotProperties properties = new BotProperties("1:dummy", null, new BotProperties.Ai(keys), null, null);
+        BotProperties properties = new BotProperties("1:dummy", null, new BotProperties.Ai(keys), null, null, null);
         return new LlmClient(properties, settings, httpClient);
     }
 

@@ -40,7 +40,9 @@ class StartupNotifierTest {
         new StartupNotifier(settings, sender, properties).notifyOwner();
 
         verify(sender).sendMessage(eq(111222333L), argThat(text ->
-                text.contains("Админка: http://127.0.0.1:8081/admin (через SSH-туннель)")));
+                text.contains("Админка: http://127.0.0.1:8081/admin")
+                        && !text.contains("через SSH-туннель")
+                        && !text.contains("Туннель:")));
     }
 
     @Test
@@ -51,7 +53,8 @@ class StartupNotifierTest {
 
         new StartupNotifier(settings, sender, properties).notifyOwner();
 
-        verify(sender).sendMessage(eq(111222333L), argThat(text -> !text.contains("Админка:")));
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                !text.contains("Админка:") && !text.contains("Туннель:")));
     }
 
     @Test
@@ -66,6 +69,51 @@ class StartupNotifierTest {
 
         verify(sender).sendMessage(eq(111222333L), argThat(text ->
                 text.contains("Админка: http://127.0.0.1:9090/admin")));
+    }
+
+    @Test
+    void addsTunnelCommandWhenBothSshValuesAreSet() {
+        notifyWith(withSsh(8081, "127.0.0.1", new BotProperties.Ssh("deploy", "203.0.113.10")));
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("\nТуннель: ssh -L 8081:127.0.0.1:8081 deploy@203.0.113.10")));
+    }
+
+    @Test
+    void usesAdminPortInTunnelCommand() {
+        notifyWith(withSsh(9090, "0.0.0.0", new BotProperties.Ssh("deploy", "203.0.113.10")));
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Админка: http://127.0.0.1:9090/admin")
+                        && text.contains("Туннель: ssh -L 9090:127.0.0.1:9090 deploy@203.0.113.10")));
+    }
+
+    @Test
+    void omitsTunnelWhenOnlyOneSshValueIsSet() {
+        notifyWith(withSsh(8081, "127.0.0.1", new BotProperties.Ssh("deploy", " ")));
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Админка: http://127.0.0.1:8081/admin") && !text.contains("Туннель:")));
+    }
+
+    @Test
+    void omitsTunnelWhenSshIsAbsent() {
+        notifyWith(withSsh(8081, "127.0.0.1", null));
+
+        verify(sender).sendMessage(eq(111222333L), argThat(text ->
+                text.contains("Админка: http://127.0.0.1:8081/admin") && !text.contains("Туннель:")));
+    }
+
+    private void notifyWith(BotProperties realProperties) {
+        when(settings.getSettingValue(OWNER_CHAT_ID)).thenReturn("111222333");
+        when(sender.sendMessage(eq(111222333L), anyString())).thenReturn(10);
+
+        new StartupNotifier(settings, sender, realProperties).notifyOwner();
+    }
+
+    private BotProperties withSsh(int port, String bind, BotProperties.Ssh ssh) {
+        return new BotProperties("1:dummy", null, new BotProperties.Ai(Map.of("deepseek", "sk-deep")),
+                null, new BotProperties.Admin("secret", port, bind), ssh);
     }
 
     @Test

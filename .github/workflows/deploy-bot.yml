@@ -57,6 +57,9 @@ jobs:
           # Админку открывает VPN-подсеть 10.8.0.0/24, порт ограничен правилом ufw.
           # Локально без этой строки админка остаётся на 127.0.0.1.
           BOT_ADMIN_BIND=0.0.0.0
+          # Команда туннеля в уведомлении о запуске: пользователь и адрес сервера.
+          BOT_SSH_USER=${{ secrets.SERVER_USER }}
+          BOT_SSH_HOST=${{ secrets.SERVER_IP }}
           BOT_PROXY_TYPE=${{ secrets.BOT_PROXY_TYPE }}
           BOT_PROXY_HOST=${{ secrets.BOT_PROXY_HOST }}
           BOT_PROXY_PORT=${{ secrets.BOT_PROXY_PORT }}
