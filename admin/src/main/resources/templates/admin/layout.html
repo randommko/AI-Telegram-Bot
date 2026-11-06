@@ -108,6 +108,7 @@
         <a th:if="${owner}" th:href="@{/admin/emotions}">Эмоции</a>
         <a th:if="${owner}" th:href="@{/admin/settings}">Настройки</a>
         <a th:if="${owner}" th:href="@{/admin/moderators}">Модераторы</a>
+        <a th:href="@{/admin/wiki}">Вики</a>
         <form th:action="@{/admin/logout}" method="post">
             <button type="submit">Выйти</button>
         </form>
