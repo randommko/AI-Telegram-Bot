@@ -148,11 +148,12 @@ public class PromptComposer {
         try {
             int personaId = persona.get().id();
             int daysPerPoint = memoryDecay.daysPerPoint();
+            int minImportance = memoryDecay.minImportance();
             Instant now = clock.instant();
 
             List<MemoryRecord> core = memoryRepository.findCore(personaId);
-            List<MemoryRecord> events = eventsForAuthor(personaId, authorUserId, daysPerPoint, now);
-            List<MemoryRecord> regular = regularByCategory(personaId, daysPerPoint, now);
+            List<MemoryRecord> events = eventsForAuthor(personaId, authorUserId, daysPerPoint, minImportance, now);
+            List<MemoryRecord> regular = regularByCategory(personaId, daysPerPoint, minImportance, now);
             List<MemoryRecord> pool = capByChars(personaId, events, regular);
 
             logger.info("Пул памяти персоны {}: событий {}, по типам {}, символов {}",
@@ -167,37 +168,40 @@ public class PromptComposer {
     }
 
     /** События автора; если у него их нет — общие, чтобы пул не остался пустым. */
-    private List<MemoryRecord> eventsForAuthor(int personaId, Long authorUserId, int daysPerPoint, Instant now) {
+    private List<MemoryRecord> eventsForAuthor(int personaId, Long authorUserId, int daysPerPoint,
+                                               int minImportance, Instant now) {
         List<MemoryRecord> events = memoryRepository.findEvents(personaId, authorUserId);
         if (events.isEmpty() && authorUserId != null) {
             logger.info("У автора {} нет событий в памяти персоны {}: взяты общие", authorUserId, personaId);
             events = memoryRepository.findEvents(personaId, null);
         }
-        return ranked(events, POOL_EVENTS_PER_AUTHOR, daysPerPoint, now);
+        return ranked(events, POOL_EVENTS_PER_AUTHOR, daysPerPoint, minImportance, now);
     }
 
     /** По десять записей каждого типа: типы с меньшим числом отдают все, что есть. */
-    private List<MemoryRecord> regularByCategory(int personaId, int daysPerPoint, Instant now) {
+    private List<MemoryRecord> regularByCategory(int personaId, int daysPerPoint, int minImportance, Instant now) {
         Map<String, List<MemoryRecord>> byCategory = new LinkedHashMap<>();
         for (MemoryRecord memory : memoryRepository.findRegular(personaId))
             byCategory.computeIfAbsent(memory.category(), key -> new ArrayList<>()).add(memory);
 
         List<MemoryRecord> result = new ArrayList<>();
         for (List<MemoryRecord> group : byCategory.values())
-            result.addAll(ranked(group, POOL_PER_CATEGORY, daysPerPoint, now));
+            result.addAll(ranked(group, POOL_PER_CATEGORY, daysPerPoint, minImportance, now));
         return result;
     }
 
-    private List<MemoryRecord> ranked(List<MemoryRecord> memories, int limit, int daysPerPoint, Instant now) {
+    private List<MemoryRecord> ranked(List<MemoryRecord> memories, int limit, int daysPerPoint,
+                                      int minImportance, Instant now) {
         return memories.stream()
-                .sorted(byEffectiveImportance(daysPerPoint, now))
+                .sorted(byEffectiveImportance(daysPerPoint, minImportance, now))
                 .limit(limit)
                 .toList();
     }
 
-    private Comparator<MemoryRecord> byEffectiveImportance(int daysPerPoint, Instant now) {
+    private Comparator<MemoryRecord> byEffectiveImportance(int daysPerPoint, int minImportance, Instant now) {
         return Comparator
-                .comparingInt((MemoryRecord memory) -> memoryDecay.effective(memory, daysPerPoint, now))
+                .comparingInt((MemoryRecord memory) ->
+                        memoryDecay.effective(memory, daysPerPoint, minImportance, now))
                 .reversed()
                 .thenComparing(MemoryRecord::eventDate, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(MemoryRecord::id, Comparator.reverseOrder());
