@@ -50,7 +50,7 @@ public class AdminPersonaController {
     @GetMapping("/admin/personas")
     String list(Model model) {
         model.addAttribute("title", "Персоны");
-        model.addAttribute("personas", personas.findAllWithCounts(access.visibleChats()));
+        model.addAttribute("personas", personas.findAllWithCounts(access.personaScope()));
         model.addAttribute("owner", access.isOwner());
         return "admin/personas";
     }
@@ -89,7 +89,7 @@ public class AdminPersonaController {
                     redirect.addFlashAttribute("error", "Чат для новой персоны не выдан");
                     return "redirect:/admin/personas";
                 }
-                personas.createInChat(details, chatId);
+                personas.createInChat(details, chatId, access.authorId().orElse(null));
             } else {
                 personas.create(details);
             }

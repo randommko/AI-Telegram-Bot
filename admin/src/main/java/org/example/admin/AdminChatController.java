@@ -53,8 +53,16 @@ public class AdminChatController {
 
         model.addAttribute("title", "Чаты");
         model.addAttribute("groups", groups);
-        model.addAttribute("personas", personas.findAllWithCounts(scope));
+        model.addAttribute("personas", editablePersonas());
         return "admin/chats";
+    }
+
+    /** Привязать к чату можно только персону, которую модератор вправе править. */
+    private List<PersonaSummary> editablePersonas() {
+        List<PersonaSummary> all = personas.findAllWithCounts(access.personaScope());
+        Optional<List<Integer>> allowed = access.visiblePersonaIds();
+        return allowed.map(ids -> all.stream().filter(persona -> ids.contains(persona.id())).toList())
+                .orElse(all);
     }
 
     @PostMapping("/admin/chats/assign")
@@ -84,7 +92,7 @@ public class AdminChatController {
     }
 
     private String personaName(int personaId) {
-        return personas.findAllWithCounts(Optional.empty()).stream()
+        return personas.findAllWithCounts(PersonaRepository.Scope.owner()).stream()
                 .filter(persona -> persona.id() == personaId)
                 .map(PersonaSummary::name)
                 .findFirst()

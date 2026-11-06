@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -24,24 +25,37 @@ public class AdminAccountsController {
 
     private final AdminAccountsRepository accounts;
     private final ChatModeratorRepository moderators;
+    private final ModeratorPersonaRepository personaGrants;
     private final PersonaRepository personas;
     private final PasswordEncoder passwordEncoder;
     private final AdminAccess access;
 
     public AdminAccountsController(AdminAccountsRepository accounts, ChatModeratorRepository moderators,
-                                   PersonaRepository personas, PasswordEncoder passwordEncoder,
-                                   AdminAccess access) {
+                                   ModeratorPersonaRepository personaGrants, PersonaRepository personas,
+                                   PasswordEncoder passwordEncoder, AdminAccess access) {
         this.accounts = accounts;
         this.moderators = moderators;
+        this.personaGrants = personaGrants;
         this.personas = personas;
         this.passwordEncoder = passwordEncoder;
         this.access = access;
     }
 
+    /** Учётка вместе с персонами, к которым у неё есть доступ. */
+    public record ModeratorRow(AdminAccountsRepository.AdminAccount account,
+                               List<ModeratorPersonaRepository.PersonaAccessRow> personas) {
+    }
+
     @GetMapping("/admin/moderators")
     String list(Model model) {
+        List<ModeratorRow> rows = accounts.findAll().stream()
+                .map(account -> new ModeratorRow(account,
+                        personaGrants.accessOf(account.tgUserId(), account.chatIds())))
+                .toList();
+
         model.addAttribute("title", "Модераторы");
-        model.addAttribute("accounts", accounts.findAll());
+        model.addAttribute("rows", rows);
+        model.addAttribute("personas", personas.findAllWithCounts(PersonaRepository.Scope.owner()));
         model.addAttribute("chats", personas.findAllChats(Optional.empty()));
         return "admin/moderators";
     }
@@ -137,6 +151,36 @@ public class AdminAccountsController {
 
         moderators.revoke(tgUserId.get(), chatId);
         redirect.addFlashAttribute("saved", "Чат " + chatId + " отозван");
+        return "redirect:/admin/moderators";
+    }
+
+    @PostMapping("/admin/moderators/{id}/personas")
+    String grantPersona(@PathVariable int id, @RequestParam int personaId, RedirectAttributes redirect) {
+        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
+        if (tgUserId.isEmpty()) {
+            redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
+            return "redirect:/admin/moderators";
+        }
+        if (personas.findDetails(personaId).isEmpty()) {
+            redirect.addFlashAttribute("error", "Персона " + personaId + " не найдена");
+            return "redirect:/admin/moderators";
+        }
+
+        personaGrants.grant(tgUserId.get(), personaId, access.authorId().orElse(null));
+        redirect.addFlashAttribute("saved", "Доступ к персоне " + personaId + " выдан");
+        return "redirect:/admin/moderators";
+    }
+
+    @PostMapping("/admin/moderators/{id}/personas/{personaId}/delete")
+    String revokePersona(@PathVariable int id, @PathVariable int personaId, RedirectAttributes redirect) {
+        Optional<Long> tgUserId = accounts.tgUserIdOf(id);
+        if (tgUserId.isEmpty()) {
+            redirect.addFlashAttribute("error", "Учётка " + id + " не найдена");
+            return "redirect:/admin/moderators";
+        }
+
+        personaGrants.revoke(tgUserId.get(), personaId);
+        redirect.addFlashAttribute("saved", "Доступ к персоне " + personaId + " отозван");
         return "redirect:/admin/moderators";
     }
 }

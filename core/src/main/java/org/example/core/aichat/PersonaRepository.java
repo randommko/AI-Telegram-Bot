@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import static org.example.core.settings.TablesDB.AI_MESSAGES_TABLE;
 import static org.example.core.settings.TablesDB.CHAT_PERSONAS_TABLE;
+import static org.example.core.settings.TablesDB.MODERATOR_PERSONAS_TABLE;
 import static org.example.core.settings.TablesDB.PERSONAS_TABLE;
 import static org.example.core.settings.TablesDB.PERSONA_ALIASES_TABLE;
 import static org.example.core.settings.TablesDB.PERSONA_EMOTIONS_TABLE;
@@ -141,8 +142,24 @@ public class PersonaRepository {
         return chats;
     }
 
+    /** Область видимости персон: владельцу — все, модератору — чат, авторство и выдача. */
+    public record Scope(boolean all, Long tgUserId, List<Long> chatIds) {
+        public static Scope owner() {
+            return new Scope(true, null, List.of());
+        }
+
+        public static Scope moderator(long tgUserId, List<Long> chatIds) {
+            return new Scope(false, tgUserId, List.copyOf(chatIds));
+        }
+    }
+
     /** Строки списка персон с числом алиасов, воспоминаний и привязанными чатами. */
-    public List<PersonaSummary> findAllWithCounts(Optional<List<Long>> visibleChats) {
+    public List<PersonaSummary> findAllWithCounts(Scope scope) {
+        String visible = " WHERE p.created_by = ?"
+                + " OR EXISTS (SELECT 1 FROM " + MODERATOR_PERSONAS_TABLE
+                + " mp WHERE mp.persona_id = p.id AND mp.tg_user_id = ?)"
+                + " OR EXISTS (SELECT 1 FROM " + CHAT_PERSONAS_TABLE
+                + " cp3 WHERE cp3.persona_id = p.id AND cp3.chat_id = ANY(?))";
         String query = "SELECT p.id, p.name,"
                 + " (SELECT count(*) FROM " + PERSONA_ALIASES_TABLE + " a WHERE a.persona_id = p.id),"
                 + " (SELECT count(*) FROM " + PERSONA_MEMORIES_TABLE
@@ -150,15 +167,17 @@ public class PersonaRepository {
                 + " (SELECT string_agg(cp.chat_id::text, ', ' ORDER BY cp.chat_id) FROM " + CHAT_PERSONAS_TABLE
                 + " cp WHERE cp.persona_id = p.id)"
                 + " FROM " + PERSONAS_TABLE + " p"
-                + visibleChats.map(chats -> " WHERE EXISTS (SELECT 1 FROM " + CHAT_PERSONAS_TABLE
-                + " cp2 WHERE cp2.persona_id = p.id AND cp2.chat_id = ANY(?))").orElse("")
+                + (scope.all() ? "" : visible)
                 + " ORDER BY lower(p.name)";
 
         List<PersonaSummary> personas = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
-            if (visibleChats.isPresent())
-                statement.setArray(1, longArray(connection, visibleChats.get()));
+            if (!scope.all()) {
+                statement.setLong(1, scope.tgUserId());
+                statement.setLong(2, scope.tgUserId());
+                statement.setArray(3, longArray(connection, scope.chatIds()));
+            }
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next())
@@ -176,38 +195,56 @@ public class PersonaRepository {
         return personas;
     }
 
-    /** Сколько привязок у персоны и сколько из них чужие для набора видимых чатов. */
-    public record PersonaPermission(int total, int foreign) {
+    /** Источники доступа к персоне: авторство, выдача владельцем и участие в выданном чате. */
+    public record PersonaAccess(boolean created, boolean granted, boolean usedInChat) {
+        public boolean visible() {
+            return created || granted || usedInChat;
+        }
+
+        /** Чат даёт только просмотр: правит создатель или получивший выдачу. */
+        public boolean editable() {
+            return created || granted;
+        }
     }
 
-    public PersonaPermission permission(int personaId, List<Long> chatIds) {
-        String query = "SELECT count(*) AS total, count(*) FILTER (WHERE chat_id <> ALL(?)) AS foreign_count"
-                + " FROM " + CHAT_PERSONAS_TABLE + " WHERE persona_id = ?";
+    public PersonaAccess personaAccess(int personaId, long tgUserId, List<Long> chatIds) {
+        String query = "SELECT (p.created_by = ?) AS created,"
+                + " EXISTS (SELECT 1 FROM " + MODERATOR_PERSONAS_TABLE
+                + " mp WHERE mp.persona_id = p.id AND mp.tg_user_id = ?) AS granted,"
+                + " EXISTS (SELECT 1 FROM " + CHAT_PERSONAS_TABLE
+                + " cp WHERE cp.persona_id = p.id AND cp.chat_id = ANY(?)) AS used_in_chat"
+                + " FROM " + PERSONAS_TABLE + " p WHERE p.id = ?";
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setArray(1, longArray(connection, chatIds));
-            statement.setInt(2, personaId);
+            statement.setLong(1, tgUserId);
+            statement.setLong(2, tgUserId);
+            statement.setArray(3, longArray(connection, chatIds));
+            statement.setInt(4, personaId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next())
-                    return new PersonaPermission(resultSet.getInt("total"), resultSet.getInt("foreign_count"));
+                    return new PersonaAccess(resultSet.getBoolean("created"),
+                            resultSet.getBoolean("granted"),
+                            resultSet.getBoolean("used_in_chat"));
             }
         } catch (Exception e) {
             logger.error("Ошибка проверки прав на персону {}: ", personaId, e);
         }
-        return new PersonaPermission(0, 1);
+        return new PersonaAccess(false, false, false);
     }
 
-    /** Персоны, все чаты которых входят в набор: ровно те, что модератор вправе править. */
-    public List<Integer> editablePersonaIds(List<Long> chatIds) {
-        String query = "SELECT persona_id FROM " + CHAT_PERSONAS_TABLE
-                + " GROUP BY persona_id HAVING bool_and(chat_id = ANY(?))";
+    /** Персоны, которые модератор вправе править: созданные им и выданные владельцем. */
+    public List<Integer> editablePersonaIds(long tgUserId) {
+        String query = "SELECT p.id FROM " + PERSONAS_TABLE + " p WHERE p.created_by = ?"
+                + " OR EXISTS (SELECT 1 FROM " + MODERATOR_PERSONAS_TABLE
+                + " mp WHERE mp.persona_id = p.id AND mp.tg_user_id = ?)";
 
         List<Integer> ids = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setArray(1, longArray(connection, chatIds));
+            statement.setLong(1, tgUserId);
+            statement.setLong(2, tgUserId);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next())
                     ids.add(resultSet.getInt(1));
@@ -244,7 +281,7 @@ public class PersonaRepository {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                insertPersona(connection, details);
+                insertPersona(connection, details, null);
                 connection.commit();
             } catch (Exception e) {
                 connection.rollback();
@@ -261,11 +298,11 @@ public class PersonaRepository {
      * Персона модератора: карточка и привязка к его чату одной транзакцией.
      * Беспризорных персон у модератора не появляется.
      */
-    public void createInChat(PersonaDetails details, long chatId) {
+    public void createInChat(PersonaDetails details, long chatId, Long createdBy) {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                int personaId = insertPersona(connection, details);
+                int personaId = insertPersona(connection, details, createdBy);
                 try (PreparedStatement statement = connection.prepareStatement(
                         "INSERT INTO " + CHAT_PERSONAS_TABLE + " (chat_id, persona_id, assigned_at)"
                                 + " VALUES (?, ?, now()) ON CONFLICT (chat_id) DO UPDATE"
@@ -486,14 +523,15 @@ public class PersonaRepository {
         return Optional.empty();
     }
 
-    private int insertPersona(Connection connection, PersonaDetails details) throws Exception {
+    private int insertPersona(Connection connection, PersonaDetails details, Long createdBy) throws Exception {
         String query = "INSERT INTO " + PERSONAS_TABLE + " (name, prompt, aggression_threshold, hysteria_replies,"
                 + " hysteria_cooldown_hours, max_replies, reply_delay_ms, initiative_enabled,"
-                + " initiative_cooldown_messages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                + " initiative_cooldown_messages, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 + " RETURNING id";
 
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             bindPersona(statement, details);
+            statement.setObject(10, createdBy, Types.BIGINT);
             try (ResultSet resultSet = statement.executeQuery()) {
                 resultSet.next();
                 int personaId = resultSet.getInt("id");

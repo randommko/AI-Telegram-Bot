@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Матрица прав: владелец, своя персона, общая персона, модератор без чатов. */
+/** Матрица прав: владелец, персона своего чата, созданная, выданная и чужая. */
 class AdminAccessTest {
     private final CurrentAdmin current = mock(CurrentAdmin.class);
     private final PersonaRepository personas = mock(PersonaRepository.class);
@@ -28,11 +28,12 @@ class AdminAccessTest {
         assertTrue(access.seesChat(-100L));
         assertTrue(access.canSeePersona(1));
         assertTrue(access.canEditPersona(1));
+        assertEquals(PersonaRepository.Scope.owner(), access.personaScope());
     }
 
     @Test
     void moderatorSeesOnlyGrantedChats() {
-        moderatorOf("vasya", List.of(-100L));
+        moderatorOf(List.of(-100L));
 
         assertEquals(Optional.of(List.of(-100L)), access.visibleChats());
         assertTrue(access.seesChat(-100L));
@@ -40,10 +41,21 @@ class AdminAccessTest {
     }
 
     @Test
-    void moderatorEditsPersonaWhoseChatsAreAllHis() {
-        moderatorOf("vasya", List.of(-100L));
-        when(personas.permission(7, List.of(-100L)))
-                .thenReturn(new PersonaRepository.PersonaPermission(1, 0));
+    void chatGivesViewButNotEdit() {
+        moderatorOf(List.of(-100L));
+        when(personas.personaAccess(7, 777L, List.of(-100L)))
+                .thenReturn(new PersonaRepository.PersonaAccess(false, false, true));
+
+        assertTrue(access.canSeePersona(7));
+        assertFalse(access.canEditPersona(7));
+    }
+
+    @Test
+    void createdPersonaIsEditable() {
+        moderatorOf(List.of(-100L));
+        when(personas.personaAccess(7, 777L, List.of(-100L)))
+                .thenReturn(new PersonaRepository.PersonaAccess(true, false, true));
+        when(personas.editablePersonaIds(777L)).thenReturn(List.of(7));
 
         assertTrue(access.canSeePersona(7));
         assertTrue(access.canEditPersona(7));
@@ -51,20 +63,20 @@ class AdminAccessTest {
     }
 
     @Test
-    void sharedPersonaIsReadOnly() {
-        moderatorOf("vasya", List.of(-100L));
-        when(personas.permission(7, List.of(-100L)))
-                .thenReturn(new PersonaRepository.PersonaPermission(2, 1));
+    void grantedPersonaIsEditableWithoutAnyChat() {
+        moderatorOf(List.of(-100L));
+        when(personas.personaAccess(9, 777L, List.of(-100L)))
+                .thenReturn(new PersonaRepository.PersonaAccess(false, true, false));
 
-        assertTrue(access.canSeePersona(7));
-        assertFalse(access.canEditPersona(7));
+        assertTrue(access.canSeePersona(9));
+        assertTrue(access.canEditPersona(9));
     }
 
     @Test
-    void personaWithoutBoundChatsIsNotEditable() {
-        moderatorOf("vasya", List.of(-100L));
-        when(personas.permission(7, List.of(-100L)))
-                .thenReturn(new PersonaRepository.PersonaPermission(0, 0));
+    void foreignPersonaIsHidden() {
+        moderatorOf(List.of(-100L));
+        when(personas.personaAccess(7, 777L, List.of(-100L)))
+                .thenReturn(new PersonaRepository.PersonaAccess(false, false, false));
 
         assertFalse(access.canSeePersona(7));
         assertFalse(access.canEditPersona(7));
@@ -72,19 +84,22 @@ class AdminAccessTest {
 
     @Test
     void moderatorWithoutChatsSeesNothing() {
-        moderatorOf("vasya", List.of());
+        moderatorOf(List.of());
+        when(personas.personaAccess(7, 777L, List.of()))
+                .thenReturn(new PersonaRepository.PersonaAccess(false, false, false));
+        when(personas.editablePersonaIds(777L)).thenReturn(List.of());
 
         assertEquals(Optional.of(List.of()), access.visibleChats());
         assertFalse(access.seesChat(-100L));
         assertFalse(access.canSeePersona(7));
         assertFalse(access.canEditPersona(7));
         assertEquals(Optional.of(List.of()), access.visiblePersonaIds());
+        assertEquals(PersonaRepository.Scope.moderator(777L, List.of()), access.personaScope());
     }
 
-    private void moderatorOf(String login, List<Long> chats) {
+    private void moderatorOf(List<Long> chats) {
         when(current.isOwner()).thenReturn(false);
         when(current.moderatorId()).thenReturn(Optional.of(777L));
         when(moderators.chatIdsOf(777L)).thenReturn(chats);
-        when(personas.editablePersonaIds(chats)).thenReturn(chats.isEmpty() ? List.of() : List.of(7));
     }
 }

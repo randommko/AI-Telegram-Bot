@@ -1,5 +1,6 @@
 package org.example.admin;
 
+import org.example.core.aichat.PersonaDetails;
 import org.example.core.aichat.PersonaRepository;
 import org.example.core.config.BotProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -53,6 +55,9 @@ class AdminAccountsTest {
 
     @MockitoBean
     private ChatModeratorRepository moderators;
+
+    @MockitoBean
+    private ModeratorPersonaRepository personaGrants;
 
     @MockitoBean
     private PersonaRepository personas;
@@ -149,5 +154,48 @@ class AdminAccountsTest {
                 .andExpect(redirectedUrl("/admin/moderators"));
 
         verify(moderators).revoke(777L, CHAT);
+    }
+
+    @Test
+    void grantsPersonaToModerator() throws Exception {
+        when(accounts.tgUserIdOf(1)).thenReturn(Optional.of(777L));
+        when(personas.findDetails(5)).thenReturn(Optional.of(persona(5)));
+
+        mockMvc.perform(post("/admin/moderators/1/personas")
+                        .param("personaId", "5")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/moderators"));
+
+        verify(personaGrants).grant(eq(777L), eq(5), eq(270459384L));
+    }
+
+    @Test
+    void refusesUnknownPersona() throws Exception {
+        when(accounts.tgUserIdOf(1)).thenReturn(Optional.of(777L));
+        when(personas.findDetails(99)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/admin/moderators/1/personas")
+                        .param("personaId", "99")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/moderators"))
+                .andExpect(flash().attribute("error", containsString("не найдена")));
+
+        verify(personaGrants, never()).grant(anyLong(), org.mockito.ArgumentMatchers.anyInt(), any());
+    }
+
+    @Test
+    void revokesPersonaFromModerator() throws Exception {
+        when(accounts.tgUserIdOf(1)).thenReturn(Optional.of(777L));
+
+        mockMvc.perform(post("/admin/moderators/1/personas/5/delete")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(redirectedUrl("/admin/moderators"));
+
+        verify(personaGrants).revoke(777L, 5);
+    }
+
+    private PersonaDetails persona(int id) {
+        return new PersonaDetails(id, "Юра", "промпт", List.of("юра"), Map.of(),
+                8, 4, 6, 4, 1500, true, 20);
     }
 }

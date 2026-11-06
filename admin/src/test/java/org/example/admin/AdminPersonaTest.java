@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -191,7 +192,7 @@ class AdminPersonaTest {
     }
 
     @Test
-    void moderatorCannotSaveSharedPersona() throws Exception {
+    void moderatorCannotSavePersonaWithoutEditRight() throws Exception {
         when(access.isOwner()).thenReturn(false);
         when(access.canEditPersona(1)).thenReturn(false);
 
@@ -211,7 +212,7 @@ class AdminPersonaTest {
         mockMvc.perform(saveForm("chatId", "-100200"))
                 .andExpect(redirectedUrl("/admin/personas"));
 
-        verify(personas).createInChat(any(PersonaDetails.class), eq(-100200L));
+        verify(personas).createInChat(any(PersonaDetails.class), eq(-100200L), isNull());
         verify(personas, never()).create(any(PersonaDetails.class));
     }
 

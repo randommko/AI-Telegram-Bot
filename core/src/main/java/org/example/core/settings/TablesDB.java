@@ -20,5 +20,6 @@ public final class TablesDB {
     public static final String PROVIDER_KEY_STATUS_TABLE = "ai.provider_key_status";
     public static final String ADMIN_ACCOUNTS_TABLE = "configurator.admin_accounts";
     public static final String CHAT_MODERATORS_TABLE = "configurator.chat_moderators";
+    public static final String MODERATOR_PERSONAS_TABLE = "configurator.moderator_personas";
     public static final String SETTINGS_TABLE = "config.bot_settings";
 }

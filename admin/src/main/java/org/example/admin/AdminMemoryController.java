@@ -156,7 +156,7 @@ public class AdminMemoryController {
 
     /** Персоны, память которых видна: у модератора — только те, что он вправе править. */
     private List<PersonaSummary> editablePersonas() {
-        List<PersonaSummary> all = personas.findAllWithCounts(access.visibleChats());
+        List<PersonaSummary> all = personas.findAllWithCounts(access.personaScope());
         Optional<List<Integer>> allowed = access.visiblePersonaIds();
         return allowed.map(ids -> all.stream().filter(persona -> ids.contains(persona.id())).toList())
                 .orElse(all);

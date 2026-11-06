@@ -30,8 +30,14 @@ CREATE TABLE IF NOT EXISTS config.personas (
     initiative_enabled boolean NOT NULL DEFAULT true,
     initiative_cooldown_messages integer NOT NULL DEFAULT 20,
     last_hysteria_at timestamp with time zone,
+    created_by bigint REFERENCES shared.tg_users(user_id) ON DELETE SET NULL,
     CONSTRAINT personas_name_unique UNIQUE (name)
 );
+
+-- Кто создал персону: модератор сохраняет право правки своей персоны и после
+-- привязки к чужим чатам. NULL — создана владельцем или ботом.
+ALTER TABLE config.personas
+    ADD COLUMN IF NOT EXISTS created_by bigint REFERENCES shared.tg_users(user_id) ON DELETE SET NULL;
 
 -- Имена, по которым персона откликается. Уникальность — в пределах персоны
 -- и без учёта регистра: две персоны в разных чатах вправе зваться одинаково.

@@ -8,11 +8,13 @@ import java.util.Optional;
 
 /**
  * Права вошедшего: какие чаты видны и какие персоны он вправе править.
- * Владельцу видно всё; модератор ограничен выданными чатами, а персону правит,
- * только пока все её чаты — его.
+ * Владельцу видно всё. Модератору выданный чат открывает персону только для чтения,
+ * а правит он свои персоны (создал сам) и те, что выдал владелец.
  */
 @Component
 public class AdminAccess {
+    private static final long NO_MODERATOR = -1L;
+
     private final CurrentAdmin current;
     private final PersonaRepository personas;
     private final ChatModeratorRepository moderators;
@@ -45,37 +47,29 @@ public class AdminAccess {
         return visibleChats().map(chats -> chats.contains(chatId)).orElse(true);
     }
 
-    /** Видна ли персона: у модератора — если хотя бы один её чат ему выдан. */
+    /** Видна ли персона: свои, выданные и персоны выданных чатов. */
     public boolean canSeePersona(int personaId) {
         if (isOwner())
             return true;
 
-        Optional<List<Long>> visible = visibleChats();
-        if (visible.isEmpty())
-            return true;
-
-        List<Long> chats = visible.get();
-        if (chats.isEmpty())
-            return false;
-
-        return personas.permission(personaId, chats).total() > 0;
+        return access(personaId).visible();
     }
 
-    /** Править персону может владелец или модератор, которому выданы все её чаты. */
+    /** Правку даёт авторство персоны или выдача владельцем; чат — только просмотр. */
     public boolean canEditPersona(int personaId) {
         if (isOwner())
             return true;
 
-        Optional<List<Long>> visible = visibleChats();
-        if (visible.isEmpty())
-            return true;
+        return access(personaId).editable();
+    }
 
-        List<Long> chats = visible.get();
-        if (chats.isEmpty())
-            return false;
+    /** Область списка персон для модератора: чат, авторство и выдача. */
+    public PersonaRepository.Scope personaScope() {
+        if (isOwner())
+            return PersonaRepository.Scope.owner();
 
-        PersonaRepository.PersonaPermission permission = personas.permission(personaId, chats);
-        return permission.total() > 0 && permission.foreign() == 0;
+        return PersonaRepository.Scope.moderator(
+                current.moderatorId().orElse(NO_MODERATOR), visibleChatIds());
     }
 
     /** Персоны, память которых модератору видна: ровно те, что он вправе править. */
@@ -83,11 +77,19 @@ public class AdminAccess {
         if (isOwner())
             return Optional.empty();
 
-        List<Long> chats = visibleChatIds();
-        if (chats.isEmpty())
+        Optional<Long> moderatorId = current.moderatorId();
+        if (moderatorId.isEmpty())
             return Optional.of(List.of());
 
-        return Optional.of(personas.editablePersonaIds(chats));
+        return Optional.of(personas.editablePersonaIds(moderatorId.get()));
+    }
+
+    private PersonaRepository.PersonaAccess access(int personaId) {
+        Optional<Long> moderatorId = current.moderatorId();
+        if (moderatorId.isEmpty())
+            return new PersonaRepository.PersonaAccess(false, false, false);
+
+        return personas.personaAccess(personaId, moderatorId.get(), visibleChatIds());
     }
 
     public Optional<Long> authorId() {
