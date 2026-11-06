@@ -71,7 +71,9 @@ class PromptComposerTest {
     void setUp() {
         logger.addAppender(logs);
         logs.start();
-        when(memoryDecay.effective(any(MemoryRecord.class), anyInt(), any()))
+        when(memoryDecay.daysPerPoint()).thenReturn(3);
+        when(memoryDecay.minImportance()).thenReturn(1);
+        when(memoryDecay.effective(any(MemoryRecord.class), anyInt(), anyInt(), any()))
                 .thenAnswer(invocation -> ((MemoryRecord) invocation.getArgument(0)).importance());
         composer = new PromptComposer(settings, personaService, emotionService, memoryRepository,
                 new MemoryPromptBuilder(memoryDecay), aiChatRepository, grudgeRepository, memoryDecay, CLOCK);
@@ -400,8 +402,8 @@ class PromptComposerTest {
         MemoryRecord stale = event(1, "старое");
         MemoryRecord fresh = event(2, "свежее");
         when(memoryRepository.findEvents(PERSONA_ID, null)).thenReturn(List.of(stale, fresh));
-        when(memoryDecay.effective(eq(stale), anyInt(), any())).thenReturn(2);
-        when(memoryDecay.effective(eq(fresh), anyInt(), any())).thenReturn(9);
+        when(memoryDecay.effective(eq(stale), anyInt(), anyInt(), any())).thenReturn(2);
+        when(memoryDecay.effective(eq(fresh), anyInt(), anyInt(), any())).thenReturn(9);
 
         PromptComposer.MemoryPool pool = composer.memoryPool(CHAT_ID, null);
 
