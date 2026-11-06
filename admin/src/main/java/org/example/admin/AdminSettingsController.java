@@ -32,6 +32,7 @@ import static org.example.core.settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
 import static org.example.core.settings.Settings.AI_MEMORY_ANALYSIS_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_MEMORY_ANALYSIS_MESSAGES;
 import static org.example.core.settings.Settings.AI_MEMORY_ANALYZE_EVERY;
+import static org.example.core.settings.Settings.AI_MEMORY_EVENT_DECAY_DAYS;
 import static org.example.core.settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.core.settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.core.settings.Settings.AI_MEMORY_PROMPT_SIZE;
@@ -260,6 +261,7 @@ public class AdminSettingsController {
                         range(AI_HISTORY_SIZE, "Сообщений в истории чата", "1", "1000", "10"))),
                 new TabView("memory", "Память", false, List.of(
                         range(AI_MEMORY_PROMPT_SIZE, "Обычных воспоминаний в промпте", "0", "100", "1"),
+                        range(AI_MEMORY_EVENT_DECAY_DAYS, "Дней на балл затухания событий", "0", "365", "1"),
                         range(AI_MEMORY_ANALYZE_EVERY, "Порог анализа переписки", "1", "1000", "1"),
                         area(AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа переписки"),
                         range(AI_GRUDGE_INSULT_STRENGTH, "Обида за оскорбление", "0", "10", "1"),

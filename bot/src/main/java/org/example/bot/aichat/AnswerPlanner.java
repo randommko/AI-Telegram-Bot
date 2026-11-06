@@ -2,6 +2,7 @@ package org.example.bot.aichat;
 
 import org.example.core.aichat.AiHistory;
 import org.example.core.aichat.MemoryRecord;
+import org.example.core.aichat.MessageAuthor;
 import org.example.core.aichat.PromptComposer;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -46,11 +47,11 @@ public class AnswerPlanner {
         this.parser = parser;
     }
 
-    public Optional<AnswerPlan> plan(long chatId, int maxReplies) {
+    public Optional<AnswerPlan> plan(long chatId, int maxReplies, MessageAuthor author) {
         long started = System.nanoTime();
 
         ArrayNode messages = history.messages(chatId);
-        messages.insert(0, history.message(AI_SYSTEM_ROLE, planInstruction(chatId, maxReplies)));
+        messages.insert(0, history.message(AI_SYSTEM_ROLE, planInstruction(chatId, maxReplies, author)));
         messages.insert(0, history.message(AI_SYSTEM_ROLE, composer.composeForPlan(chatId).text()));
         // Инструкция последним сообщением: модель отвечает на неё, а не продолжает беседу.
         messages.add(history.message(USER_ROLE,
@@ -72,7 +73,7 @@ public class AnswerPlanner {
         return plan;
     }
 
-    private String planInstruction(long chatId, int maxReplies) {
+    private String planInstruction(long chatId, int maxReplies, MessageAuthor author) {
         return "Ты планировщик ответа, а не персона. Не отвечай собеседнику и не пиши в его стиле.\n"
                 + "Верни ТОЛЬКО JSON-объект без пояснений и без текста вокруг:\n"
                 + "{\"topic\": \"тема короткой фразой\", \"intent\": \"question|remark|insult|apology|ignore\","
@@ -84,12 +85,12 @@ public class AnswerPlanner {
                 + "replies — сколько реплик отправить, от 1 до " + maxReplies + "; для ignore — 0.\n"
                 + "targets — ники из списка людей, кому адресованы колкости.\n"
                 + "memory_ids — id воспоминаний, которые приложить к ответу.\n\n"
-                + "Память (id | категория | текст):\n" + memoryCatalog(chatId) + "\n\n"
+                + "Память (id | категория | важность | текст):\n" + memoryCatalog(chatId, author) + "\n\n"
                 + "Обиды выше порога:\n" + grudgeList(chatId) + "\n";
     }
 
-    private String memoryCatalog(long chatId) {
-        PromptComposer.MemoryPool pool = composer.memoryPool(chatId);
+    private String memoryCatalog(long chatId, MessageAuthor author) {
+        PromptComposer.MemoryPool pool = composer.memoryPool(chatId, author == null ? null : author.userId());
         if (pool.core().isEmpty() && pool.regular().isEmpty())
             return "(нет)";
 
@@ -102,7 +103,8 @@ public class AnswerPlanner {
     private static void appendMemories(StringBuilder catalog, List<MemoryRecord> memories) {
         for (MemoryRecord memory : memories) {
             catalog.append(memory.id()).append(" | ").append(memory.category())
-                    .append(" | ").append(memory.content()).append('\n');
+                    .append(" | ").append(memory.importance()).append(" | ")
+                    .append(memory.content()).append('\n');
         }
     }
 

@@ -34,9 +34,12 @@ import static org.example.core.settings.TablesDB.TG_USERS_TABLE;
 public class MemoryRepository {
     private static final Logger logger = LoggerFactory.getLogger(MemoryRepository.class);
     private static final String DEFAULT_CATEGORY = "другое";
+    /** Категория, чьи записи стареют: важность события падает со временем. */
+    static final String EVENT_CATEGORY = "события";
 
     private static final String MEMORY_SELECT =
             "SELECT m.id, m.category, m.content, m.importance, m.is_core, m.event_date, m.source, m.updated_at," +
+                    " m.created_at," +
                     " array_agg(coalesce(u.user_name, u.first_name) ORDER BY coalesce(u.user_name, u.first_name))" +
                     " FILTER (WHERE u.user_id IS NOT NULL) AS people" +
                     " FROM " + PERSONA_MEMORIES_TABLE + " m" +
@@ -229,6 +232,51 @@ public class MemoryRepository {
         return memories;
     }
 
+    /** События персоны: с привязкой к человеку или все. */
+    public List<MemoryRecord> findEvents(int personaId, Long personUserId) {
+        String query = MEMORY_SELECT + "AND NOT m.is_core AND m.category = ? "
+                + (personUserId == null ? ""
+                : "AND EXISTS (SELECT 1 FROM " + MEMORY_PEOPLE_TABLE
+                        + " mp2 WHERE mp2.memory_id = m.id AND mp2.user_id = ?) ")
+                + "GROUP BY m.id ORDER BY m.id";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            statement.setString(2, EVENT_CATEGORY);
+            if (personUserId != null)
+                statement.setLong(3, personUserId);
+            return read(statement);
+        } catch (Exception e) {
+            logger.error("Ошибка чтения событий персоны {}: ", personaId, e);
+            return List.of();
+        }
+    }
+
+    /** Обычные воспоминания вне событий: пул делит их по типам. */
+    public List<MemoryRecord> findRegular(int personaId) {
+        String query = MEMORY_SELECT + "AND NOT m.is_core AND m.category <> ? GROUP BY m.id ORDER BY m.id";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            statement.setString(2, EVENT_CATEGORY);
+            return read(statement);
+        } catch (Exception e) {
+            logger.error("Ошибка чтения обычных воспоминаний персоны {}: ", personaId, e);
+            return List.of();
+        }
+    }
+
+    private List<MemoryRecord> read(PreparedStatement statement) throws SQLException {
+        List<MemoryRecord> memories = new ArrayList<>();
+        try (ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next())
+                memories.add(toMemory(resultSet));
+        }
+        return memories;
+    }
+
     public Set<String> categories() {
         String query = "SELECT code FROM " + MEMORY_CATEGORIES_TABLE;
         Set<String> categories = new HashSet<>();
@@ -328,6 +376,7 @@ public class MemoryRepository {
     private MemoryRecord toMemory(ResultSet resultSet) throws SQLException {
         LocalDate eventDate = resultSet.getObject("event_date", LocalDate.class);
         OffsetDateTime updatedAt = resultSet.getObject("updated_at", OffsetDateTime.class);
+        OffsetDateTime createdAt = resultSet.getObject("created_at", OffsetDateTime.class);
         return new MemoryRecord(
                 resultSet.getInt("id"),
                 resultSet.getString("category"),
@@ -337,7 +386,8 @@ public class MemoryRepository {
                 eventDate,
                 people(resultSet),
                 resultSet.getString("source"),
-                updatedAt == null ? Instant.EPOCH : updatedAt.toInstant());
+                updatedAt == null ? Instant.EPOCH : updatedAt.toInstant(),
+                createdAt == null ? Instant.EPOCH : createdAt.toInstant());
     }
 
     private List<String> people(ResultSet resultSet) throws SQLException {
@@ -510,7 +560,7 @@ public class MemoryRepository {
         int page = Math.min(Math.max(1, filter.page()), totalPages);
 
         String query = "SELECT m.id, m.category, m.content, m.importance, m.is_core, m.event_date, m.source,"
-                + " m.updated_at,"
+                + " m.updated_at, m.created_at,"
                 + " array_agg(coalesce(u.user_name, u.first_name) ORDER BY coalesce(u.user_name, u.first_name))"
                 + " FILTER (WHERE u.user_id IS NOT NULL) AS people"
                 + " FROM " + PERSONA_MEMORIES_TABLE + " m"

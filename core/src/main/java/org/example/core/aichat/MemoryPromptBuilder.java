@@ -13,6 +13,12 @@ import java.util.stream.Collectors;
 @Component
 public class MemoryPromptBuilder {
 
+    private final MemoryDecay decay;
+
+    public MemoryPromptBuilder(MemoryDecay decay) {
+        this.decay = decay;
+    }
+
     public String build(List<MemoryRecord> core, List<MemoryRecord> regular) {
         return build(core, regular, PromptDefaults.MEMORY_CORE_HEADER, PromptDefaults.MEMORY_REGULAR_HEADER);
     }
@@ -38,7 +44,8 @@ public class MemoryPromptBuilder {
 
     private String line(MemoryRecord memory) {
         List<String> details = new ArrayList<>();
-        details.add("важно: " + memory.importance());
+        // Действующая важность: событие со временем теряет баллы, факт — нет.
+        details.add("важно: " + decay.effective(memory));
         if (memory.eventDate() != null)
             details.add(memory.eventDate().toString());
         if (memory.people() != null && !memory.people().isEmpty())

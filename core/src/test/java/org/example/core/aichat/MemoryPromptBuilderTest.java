@@ -1,13 +1,18 @@
 package org.example.core.aichat;
 
+import org.example.core.settings.SettingsService;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.example.core.settings.Settings.AI_MEMORY_EVENT_DECAY_DAYS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MemoryPromptBuilderTest {
 
@@ -15,7 +20,14 @@ class MemoryPromptBuilderTest {
             "Что ты помнишь о себе и о людях в чате всегда (это незыблемо):";
     private static final String REGULAR_HEADER = "Что ты помнишь о себе и о людях в чате:";
 
-    private final MemoryPromptBuilder builder = new MemoryPromptBuilder();
+    private final MemoryPromptBuilder builder = new MemoryPromptBuilder(noDecay());
+
+    /** Затухание выключено: тесты проверяют формат, а не старение. */
+    private static MemoryDecay noDecay() {
+        SettingsService settings = mock(SettingsService.class);
+        when(settings.getSettingValue(AI_MEMORY_EVENT_DECAY_DAYS)).thenReturn("0");
+        return new MemoryDecay(settings, Clock.systemUTC());
+    }
 
     @Test
     void coreBlockGoesFirstAndIsFormatted() {

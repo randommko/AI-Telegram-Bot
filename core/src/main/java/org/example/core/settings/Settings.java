@@ -6,6 +6,8 @@ public class Settings {
     public static final String AI_MAX_TOKENS_ANSWER_QUESTION = "maxTokensQuestion";
     public static final String AI_HISTORY_SIZE = "aiHistorySize";
     public static final String AI_MEMORY_PROMPT_SIZE = "aiMemoryPromptSize";
+    /** Через сколько дней важность события падает на балл; 0 — затухание выключено. */
+    public static final String AI_MEMORY_EVENT_DECAY_DAYS = "aiMemoryEventDecayDays";
     public static final String AI_MEMORY_ANALYZE_EVERY = "aiMemoryAnalyzeEvery";
     public static final String AI_MEMORY_EXTRACT_PROMPT = "aiMemoryExtractPrompt";
     /** Сколько последних новых сообщений уходит в один запрос анализа памяти. */
