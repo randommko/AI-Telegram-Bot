@@ -31,11 +31,13 @@ GRANT UPDATE ON config.personas TO ai_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO ai_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO ai_user;
 
--- Админка: читает общие и ai, правит config и configurator, пишет память в ai.
+-- Админка: читает общие и ai, правит config и configurator, пишет память, базовые
+-- значения эмоций и историю чата при смене персоны.
 GRANT USAGE ON SCHEMA shared, config, ai, configurator TO admin_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA shared, ai TO admin_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA config, configurator TO admin_user;
-GRANT INSERT, UPDATE, DELETE ON ai.persona_memories, ai.memory_people TO admin_user;
+GRANT INSERT, UPDATE, DELETE ON ai.persona_memories, ai.memory_people,
+    ai.persona_emotions, ai.ai_messages TO admin_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA config, configurator, ai TO admin_user;
 
 -- Таблицы и последовательности, которые появятся в следующих миграциях.
