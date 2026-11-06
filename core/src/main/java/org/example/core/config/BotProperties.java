@@ -20,7 +20,8 @@ public record BotProperties(
         @Valid @NotNull Db db,
         @Valid Ai ai,
         @Valid Proxy proxy,
-        @Valid Admin admin) {
+        @Valid Admin admin,
+        @Valid Ssh ssh) {
 
     /**
      * Токен здесь не обязателен: админка биндит те же свойства, но к Telegram не ходит.
@@ -38,6 +39,11 @@ public record BotProperties(
     /** Админка опциональна: без BOT_ADMIN_PASSWORD её страницы не существуют. */
     public boolean hasAdmin() {
         return admin != null && admin.password() != null && !admin.password().isBlank();
+    }
+
+    /** SSH-доступ нужен только для команды туннеля в уведомлении о запуске. */
+    public boolean hasSsh() {
+        return ssh != null && ssh.isConfigured();
     }
 
     /** Telegram user id бота: часть токена до двоеточия. По нему узнаём свои сообщения в реплаях. */
@@ -95,6 +101,14 @@ public record BotProperties(
         @AssertTrue(message = "BOT_ADMIN_PORT задан вне диапазона 1..65535")
         public boolean isPortUsable() {
             return port == null || (port > 0 && port < 65536);
+        }
+    }
+
+    /** Необязательный SSH-доступ к серверу: из него собирается команда туннеля. */
+    public record Ssh(String user, String host) {
+
+        public boolean isConfigured() {
+            return user != null && !user.isBlank() && host != null && !host.isBlank();
         }
     }
 }

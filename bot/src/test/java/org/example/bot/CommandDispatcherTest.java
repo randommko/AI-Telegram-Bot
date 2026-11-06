@@ -58,7 +58,7 @@ class CommandDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null);
+        BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null, null);
         dispatcher = new CommandDispatcher(messageSender, aiService, new AiAddressParser(), personaService, properties);
     }
 

@@ -77,7 +77,7 @@ public class StartupNotifier {
         return properties.ai().keyFor(provider.get().id()) == null ? line + ", ключа нет" : line;
     }
 
-    /** Ссылка на админку — только если она включена паролем. Доступна через SSH-туннель. */
+    /** Ссылка на админку и команда туннеля — только если админка включена паролем. */
     private String adminLine() {
         if (!properties.hasAdmin())
             return "";
@@ -86,7 +86,15 @@ public class StartupNotifier {
         String bind = admin.bind();
         String host = bind == null || bind.isBlank() || "0.0.0.0".equals(bind) ? "127.0.0.1" : bind;
         int port = admin.port() == null ? 8081 : admin.port();
-        return "\nАдминка: http://" + host + ":" + port + "/admin (через SSH-туннель)";
+
+        StringBuilder line = new StringBuilder("\nАдминка: http://")
+                .append(host).append(':').append(port).append("/admin");
+        if (properties.hasSsh()) {
+            BotProperties.Ssh ssh = properties.ssh();
+            line.append("\nТуннель: ssh -L ").append(port).append(":127.0.0.1:").append(port)
+                    .append(' ').append(ssh.user().trim()).append('@').append(ssh.host().trim());
+        }
+        return line.toString();
     }
 
     private Long ownerChatId() {
