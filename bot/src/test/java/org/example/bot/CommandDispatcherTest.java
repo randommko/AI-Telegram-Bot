@@ -42,6 +42,8 @@ class CommandDispatcherTest {
     private static final Long BLUE_CHAT_ID = -1001347887839L;
     private static final Long OTHER_CHAT_ID = -1007777777777L;
     private static final long BOT_ID = 42L;
+    private static final Integer MESSAGE_ID = 555;
+    private static final MessageAuthor AUTHOR = new MessageAuthor(111L, "@nick", "Ник");
     private static final List<String> ALIASES = List.of("юр", "юра", "юрец", "юрчик", "юрий");
     private static final Persona BLUE_PERSONA = new Persona(1, "Юра", "Ты Юра");
     private static final Persona OTHER_PERSONA = new Persona(2, "Макс", "Ты Макс");
@@ -69,7 +71,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("Юра, как дела?", BLUE_CHAT_ID));
 
-        verify(aiService).askAi(BLUE_CHAT_ID, "Юра, как дела?");
+        verify(aiService).askAi(BLUE_CHAT_ID, "Юра, как дела?", MESSAGE_ID, AUTHOR);
         assertSaved(BLUE_CHAT_ID, "Юра, как дела?", 111L, "@nick", "Ник");
     }
 
@@ -80,7 +82,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("как дела, юра?", BLUE_CHAT_ID));
 
-        verify(aiService).askAi(BLUE_CHAT_ID, "как дела, юра?");
+        verify(aiService).askAi(BLUE_CHAT_ID, "как дела, юра?", MESSAGE_ID, AUTHOR);
     }
 
     @Test
@@ -91,7 +93,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("Юрий!", BLUE_CHAT_ID));
 
         verify(messageSender).sendMessage(BLUE_CHAT_ID, "Юра на связи, но вопроса нет. Напиши его после обращения.");
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -103,7 +105,7 @@ class CommandDispatcherTest {
 
         verify(messageSender).sendMessage(OTHER_CHAT_ID,
                 "Макс на связи, но вопроса нет. Напиши его после обращения.");
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -113,7 +115,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("макс, как дела?", OTHER_CHAT_ID));
 
-        verify(aiService).askAi(OTHER_CHAT_ID, "макс, как дела?");
+        verify(aiService).askAi(OTHER_CHAT_ID, "макс, как дела?", MESSAGE_ID, AUTHOR);
         assertSaved(OTHER_CHAT_ID, "макс, как дела?", 111L, "@nick", "Ник");
     }
 
@@ -124,7 +126,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("юра, как дела?", OTHER_CHAT_ID));
 
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         assertSaved(OTHER_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
     }
 
@@ -135,7 +137,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("юридический вопрос по договору", BLUE_CHAT_ID));
 
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
         assertSaved(BLUE_CHAT_ID, "юридический вопрос по договору", 111L, "@nick", "Ник");
     }
@@ -146,7 +148,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(update("юра, как дела?", BLUE_CHAT_ID));
 
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         assertSaved(BLUE_CHAT_ID, "юра, как дела?", 111L, "@nick", "Ник");
     }
 
@@ -170,7 +172,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(replyUpdate("ну что?", BLUE_CHAT_ID, BOT_ID));
 
-        verify(aiService).askAi(BLUE_CHAT_ID, "ну что?");
+        verify(aiService).askAi(BLUE_CHAT_ID, "ну что?", MESSAGE_ID, AUTHOR);
     }
 
     @Test
@@ -180,7 +182,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(replyUpdate("ну что?", BLUE_CHAT_ID, 111L));
 
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -189,7 +191,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(replyUpdate("ну что?", OTHER_CHAT_ID, BOT_ID));
 
-        verify(aiService).askAi(OTHER_CHAT_ID, "ну что?");
+        verify(aiService).askAi(OTHER_CHAT_ID, "ну что?", MESSAGE_ID, AUTHOR);
     }
 
     @Test
@@ -198,7 +200,7 @@ class CommandDispatcherTest {
 
         dispatcher.dispatch(replyUpdate("ну что?", OTHER_CHAT_ID, BOT_ID));
 
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         assertSaved(OTHER_CHAT_ID, "ну что?", 111L, "@nick", "Ник");
     }
 
@@ -211,7 +213,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update);
 
         verify(aiService).askAi(update.getMessage());
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -223,7 +225,7 @@ class CommandDispatcherTest {
         verify(messageSender).sendMessage(BLUE_CHAT_ID,
                 "В этом чате отвечает Юра. Напиши вопрос с обращением — например: «Юра, как дела?»");
         verify(aiService, never()).askAi(any(Message.class));
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
     }
 
@@ -254,7 +256,7 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("/юра как дела", BLUE_CHAT_ID));
 
         verify(aiService, never()).askAi(any(Message.class));
-        verify(aiService, never()).askAi(anyLong(), anyString());
+        verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
         assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
     }
@@ -313,13 +315,15 @@ class CommandDispatcherTest {
         Chat chat = mock(Chat.class);
         User user = mock(User.class);
 
-        when(message.getText()).thenReturn(text);
+        lenient().when(message.getText()).thenReturn(text);
         // Заглушки не нужны всем веткам, поэтому не строгие.
+        lenient().when(message.getMessageId()).thenReturn(MESSAGE_ID);
         lenient().when(message.getChatId()).thenReturn(chatId);
         lenient().when(message.getChat()).thenReturn(chat);
         lenient().when(message.getFrom()).thenReturn(user);
         lenient().when(message.getReplyToMessage()).thenReturn(null);
         lenient().when(chat.getId()).thenReturn(chatId);
+        lenient().when(chat.isSuperGroupChat()).thenReturn(true);
         lenient().when(user.getUserName()).thenReturn("nick");
         lenient().when(user.getFirstName()).thenReturn("Ник");
         lenient().when(user.getId()).thenReturn(111L);

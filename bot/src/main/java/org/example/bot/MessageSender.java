@@ -33,9 +33,32 @@ public class MessageSender {
     }
 
     public Integer sendMessage(Long chatId, String text) {
-        SendMessage msg = SendMessage.builder().chatId(chatId).text(text).build();
+        return sendMessage(chatId, text, null);
+    }
+
+    /**
+     * Отправка с необязательным реплаем. Если Telegram отклонил цитату (сообщение
+     * удалено или недоступно), текст уходит без неё: потерять ответ хуже дубля.
+     */
+    public Integer sendMessage(Long chatId, String text, Integer replyToMessageId) {
+        if (replyToMessageId == null)
+            return send(chatId, text, null);
+
+        Integer sent = send(chatId, text, replyToMessageId);
+        if (sent != null)
+            return sent;
+
+        logger.warn("Реплай в чат {} на сообщение {} не удался: отправляю без цитаты",
+                chatId, replyToMessageId);
+        return send(chatId, text, null);
+    }
+
+    private Integer send(Long chatId, String text, Integer replyToMessageId) {
+        var builder = SendMessage.builder().chatId(chatId).text(text);
+        if (replyToMessageId != null)
+            builder.replyToMessageId(replyToMessageId);
         try {
-            return botProvider.getObject().execute(msg).getMessageId();
+            return botProvider.getObject().execute(builder.build()).getMessageId();
         } catch (TelegramApiException e) {
             logger.error("Ошибка отправки: ", e);
             return null;
@@ -44,28 +67,23 @@ public class MessageSender {
 
     /**
      * Отправляет текст целиком: длинный ответ режется на части по лимиту Telegram
-     * и уходит по порядку. Сбой одной части не отменяет остальные.
+     * и уходит по порядку. Реплай ставится только на первую часть.
      */
     public int sendLongMessage(Long chatId, String text) {
+        return sendLongMessage(chatId, text, null);
+    }
+
+    public int sendLongMessage(Long chatId, String text, Integer replyToMessageId) {
         List<String> parts = TextSplitter.split(text, TextSplitter.MAX_MESSAGE_LENGTH);
         int sent = 0;
-        for (String part : parts) {
-            if (sendMessage(chatId, part) != null)
+        for (int i = 0; i < parts.size(); i++) {
+            Integer replyId = i == 0 ? replyToMessageId : null;
+            if (sendMessage(chatId, parts.get(i), replyId) != null)
                 sent++;
         }
         if (parts.size() > 1)
             logger.info("Ответ в чат {} разбит на {} частей, отправлено {}", chatId, parts.size(), sent);
         return sent;
-    }
-
-    public Integer sendReplyMessage(Long chatId, Integer replyId, String text) {
-        SendMessage msg = SendMessage.builder().chatId(chatId).text(text).replyToMessageId(replyId).build();
-        try {
-            return botProvider.getObject().execute(msg).getMessageId();
-        } catch (TelegramApiException e) {
-            logger.error("Ошибка reply: ", e);
-            return null;
-        }
     }
 
     public boolean sendImage(Long chatId, String caption, File image) {
