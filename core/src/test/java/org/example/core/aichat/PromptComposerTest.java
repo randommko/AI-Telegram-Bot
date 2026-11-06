@@ -220,6 +220,31 @@ class PromptComposerTest {
     }
 
     @Test
+    void shownEmotionSectionIsTheSameTextTheModelGets() {
+        withPersona();
+
+        for (EmotionState state : List.of(angryState(), calmState(), sixDeviationsState())) {
+            when(emotionService.bodyFor(PERSONA_ID, false)).thenReturn(EmotionService.bodyText(state));
+
+            String shown = composer.emotionsSection(state);
+
+            assertTrue(shown.startsWith(PromptSection.EMOTIONS.heading() + "\n"), shown);
+            assertTrue(composer.compose(CHAT_ID).text().contains(shown), shown);
+        }
+    }
+
+    @Test
+    void calmEmotionSectionIsOneLineUnderHeading() {
+        assertEquals(PromptSection.EMOTIONS.heading() + "\n" + EmotionService.CALM_LINE,
+                composer.emotionsSection(calmState()));
+    }
+
+    @Test
+    void missingStateGivesNoEmotionSection() {
+        assertEquals("", composer.emotionsSection(null));
+    }
+
+    @Test
     void previewReadsEmotionsWithoutEnsuringRows() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.of(
                 new Persona(PERSONA_ID, "Юра", "Ты Юра")));
@@ -338,6 +363,26 @@ class PromptComposerTest {
         composer.compose(CHAT_ID);
 
         assertTrue(promptLog().contains("персона без персоны"), promptLog());
+    }
+
+    private static EmotionState angryState() {
+        return new EmotionState(List.of(
+                new EmotionState.Line("гнев", "Гнев", 2, 6, 4, "Ты злишься")),
+                3, "Агрессия", "Давит");
+    }
+
+    private static EmotionState calmState() {
+        return new EmotionState(List.of(
+                new EmotionState.Line("гнев", "Гнев", 2, 2, 0, "Спокойный тон")),
+                0, "Агрессия", "Спокойный тон");
+    }
+
+    private static EmotionState sixDeviationsState() {
+        List<EmotionState.Line> lines = new ArrayList<>();
+        String[] codes = {"гнев", "радость", "печаль", "страх", "зависть", "стыд"};
+        for (int i = 0; i < codes.length; i++)
+            lines.add(new EmotionState.Line(codes[i], "Эмоция " + i, 1, 3 + i, 2 + i, "Фраза " + i));
+        return new EmotionState(lines, 0, "Агрессия", "Спокойный тон");
     }
 
     private String promptLog() {
