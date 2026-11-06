@@ -164,8 +164,11 @@ public class PersonaRepository {
                 + " (SELECT count(*) FROM " + PERSONA_ALIASES_TABLE + " a WHERE a.persona_id = p.id),"
                 + " (SELECT count(*) FROM " + PERSONA_MEMORIES_TABLE
                 + " m WHERE m.persona_id = p.id AND m.deleted_at IS NULL),"
-                + " (SELECT string_agg(cp.chat_id::text, ', ' ORDER BY cp.chat_id) FROM " + CHAT_PERSONAS_TABLE
-                + " cp WHERE cp.persona_id = p.id)"
+                + " (SELECT string_agg(COALESCE(NULLIF(btrim(c.chat_title), ''), cp.chat_id::text),"
+                + " ', ' ORDER BY cp.chat_id)"
+                + " FROM " + CHAT_PERSONAS_TABLE + " cp"
+                + " LEFT JOIN " + TG_CHATS_TABLE + " c ON c.chat_id = cp.chat_id"
+                + " WHERE cp.persona_id = p.id)"
                 + " FROM " + PERSONAS_TABLE + " p"
                 + (scope.all() ? "" : visible)
                 + " ORDER BY lower(p.name)";

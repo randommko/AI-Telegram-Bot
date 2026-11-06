@@ -3,6 +3,8 @@ package org.example.admin;
 import org.example.core.aichat.Emotion;
 import org.example.core.aichat.EmotionRepository;
 import org.example.core.aichat.FieldNoteRepository;
+import org.example.core.aichat.MemoryRecord;
+import org.example.core.aichat.MemoryRepository;
 import org.example.core.aichat.PersonaDetails;
 import org.example.core.aichat.PersonaRepository;
 import org.example.core.aichat.PersonaSummary;
@@ -17,6 +19,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +68,9 @@ class AdminPersonaTest {
     private FieldNoteRepository fieldNotes;
 
     @MockitoBean
+    private MemoryRepository memories;
+
+    @MockitoBean
     private AdminAccess access;
 
     @MockitoBean
@@ -84,12 +91,13 @@ class AdminPersonaTest {
     @Test
     void rendersPersonaList() throws Exception {
         when(personas.findAllWithCounts(any())).thenReturn(List.of(
-                new PersonaSummary(1, "Юра", 5, 26, "-1001347887839")));
+                new PersonaSummary(1, "Юра", 5, 26, "Рабочий чат")));
 
         mockMvc.perform(get("/admin/personas").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Юра")))
-                .andExpect(content().string(containsString("26")));
+                .andExpect(content().string(containsString("26")))
+                .andExpect(content().string(containsString("Рабочий чат")));
     }
 
     @Test
@@ -100,6 +108,126 @@ class AdminPersonaTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Ты Юра")))
                 .andExpect(content().string(containsString("юр")));
+    }
+
+    @Test
+    void rendersMemoryTabWithCoreBadge() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(
+                List.of(new MemoryRecord(1, "работа", "играет в шахматы", 7, true,
+                        LocalDate.of(2024, 3, 21), List.of("@clerfe"), "manual", Instant.EPOCH)),
+                1, 1, 25));
+
+        mockMvc.perform(get("/admin/personas/1").param("tab", "memories")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("играет в шахматы")))
+                .andExpect(content().string(containsString("ядро")))
+                .andExpect(content().string(containsString("Найдено: 1")))
+                .andExpect(content().string(containsString("Воспоминания")));
+    }
+
+    @Test
+    void memoryFiltersCarryPersonaFromPath() throws Exception {
+        when(personas.findDetails(3)).thenReturn(Optional.of(details(3)));
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 2, 25));
+
+        mockMvc.perform(get("/admin/personas/3").param("tab", "memories")
+                        .param("category", "семья")
+                        .param("personId", "42")
+                        .param("q", "шахмат")
+                        .param("coreOnly", "true")
+                        .param("sort", "date")
+                        .param("page", "2")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
+        verify(memories).search(filter.capture());
+
+        org.junit.jupiter.api.Assertions.assertEquals(3, filter.getValue().personaId());
+        org.junit.jupiter.api.Assertions.assertEquals("семья", filter.getValue().category());
+        org.junit.jupiter.api.Assertions.assertEquals(42L, filter.getValue().personId());
+        org.junit.jupiter.api.Assertions.assertEquals("шахмат", filter.getValue().text());
+        org.junit.jupiter.api.Assertions.assertTrue(filter.getValue().coreOnly());
+        org.junit.jupiter.api.Assertions.assertEquals("date", filter.getValue().sort());
+        org.junit.jupiter.api.Assertions.assertEquals(2, filter.getValue().page());
+    }
+
+    @Test
+    void memoryTabCarriesOnlyEditablePersonas() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.visiblePersonaIds()).thenReturn(Optional.of(List.of(2)));
+        when(personas.findDetails(2)).thenReturn(Optional.of(details(2)));
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
+
+        mockMvc.perform(get("/admin/personas/2").param("tab", "memories")
+                        .with(user("vasya").roles("MODERATOR")))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
+        verify(memories).search(filter.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(2), filter.getValue().visiblePersonas());
+    }
+
+    @Test
+    void deletedFilterAsksOnlyDeletedRows() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
+
+        mockMvc.perform(get("/admin/personas/1").param("tab", "memories").param("deleted", "true")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<MemoryRepository.MemoryFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(MemoryRepository.MemoryFilter.class);
+        verify(memories).search(filter.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(filter.getValue().deletedOnly());
+    }
+
+    @Test
+    void emptyMemoryShowsHintInsteadOfTable() throws Exception {
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+        when(memories.search(any())).thenReturn(new MemoryRepository.MemoryPage(List.of(), 0, 1, 25));
+
+        mockMvc.perform(get("/admin/personas/1").param("tab", "memories")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Памяти пока нет")))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("class=\"list\""))));
+    }
+
+    @Test
+    void moderatorWithoutEditRightHasNoMemoryTab() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(1)).thenReturn(false);
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+
+        mockMvc.perform(get("/admin/personas/1").with(user("vasya").roles("MODERATOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("Воспоминания"))));
+
+        verify(memories, never()).search(any());
+    }
+
+    @Test
+    void memoriesTabNeedsEditRight() throws Exception {
+        when(access.isOwner()).thenReturn(false);
+        when(access.canEditPersona(1)).thenReturn(false);
+        when(personas.findDetails(1)).thenReturn(Optional.of(details(1)));
+
+        mockMvc.perform(get("/admin/personas/1").param("tab", "memories")
+                        .with(user("vasya").roles("MODERATOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Ты Юра")))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(containsString("Найдено:"))));
+
+        verify(memories, never()).search(any());
     }
 
     @Test

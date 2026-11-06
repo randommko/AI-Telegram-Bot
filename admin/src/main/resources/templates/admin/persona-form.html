@@ -12,21 +12,28 @@
         в разделе «Модераторы».
     </p>
 
-    <form class="setting" th:action="@{/admin/personas}" th:object="${form}" method="post"
+    <p class="notice" th:if="${saved}" th:text="${saved}"></p>
+    <p class="error" th:if="${error}" th:text="${error}"></p>
+
+    <nav class="tabs">
+        <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='general')}"
+           th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
+        <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='emotions')}"
+           th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
+        <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='general')}"
+           th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
+        <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='emotions')}"
+           th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
+        <a th:if="${form.id != null and editable}"
+           th:href="@{/admin/personas/{id}(id=${form.id},tab='memories')}"
+           th:classappend="${activeTab == 'memories'} ? 'active'">Воспоминания</a>
+    </nav>
+
+    <form class="setting" th:if="${activeTab != 'memories'}"
+          th:action="@{/admin/personas}" th:object="${form}" method="post"
           th:attr="data-tab=${activeTab}">
         <input type="hidden" th:field="*{id}"/>
         <input type="hidden" name="tab" th:value="${activeTab}"/>
-
-        <nav class="tabs">
-            <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='general')}"
-               th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
-            <a th:if="${form.id == null}" th:href="@{/admin/personas/new(tab='emotions')}"
-               th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
-            <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='general')}"
-               th:classappend="${activeTab == 'general'} ? 'active'">Общее</a>
-            <a th:if="${form.id != null}" th:href="@{/admin/personas/{id}(id=${form.id},tab='emotions')}"
-               th:classappend="${activeTab == 'emotions'} ? 'active'">Эмоции</a>
-        </nav>
 
         <fieldset th:disabled="${!editable}" style="border:0;padding:0;margin:0">
         <section th:classappend="${activeTab != 'general'} ? 'hidden'">
@@ -208,6 +215,110 @@
             <a class="button secondary" th:href="@{/admin/personas}">Назад</a>
         </div>
     </form>
+
+    <section th:if="${activeTab == 'memories'}">
+        <form class="filters" method="get" th:action="@{/admin/personas/{id}(id=${form.id})}">
+            <input type="hidden" name="tab" value="memories"/>
+            <label>Категория
+                <select name="category">
+                    <option value="">все</option>
+                    <option th:each="item : ${categories}" th:value="${item.code}"
+                            th:selected="${memoryFilter.category == item.code}"
+                            th:text="${item.title}">Категория</option>
+                </select>
+            </label>
+            <label>Человек
+                <select name="personId">
+                    <option value="">все</option>
+                    <option th:each="person : ${people}" th:value="${person.userId}"
+                            th:selected="${memoryFilter.personId == person.userId}"
+                            th:text="${person.title}">Человек</option>
+                </select>
+            </label>
+            <label>Поиск
+                <input type="text" name="q" th:value="${memoryFilter.text}"/>
+            </label>
+            <label>Порядок
+                <select name="sort">
+                    <option value="importance" th:selected="${memoryFilter.sort != 'date'}">по важности</option>
+                    <option value="date" th:selected="${memoryFilter.sort == 'date'}">по дате события</option>
+                </select>
+            </label>
+            <label class="inline">
+                <input type="checkbox" name="coreOnly" value="true" th:checked="${memoryFilter.coreOnly}"/>
+                только ядро
+            </label>
+            <label class="inline">
+                <input type="checkbox" name="deleted" value="true" th:checked="${memoryFilter.deletedOnly}"/>
+                удалённые
+            </label>
+            <button class="primary" type="submit">Применить</button>
+            <a class="button" th:href="@{/admin/personas/{id}/memories/new(id=${form.id})}">Добавить</a>
+        </form>
+
+        <p class="hint" th:text="'Найдено: ' + ${memoryPage.total}">Найдено: 0</p>
+
+        <table class="list" th:unless="${#lists.isEmpty(memoryPage.items)}">
+            <thead>
+            <tr>
+                <th></th>
+                <th>Текст</th>
+                <th>Категория</th>
+                <th>Важность</th>
+                <th>Дата</th>
+                <th>Люди</th>
+                <th>Источник</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="memory : ${memoryPage.items}">
+                <td><span class="badge" th:if="${memory.core}">ядро</span></td>
+                <td th:text="${memory.content}">текст</td>
+                <td th:text="${memory.category}">другое</td>
+                <td th:text="${memory.importance}">5</td>
+                <td th:text="${memory.eventDate != null ? memory.eventDate : '—'}">—</td>
+                <td th:text="${#lists.isEmpty(memory.people) ? '—' : #strings.listJoin(memory.people, ', ')}">—</td>
+                <td th:text="${memory.source}">auto</td>
+                <td>
+                    <form th:if="${memoryFilter.deletedOnly}" style="display:inline"
+                          th:action="@{/admin/personas/{personaId}/memories/{id}/restore(
+                                    personaId=${form.id}, id=${memory.id})}" method="post">
+                        <button class="button secondary" type="submit">Восстановить</button>
+                    </form>
+                    <a th:unless="${memoryFilter.deletedOnly}" class="button secondary"
+                       th:href="@{/admin/personas/{personaId}/memories/{id}(personaId=${form.id}, id=${memory.id})}">Править</a>
+                    <a th:unless="${memoryFilter.deletedOnly}" class="button secondary"
+                       th:href="@{/admin/personas/{personaId}/memories/{id}/delete(
+                                 personaId=${form.id}, id=${memory.id})}">Удалить</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <p class="hint" th:if="${memoryPage.total == 0 and !memoryFilterActive}">
+            Памяти пока нет — добавьте первую запись.
+        </p>
+        <p class="hint" th:if="${memoryPage.total == 0 and memoryFilterActive}">
+            Ничего не найдено по выбранным фильтрам.
+        </p>
+
+        <div class="toolbar" th:if="${memoryPage.totalPages > 1}">
+            <a class="button secondary" th:if="${memoryPage.hasPrev}"
+               th:href="@{/admin/personas/{id}(id=${form.id}, tab='memories',
+                         category=${memoryFilter.category}, personId=${memoryFilter.personId},
+                         q=${memoryFilter.text}, coreOnly=${memoryFilter.coreOnly},
+                         deleted=${memoryFilter.deletedOnly}, sort=${memoryFilter.sort},
+                         page=${memoryPage.page - 1})}">Назад</a>
+            <span class="hint" th:text="'Страница ' + ${memoryPage.page} + ' из ' + ${memoryPage.totalPages}">1</span>
+            <a class="button secondary" th:if="${memoryPage.hasNext}"
+               th:href="@{/admin/personas/{id}(id=${form.id}, tab='memories',
+                         category=${memoryFilter.category}, personId=${memoryFilter.personId},
+                         q=${memoryFilter.text}, coreOnly=${memoryFilter.coreOnly},
+                         deleted=${memoryFilter.deletedOnly}, sort=${memoryFilter.sort},
+                         page=${memoryPage.page + 1})}">Вперёд</a>
+        </div>
+    </section>
 </main>
 </body>
 </html>

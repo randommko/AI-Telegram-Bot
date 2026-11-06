@@ -18,11 +18,13 @@
         Это ядровая запись. Автоматический анализ её не восстановит — вернуть факт можно только вручную.
     </p>
 
-    <form th:action="@{/admin/memories/{id}/delete(id=${memory.id})}" method="post">
+    <form th:action="@{/admin/personas/{personaId}/memories/{id}/delete(
+                         personaId=${memory.personaId}, id=${memory.id})}" method="post">
         <input type="hidden" name="confirm" value="true"/>
         <div class="toolbar">
             <button class="danger" type="submit">Удалить окончательно</button>
-            <a class="button secondary" th:href="@{/admin/memories}">Отмена</a>
+            <a class="button secondary"
+               th:href="@{/admin/personas/{id}(id=${memory.personaId},tab='memories')}">Отмена</a>
         </div>
     </form>
 </main>
