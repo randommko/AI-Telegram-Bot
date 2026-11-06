@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BotPropertiesBindingTest {
 
@@ -26,12 +27,17 @@ class BotPropertiesBindingTest {
     }
 
     @Test
-    void rejectsBlankToken() {
+    void startsWithoutTokenBecauseAdminHasNone() {
         String[] properties = validProperties();
         properties[0] = "bot.token=";
 
         runner.withPropertyValues(properties)
-                .run(context -> assertThat(context).hasFailed());
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThatThrownBy(() -> context.getBean(BotProperties.class).botId())
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining("BOT_TOKEN");
+                });
     }
 
     @Test

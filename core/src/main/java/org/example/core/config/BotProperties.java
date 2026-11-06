@@ -16,11 +16,19 @@ import java.util.Map;
 @Validated
 @ConfigurationProperties(prefix = "bot")
 public record BotProperties(
-        @NotBlank String token,
+        String token,
         @Valid @NotNull Db db,
-        @Valid @NotNull Ai ai,
+        @Valid Ai ai,
         @Valid Proxy proxy,
         @Valid Admin admin) {
+
+    /**
+     * Токен здесь не обязателен: админка биндит те же свойства, но к Telegram не ходит.
+     * Пустой токен проверяет сам бот при создании TelegramBot.
+     */
+    public BotProperties {
+        ai = ai == null ? new Ai(Map.of()) : ai;
+    }
 
     /** Прокси опционален: без BOT_PROXY_* Spring не создаёт вложенную запись вовсе. */
     public boolean hasProxy() {
@@ -34,6 +42,8 @@ public record BotProperties(
 
     /** Telegram user id бота: часть токена до двоеточия. По нему узнаём свои сообщения в реплаях. */
     public long botId() {
+        if (token == null || token.isBlank())
+            throw new IllegalStateException("BOT_TOKEN не задан");
         int colon = token.indexOf(':');
         if (colon <= 0)
             throw new IllegalStateException("BOT_TOKEN не содержит идентификатор бота");

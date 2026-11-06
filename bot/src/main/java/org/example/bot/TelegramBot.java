@@ -29,6 +29,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                        MessageSender messageSender, UserChatManager userChatManager,
                        CommandDispatcher commandDispatcher, CallbackDispatcher callbackDispatcher) {
         super(options);
+        if (properties.token() == null || properties.token().isBlank())
+            throw new IllegalStateException("BOT_TOKEN не задан: бот не может подключиться к Telegram");
         this.botToken = properties.token();
         this.messageSender = messageSender;
         this.userChatManager = userChatManager;
