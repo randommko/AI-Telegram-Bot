@@ -201,6 +201,34 @@ public class MemoryRepository {
         return find(query, personaId, limit);
     }
 
+    /**
+     * Воспоминания, выбранные планом: только живые записи этой персоны.
+     * Идентификаторы другой персоны и удалённые записи в результат не попадают.
+     */
+    public List<MemoryRecord> findByIds(int personaId, Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty())
+            return List.of();
+
+        String query = MEMORY_SELECT + "AND m.id = ANY (?) GROUP BY m.id" +
+                " ORDER BY m.is_core DESC, m.importance DESC";
+
+        List<MemoryRecord> memories = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            statement.setArray(2, connection.createArrayOf("integer", ids.toArray()));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    memories.add(toMemory(resultSet));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения выбранных воспоминаний персоны {}: ", personaId, e);
+            return List.of();
+        }
+        return memories;
+    }
+
     public Set<String> categories() {
         String query = "SELECT code FROM " + MEMORY_CATEGORIES_TABLE;
         Set<String> categories = new HashSet<>();
