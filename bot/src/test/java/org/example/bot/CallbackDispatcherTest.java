@@ -7,11 +7,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,14 +37,14 @@ class CallbackDispatcherTest {
     @Mock
     private AiService aiService;
     @Mock
-    private TelegramLongPollingBot bot;
+    private TelegramClient client;
 
     private CallbackDispatcher dispatcher;
 
     @BeforeEach
     void setUp() throws Exception {
-        when(messageSender.getBot()).thenReturn(bot);
-        when(bot.execute(any(AnswerCallbackQuery.class))).thenReturn(true);
+        when(messageSender.getClient()).thenReturn(client);
+        when(client.execute(any(AnswerCallbackQuery.class))).thenReturn(true);
         dispatcher = new CallbackDispatcher(messageSender, aiService);
     }
 
@@ -53,7 +53,7 @@ class CallbackDispatcherTest {
         dispatcher.dispatch(callback(clearData(AUTHOR_ID, AiClearCallback.Decision.CONFIRM), STRANGER_ID));
 
         ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
-        verify(bot, times(1)).execute(captor.capture());
+        verify(client, times(1)).execute(captor.capture());
         assertEquals("Эту кнопку нажимал другой пользователь", captor.getValue().getText());
 
         verify(aiService, never()).clearChatHistory(any());
@@ -68,7 +68,7 @@ class CallbackDispatcherTest {
         verify(messageSender).editMessage(CHAT_ID, MESSAGE_ID, "Память обнулена, забыто 7 сообщений");
 
         ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
-        verify(bot, times(1)).execute(captor.capture());
+        verify(client, times(1)).execute(captor.capture());
         assertNull(captor.getValue().getText());
     }
 
@@ -80,7 +80,7 @@ class CallbackDispatcherTest {
         verify(messageSender).editMessage(CHAT_ID, MESSAGE_ID, "Отменено");
 
         ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
-        verify(bot, times(1)).execute(captor.capture());
+        verify(client, times(1)).execute(captor.capture());
         assertNull(captor.getValue().getText());
     }
 
@@ -89,7 +89,7 @@ class CallbackDispatcherTest {
         dispatcher.dispatch(callback("unknown", AUTHOR_ID));
 
         ArgumentCaptor<AnswerCallbackQuery> captor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
-        verify(bot).execute(captor.capture());
+        verify(client).execute(captor.capture());
         assertEquals("Неизвестная кнопка", captor.getValue().getText());
         verify(aiService, never()).clearChatHistory(any());
     }

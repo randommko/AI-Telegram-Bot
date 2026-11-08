@@ -26,8 +26,8 @@
         </dependency>
         <dependency>
             <groupId>org.telegram</groupId>
-            <artifactId>telegrambots</artifactId>
-            <version>6.5.0</version>
+            <artifactId>telegrambots-meta</artifactId>
+            <version>${telegrambots.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

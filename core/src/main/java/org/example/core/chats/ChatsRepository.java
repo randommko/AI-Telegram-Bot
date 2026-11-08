@@ -3,7 +3,7 @@ package org.example.core.chats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
-import org.telegram.telegrambots.meta.api.objects.Chat;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 
 import javax.sql.DataSource;
 import java.sql.Connection;

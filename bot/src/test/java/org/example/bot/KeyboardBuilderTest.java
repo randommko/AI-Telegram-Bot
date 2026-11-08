@@ -2,10 +2,10 @@ package org.example.bot;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -28,13 +28,13 @@ class KeyboardBuilderTest {
     @Test
     void aiClearQuestionAsksForConfirmationWithTwoButtons() throws Exception {
         MessageSender sender = mock(MessageSender.class);
-        TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
-        when(sender.getBot()).thenReturn(bot);
+        TelegramClient client = mock(TelegramClient.class);
+        when(sender.getClient()).thenReturn(client);
 
         keyboardBuilder.sendAiClearQuestion(sender, -1007777777777L, AUTHOR_ID, 7);
 
         ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
-        verify(bot).execute(captor.capture());
+        verify(client).execute(captor.capture());
         SendMessage question = captor.getValue();
 
         assertTrue(question.getText().contains("Обнулить память AI"), question.getText());

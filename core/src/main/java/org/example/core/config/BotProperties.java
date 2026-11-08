@@ -19,21 +19,15 @@ public record BotProperties(
         String token,
         @Valid @NotNull Db db,
         @Valid Ai ai,
-        @Valid Proxy proxy,
         @Valid Admin admin,
         @Valid Ssh ssh) {
 
     /**
      * Токен здесь не обязателен: админка биндит те же свойства, но к Telegram не ходит.
-     * Пустой токен проверяет сам бот при создании TelegramBot.
+     * Пустой токен проверяет сам бот при создании клиента Telegram.
      */
     public BotProperties {
         ai = ai == null ? new Ai(Map.of()) : ai;
-    }
-
-    /** Прокси опционален: без BOT_PROXY_* Spring не создаёт вложенную запись вовсе. */
-    public boolean hasProxy() {
-        return proxy != null && proxy.hasHost();
     }
 
     /** Админка опциональна: без BOT_ADMIN_PASSWORD её страницы не существуют. */
@@ -80,18 +74,6 @@ public record BotProperties(
 
             String value = key.get(providerId);
             return value == null || value.isBlank() ? null : value.trim();
-        }
-    }
-
-    public record Proxy(String type, String host, Integer port, String user, String pass) {
-
-        public boolean hasHost() {
-            return host != null && !host.isBlank();
-        }
-
-        @AssertTrue(message = "BOT_PROXY_HOST задан, а BOT_PROXY_PORT пуст или вне диапазона 1..65535")
-        public boolean isPortUsable() {
-            return !hasHost() || (port != null && port > 0 && port < 65536);
         }
     }
 

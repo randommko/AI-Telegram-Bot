@@ -3,7 +3,6 @@ package org.example.bot;
 import org.example.core.TextSplitter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
@@ -11,7 +10,7 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.io.File;
 import java.util.List;
@@ -20,16 +19,14 @@ import java.util.List;
 public class MessageSender {
     private static final Logger logger = LoggerFactory.getLogger(MessageSender.class);
 
-    // Бот создаётся этим классом опосредованно: TelegramBot зависит от MessageSender,
-    // поэтому ссылка берётся из контекста лениво, при первой отправке.
-    private final ObjectProvider<TelegramLongPollingBot> botProvider;
+    private final TelegramClient client;
 
-    public MessageSender(ObjectProvider<TelegramLongPollingBot> botProvider) {
-        this.botProvider = botProvider;
+    public MessageSender(TelegramClient client) {
+        this.client = client;
     }
 
-    public TelegramLongPollingBot getBot() {
-        return botProvider.getObject();
+    public TelegramClient getClient() {
+        return client;
     }
 
     public Integer sendMessage(Long chatId, String text) {
@@ -58,7 +55,7 @@ public class MessageSender {
         if (replyToMessageId != null)
             builder.replyToMessageId(replyToMessageId);
         try {
-            return botProvider.getObject().execute(builder.build()).getMessageId();
+            return client.execute(builder.build()).getMessageId();
         } catch (TelegramApiException e) {
             logger.error("Ошибка отправки: ", e);
             return null;
@@ -93,7 +90,7 @@ public class MessageSender {
         }
         SendPhoto photo = SendPhoto.builder().chatId(chatId).photo(new InputFile(image)).caption(caption).build();
         try {
-            botProvider.getObject().execute(photo);
+            client.execute(photo);
             return true;
         } catch (TelegramApiException e) {
             logger.error("Ошибка фото: ", e);
@@ -103,8 +100,7 @@ public class MessageSender {
 
     public boolean editMessage(Long chatId, Integer msgId, String text) {
         // Пустая клавиатура гасит кнопки: после ответа на вопрос их нельзя нажать повторно.
-        InlineKeyboardMarkup emptyKeyboard = new InlineKeyboardMarkup();
-        emptyKeyboard.setKeyboard(List.of());
+        InlineKeyboardMarkup emptyKeyboard = InlineKeyboardMarkup.builder().keyboard(List.of()).build();
 
         EditMessageText edit = EditMessageText.builder()
                 .chatId(chatId)
@@ -113,7 +109,7 @@ public class MessageSender {
                 .replyMarkup(emptyKeyboard)
                 .build();
         try {
-            botProvider.getObject().execute(edit);
+            client.execute(edit);
             return true;
         } catch (TelegramApiException e) {
             logger.error("Ошибка edit: ", e);

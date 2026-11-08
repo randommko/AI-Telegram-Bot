@@ -113,7 +113,7 @@ class StartupNotifierTest {
 
     private BotProperties withSsh(int port, String bind, BotProperties.Ssh ssh) {
         return new BotProperties("1:dummy", null, new BotProperties.Ai(Map.of("deepseek", "sk-deep")),
-                null, new BotProperties.Admin("secret", port, bind), ssh);
+                new BotProperties.Admin("secret", port, bind), ssh);
     }
 
     @Test

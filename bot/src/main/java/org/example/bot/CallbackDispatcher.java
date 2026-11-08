@@ -41,7 +41,7 @@ public class CallbackDispatcher {
                 .text(text)
                 .build();
         try {
-            messageSender.getBot().execute(answer);
+            messageSender.getClient().execute(answer);
         } catch (TelegramApiException e) {
             logger.error("Ошибка answerCallback: ", e);
         }

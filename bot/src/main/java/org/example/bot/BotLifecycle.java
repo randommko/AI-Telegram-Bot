@@ -1,14 +1,15 @@
 package org.example.bot;
 
+import org.example.core.config.BotProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.longpolling.BotSession;
+import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
+import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import org.telegram.telegrambots.meta.generics.BotSession;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -21,19 +22,24 @@ public class BotLifecycle implements SmartLifecycle {
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration DEFAULT_STOP_TIMEOUT = Duration.ofSeconds(5);
 
-    private final TelegramBotsApi botsApi;
-    private final TelegramLongPollingBot bot;
+    private final TelegramBotsLongPollingApplication application;
+    private final LongPollingSingleThreadUpdateConsumer bot;
+    private final BotProperties properties;
     private final Duration stopTimeout;
     private BotSession session;
 
     @Autowired
-    public BotLifecycle(TelegramBotsApi botsApi, TelegramLongPollingBot bot) {
-        this(botsApi, bot, DEFAULT_STOP_TIMEOUT);
+    public BotLifecycle(TelegramBotsLongPollingApplication application,
+                        LongPollingSingleThreadUpdateConsumer bot,
+                        BotProperties properties) {
+        this(application, bot, properties, DEFAULT_STOP_TIMEOUT);
     }
 
-    BotLifecycle(TelegramBotsApi botsApi, TelegramLongPollingBot bot, Duration stopTimeout) {
-        this.botsApi = botsApi;
+    BotLifecycle(TelegramBotsLongPollingApplication application, LongPollingSingleThreadUpdateConsumer bot,
+                 BotProperties properties, Duration stopTimeout) {
+        this.application = application;
         this.bot = bot;
+        this.properties = properties;
         this.stopTimeout = stopTimeout;
     }
 
@@ -41,16 +47,26 @@ public class BotLifecycle implements SmartLifecycle {
     public void start() {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                session = botsApi.registerBot(bot);
+                session = application.registerBot(properties.token(), bot);
                 logger.info("Бот успешно запущен на попытке №{}", attempt);
                 return;
             } catch (TelegramApiException e) {
+                closeFailedSession();
                 logger.error("Ошибка при запуске бота на попытке №{}", attempt, e);
                 if (attempt == MAX_ATTEMPTS) {
                     throw new IllegalStateException("Бот не запустился после " + MAX_ATTEMPTS + " попыток.", e);
                 }
                 logger.info("Повторная попытка запуска...");
             }
+        }
+    }
+
+    /** Неудачная регистрация могла оставить сессию внутри приложения: снимаем, чтобы не было двух опросов. */
+    private void closeFailedSession() {
+        try {
+            application.unregisterBot(properties.token());
+        } catch (TelegramApiException e) {
+            logger.warn("Не удалось снять неудавшуюся сессию Telegram: {}", e.toString());
         }
     }
 

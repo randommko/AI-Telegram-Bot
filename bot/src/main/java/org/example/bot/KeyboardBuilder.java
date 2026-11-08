@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
@@ -23,7 +24,7 @@ public class KeyboardBuilder {
                 .build();
 
         try {
-            sender.getBot().execute(message);
+            sender.getClient().execute(message);
         } catch (TelegramApiException e) {
             logger.error("Ошибка отправки вопроса о сбросе памяти AI: ", e);
         }
@@ -35,15 +36,13 @@ public class KeyboardBuilder {
         InlineKeyboardButton cancel = aiClearButton("Отмена",
                 new AiClearCallback(AiClearCallback.Decision.CANCEL, authorId, forgottenCount));
 
-        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-        markup.setKeyboard(List.of(List.of(confirm, cancel)));
-        return markup;
+        return new InlineKeyboardMarkup(List.of(new InlineKeyboardRow(confirm, cancel)));
     }
 
     private InlineKeyboardButton aiClearButton(String text, AiClearCallback callback) {
-        InlineKeyboardButton button = new InlineKeyboardButton();
-        button.setText(text);
-        button.setCallbackData(callback.toCallbackData());
-        return button;
+        return InlineKeyboardButton.builder()
+                .text(text)
+                .callbackData(callback.toCallbackData())
+                .build();
     }
 }

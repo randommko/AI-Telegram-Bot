@@ -66,11 +66,6 @@ jobs:
           # Команда туннеля в уведомлении о запуске: пользователь и адрес сервера.
           BOT_SSH_USER=${{ secrets.SERVER_USER }}
           BOT_SSH_HOST=${{ secrets.SERVER_IP }}
-          BOT_PROXY_TYPE=${{ secrets.BOT_PROXY_TYPE }}
-          BOT_PROXY_HOST=${{ secrets.BOT_PROXY_HOST }}
-          BOT_PROXY_PORT=${{ secrets.BOT_PROXY_PORT }}
-          BOT_PROXY_USER=${{ secrets.BOT_PROXY_USER }}
-          BOT_PROXY_PASS=${{ secrets.BOT_PROXY_PASS }}
           ENVFILE
 
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "true"

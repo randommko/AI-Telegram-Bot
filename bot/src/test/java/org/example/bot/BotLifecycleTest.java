@@ -1,10 +1,11 @@
 package org.example.bot;
 
+import org.example.core.config.BotProperties;
 import org.junit.jupiter.api.Test;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.longpolling.BotSession;
+import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
+import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import org.telegram.telegrambots.meta.generics.BotSession;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
@@ -22,41 +23,44 @@ import static org.mockito.Mockito.when;
 
 class BotLifecycleTest {
 
-    private final TelegramBotsApi botsApi = mock(TelegramBotsApi.class);
-    private final TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
+    private static final String TOKEN = "123:token";
+
+    private final TelegramBotsLongPollingApplication application = mock(TelegramBotsLongPollingApplication.class);
+    private final LongPollingSingleThreadUpdateConsumer bot = mock(LongPollingSingleThreadUpdateConsumer.class);
+    private final BotProperties properties = new BotProperties(TOKEN, null, null, null, null);
 
     @Test
     void registersOnSecondAttemptAfterFailure() throws TelegramApiException {
         BotSession session = mock(BotSession.class);
         when(session.isRunning()).thenReturn(true);
-        when(botsApi.registerBot(bot))
+        when(application.registerBot(TOKEN, bot))
                 .thenThrow(new TelegramApiException("сеть недоступна"))
                 .thenReturn(session);
 
-        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot);
+        BotLifecycle lifecycle = new BotLifecycle(application, bot, properties);
         lifecycle.start();
 
-        verify(botsApi, times(2)).registerBot(bot);
+        verify(application, times(2)).registerBot(TOKEN, bot);
         assertThat(lifecycle.isRunning()).isTrue();
     }
 
     @Test
     void failsAfterThreeUnsuccessfulAttempts() throws TelegramApiException {
-        when(botsApi.registerBot(bot)).thenThrow(new TelegramApiException("сеть недоступна"));
+        when(application.registerBot(TOKEN, bot)).thenThrow(new TelegramApiException("сеть недоступна"));
 
-        assertThatThrownBy(() -> new BotLifecycle(botsApi, bot).start())
+        assertThatThrownBy(() -> new BotLifecycle(application, bot, properties).start())
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(botsApi, times(3)).registerBot(bot);
+        verify(application, times(3)).registerBot(TOKEN, bot);
     }
 
     @Test
     void stopsPollingOnShutdown() throws TelegramApiException {
         BotSession session = mock(BotSession.class);
         when(session.isRunning()).thenReturn(true);
-        when(botsApi.registerBot(bot)).thenReturn(session);
+        when(application.registerBot(TOKEN, bot)).thenReturn(session);
 
-        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot);
+        BotLifecycle lifecycle = new BotLifecycle(application, bot, properties);
         lifecycle.start();
         lifecycle.stop();
 
@@ -69,9 +73,9 @@ class BotLifecycleTest {
         BotSession session = mock(BotSession.class);
         when(session.isRunning()).thenReturn(true);
         doThrow(new IllegalStateException("Session already stopped")).when(session).stop();
-        when(botsApi.registerBot(bot)).thenReturn(session);
+        when(application.registerBot(TOKEN, bot)).thenReturn(session);
 
-        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot, Duration.ofSeconds(1));
+        BotLifecycle lifecycle = new BotLifecycle(application, bot, properties, Duration.ofSeconds(1));
         lifecycle.start();
 
         AtomicBoolean callbackRan = new AtomicBoolean(false);
@@ -89,9 +93,9 @@ class BotLifecycleTest {
             neverReleased.await(5, TimeUnit.SECONDS);
             return null;
         }).when(session).stop();
-        when(botsApi.registerBot(bot)).thenReturn(session);
+        when(application.registerBot(TOKEN, bot)).thenReturn(session);
 
-        BotLifecycle lifecycle = new BotLifecycle(botsApi, bot, Duration.ofMillis(200));
+        BotLifecycle lifecycle = new BotLifecycle(application, bot, properties, Duration.ofMillis(200));
         lifecycle.start();
 
         long startedAt = System.currentTimeMillis();

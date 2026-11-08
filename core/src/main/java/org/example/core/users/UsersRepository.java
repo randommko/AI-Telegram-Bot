@@ -118,18 +118,19 @@ public class UsersRepository {
                 checkStmt.setLong(1, userID);
                 ResultSet resultSet = checkStmt.executeQuery();
                 if (resultSet.next()) {
-                    return new User(resultSet.getLong("user_id"),
-                            resultSet.getString("first_name"),
-                            resultSet.getBoolean("is_bot"),
-                            resultSet.getString("last_name"),
-                            resultSet.getString("user_name"),
-                            resultSet.getString("language_code"),
-                            resultSet.getBoolean("can_join_groups"),
-                            resultSet.getBoolean("can_read_all_group_messages"),
-                            resultSet.getBoolean("support_inline_queries"),
-                            resultSet.getBoolean("is_premium"),
-                            resultSet.getBoolean("added_to_attachment_menu")
-                    );
+                    return User.builder()
+                            .id(resultSet.getLong("user_id"))
+                            .firstName(resultSet.getString("first_name"))
+                            .isBot(resultSet.getBoolean("is_bot"))
+                            .lastName(resultSet.getString("last_name"))
+                            .userName(resultSet.getString("user_name"))
+                            .languageCode(resultSet.getString("language_code"))
+                            .canJoinGroups(resultSet.getBoolean("can_join_groups"))
+                            .canReadAllGroupMessages(resultSet.getBoolean("can_read_all_group_messages"))
+                            .supportInlineQueries(resultSet.getBoolean("support_inline_queries"))
+                            .isPremium(resultSet.getBoolean("is_premium"))
+                            .addedToAttachmentMenu(resultSet.getBoolean("added_to_attachment_menu"))
+                            .build();
                 } else {
                     logger.warn("Запись не найдена для user_id: {}", userID);
                     return null; // Возвращаем значение по умолчанию, если запись не найдена

@@ -224,56 +224,18 @@ ssh -L 8081:127.0.0.1:8081 <user>@<host>
 
 Ключи `aiSummaryTemperature` и `aiPromtSummaryContext` удалены миграцией `005_admin_panel.sql`: команда `/summary` не реализована, и эти настройки никто не читал.
 
-## Подключение к Telegram через прокси или VPN
+## Доступ к Telegram
 
-Прокси опционален и задаётся переменными окружения. Если `BOT_PROXY_HOST` не задан — бот подключается к Telegram напрямую (это работает, если включён системный VPN в режиме TUN).
+Прокси в приложении нет: бот всегда соединяется с `api.telegram.org` напрямую, а доступность обеспечивает сеть.
 
-Переменные:
-
-| Переменная | Описание |
-|---|---|
-| `BOT_PROXY_TYPE` | `HTTP` (по умолчанию) или `SOCKS5` |
-| `BOT_PROXY_HOST` | Хост прокси; пусто/не задано — прямое подключение |
-| `BOT_PROXY_PORT` | Порт прокси |
-| `BOT_PROXY_USER` | Логин прокси (опционально) |
-| `BOT_PROXY_PASS` | Пароль прокси (опционально) |
-
-### Без прокси (системный VPN в режиме TUN)
+- **На сервере** Telegram открыт через VPN: служба `openvpn@tg-relay` поднимает туннель и прописывает маршруты только к подсетям Telegram, остальной трафик идёт через обычный интерфейс.
+- **Локально** нужен VPN в режиме TUN:
 
 ```
 java -jar bot/target/telegram-bot-1.0.jar
 ```
 
-### HTTP-прокси (например, локальный прокси VPN-клиента)
-
-Windows (cmd):
-
-```
-set BOT_PROXY_TYPE=HTTP
-set BOT_PROXY_HOST=127.0.0.1
-set BOT_PROXY_PORT=12334
-java -jar bot/target/telegram-bot-1.0.jar
-```
-
-Linux:
-
-```
-BOT_PROXY_TYPE=HTTP BOT_PROXY_HOST=127.0.0.1 BOT_PROXY_PORT=12334 \
-java -jar bot/target/telegram-bot-1.0.jar
-```
-
-### SOCKS5-прокси (например, на VPS)
-
-```
-BOT_PROXY_TYPE=SOCKS5 \
-BOT_PROXY_HOST=<socks-host> \
-BOT_PROXY_PORT=<socks-port> \
-BOT_PROXY_USER=<login> \
-BOT_PROXY_PASS=<password> \
-java -jar bot/target/telegram-bot-1.0.jar
-```
-
-В CI/CD эти же переменные передаются из GitHub Secrets.
+Если VPN выключен, бот не запустится: соединение с Telegram не установится.
 
 ## Деплой
 

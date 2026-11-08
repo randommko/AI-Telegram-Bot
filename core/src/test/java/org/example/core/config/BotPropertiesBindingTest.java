@@ -41,23 +41,6 @@ class BotPropertiesBindingTest {
     }
 
     @Test
-    void rejectsProxyPortOutOfRange() {
-        runner.withPropertyValues(validProperties())
-                .withPropertyValues("bot.proxy.host=127.0.0.1", "bot.proxy.port=70000")
-                .run(context -> assertThat(context).hasFailed());
-    }
-
-    @Test
-    void acceptsEmptyProxyPortWhenHostIsAbsent() {
-        runner.withPropertyValues(validProperties())
-                .withPropertyValues("bot.proxy.port=")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context.getBean(BotProperties.class).hasProxy()).isFalse();
-                });
-    }
-
-    @Test
     void startsWithoutAdminSettings() {
         runner.withPropertyValues(validProperties())
                 .run(context -> {

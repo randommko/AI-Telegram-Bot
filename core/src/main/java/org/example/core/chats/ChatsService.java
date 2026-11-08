@@ -1,7 +1,7 @@
 package org.example.core.chats;
 
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.Chat;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 
 @Service
 public class ChatsService {

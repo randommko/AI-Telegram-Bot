@@ -12,12 +12,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.List;
 import java.util.Optional;
@@ -60,7 +60,7 @@ class CommandDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null, null);
+        BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null);
         dispatcher = new CommandDispatcher(messageSender, aiService, new AiAddressParser(), personaService, properties);
     }
 
@@ -263,8 +263,8 @@ class CommandDispatcherTest {
 
     @Test
     void clearCommandAsksForConfirmationInsteadOfClearing() throws Exception {
-        TelegramLongPollingBot bot = mock(TelegramLongPollingBot.class);
-        when(messageSender.getBot()).thenReturn(bot);
+        TelegramClient client = mock(TelegramClient.class);
+        when(messageSender.getClient()).thenReturn(client);
         when(aiService.getChatHistorySize(BLUE_CHAT_ID)).thenReturn(7);
 
         dispatcher.dispatch(update("/clear", BLUE_CHAT_ID));
@@ -272,7 +272,7 @@ class CommandDispatcherTest {
         verify(aiService, never()).clearChatHistory(anyLong());
 
         ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
-        verify(bot).execute(captor.capture());
+        verify(client).execute(captor.capture());
         assertTrue(captor.getValue().getText().contains("Обнулить память AI"), captor.getValue().getText());
         assertTrue(captor.getValue().getText().contains("7"), captor.getValue().getText());
     }
