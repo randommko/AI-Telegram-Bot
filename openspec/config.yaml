@@ -1,32 +1,34 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Язык артефактов — русский.
+  Стек: Java 17, Spring Boot 3.5, Maven. Модули: core (общая логика и доступ к базе),
+  bot (Telegram-бот), admin (веб-админка). База — PostgreSQL, миграции в migrations/.
+  Сборка и проверки:
+    "C:\Program Files\apache-maven-3.8.7\bin\mvn.cmd" clean test        — весь набор тестов;
+    "C:\Program Files\apache-maven-3.8.7\bin\mvn.cmd" -pl bot -am test  — тесты одного модуля.
+  Деплой: push в main запускает Deploy bot и Deploy admin по своим paths; изменения только
+  в openspec/** и *.md деплой не запускают.
+  Основные спеки — openspec/specs/<capability>/spec.md, имена изменений — kebab-case.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - "Документ уровня аналитика: зачем, что меняется, что вне объёма, на что влияет."
+    - "Обязательны разделы «Вне объёма» и Impact."
+    - "Без имён классов и методов, путей к файлам исходников и выбора библиотек — это design.md и Impact."
+  design:
+    - "Решения с альтернативами и причиной отказа от них; риски с мерами; явные открытые вопросы."
+    - "Диаграммы — Mermaid, если без них решение непонятно."
+  specs:
+    - "Требования через SHALL/MUST, сценарии в формате WHEN/THEN, по-русски."
+  tasks:
+    - "Проверка — командами проекта (Maven по полному пути), не gradlew."
+    - "В группе задач — свои тесты и документация; последняя группа только интеграционная проверка."
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - Новый термин или настройку пояснять в самом артефакте, а не только в переписке.
+  archive:
+    guidance:
+      - Кратко резюмировать исход архивации и проверить, что основная спека обновилась.
