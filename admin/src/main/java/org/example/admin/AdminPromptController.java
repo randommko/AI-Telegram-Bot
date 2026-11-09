@@ -33,7 +33,7 @@ public class AdminPromptController {
                                int length, int budget, boolean multiline) {
     }
 
-    public record SectionView(PromptSection spec, List<TemplateView> templates) {
+    public record SectionView(PromptSection spec, List<TemplateView> templates, boolean recommendedLength) {
     }
 
     public record ChatView(Long chatId, String title, boolean hasPersona) {
@@ -111,7 +111,7 @@ public class AdminPromptController {
                 return new TemplateView(template.key(), template.label(), value, template.defaultText(),
                         value.length(), section.budget(), template.multiline());
             }).toList();
-            sections.add(new SectionView(section, templates));
+            sections.add(new SectionView(section, templates, section == PromptSection.TECHNICAL));
         }
 
         model.addAttribute("title", "Промпт");

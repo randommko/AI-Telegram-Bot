@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.example.core.settings.Settings.AI_PROMPT_TECHNICAL;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -91,6 +92,35 @@ class AdminPromptTest {
                 .andExpect(redirectedUrl("/admin/prompt"));
 
         verify(settings).save(AI_PROMPT_TECHNICAL, "Новый текст");
+    }
+
+    @Test
+    void longTechnicalPartShowsRecommendationInsteadOfBudget() throws Exception {
+        String longTechnical = "а".repeat(900);
+        when(settings.listAll()).thenReturn(List.of(
+                new SettingsService.Setting(AI_PROMPT_TECHNICAL, longTechnical, "Описание")));
+        when(personas.findAllChats(any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/prompt").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("900 символов")))
+                .andExpect(content().string(not(containsString("900 / 800"))))
+                .andExpect(content().string(containsString("Больше рекомендуемых 800 символов")))
+                .andExpect(content().string(containsString("/ 800 символов")))
+                .andExpect(content().string(containsString("Сохранить")));
+    }
+
+    @Test
+    void longTechnicalPartIsSavedWhole() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+        String longTechnical = "б".repeat(1200);
+
+        mockMvc.perform(post("/admin/prompt").with(user("admin").roles("ADMIN")).with(csrf())
+                        .param(AI_PROMPT_TECHNICAL, longTechnical))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/prompt"));
+
+        verify(settings).save(AI_PROMPT_TECHNICAL, longTechnical);
     }
 
     @Test
