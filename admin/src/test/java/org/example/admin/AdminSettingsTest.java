@@ -15,8 +15,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.example.core.settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.core.settings.Settings.AI_MEMORY_NOTIFY_OWNER;
@@ -31,6 +34,7 @@ import static org.example.core.settings.Settings.AI_REACTION_ROUTE;
 import static org.example.core.settings.Settings.AI_ROUTE_KEY;
 import static org.example.core.settings.Settings.OWNER_CHAT_ID;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -492,10 +496,36 @@ class AdminSettingsTest {
                 .andExpect(content().string(containsString("name=\"" + AI_REACTION_MODEL_USE_OWN + "\"")))
                 .andExpect(content().string(containsString("name=\"aiReactionAccess\"")))
                 .andExpect(content().string(containsString("name=\"" + AI_REACTION_MODEL + "\"")))
-                .andExpect(content().string(containsString("name=\"meaning_😁\"")))
-                .andExpect(content().string(containsString("name=\"active_😁\"")))
-                .andExpect(content().string(containsString("name=\"memory_✍\"")))
+                .andExpect(content().string(containsString("name=\"meaning_0\"")))
+                .andExpect(content().string(containsString("name=\"active_0\"")))
+                .andExpect(content().string(containsString("name=\"memory_1\"")))
+                .andExpect(content().string(containsString("name=\"emoji_1\" value=\"✍\"")))
                 .andExpect(content().string(containsString("Сохранить список")));
+    }
+
+    /**
+     * Эмодзи в имени поля ломает сохранение: Spring Security отбраковывает символы, которых
+     * нет в таблицах Unicode у JVM, и отвечает 400 ещё до контроллера.
+     */
+    @Test
+    void emojiFieldNamesAreNumeric() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        String page = mockMvc.perform(get("/admin/settings?tab=reactions").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String form = page.substring(page.indexOf("/admin/settings/reactions/emojis"));
+        form = form.substring(0, form.indexOf("</form>"));
+        Matcher names = Pattern.compile("name=\"([^\"]*)\"").matcher(form);
+
+        List<String> unexpected = new ArrayList<>();
+        while (names.find()) {
+            String name = names.group(1);
+            if (!name.matches("(emoji|meaning|memory|active)_\\d+|tab|_csrf"))
+                unexpected.add(name);
+        }
+        assertTrue(unexpected.isEmpty(), "имена полей с эмодзи: " + unexpected);
     }
 
     @Test
@@ -515,9 +545,10 @@ class AdminSettingsTest {
         mockMvc.perform(post("/admin/settings/reactions/emojis")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf())
-                        .param("meaning_😁", "")
-                        .param("active_😁", "true")
-                        .param("memory_😁", "false"))
+                        .param("emoji_0", "😁")
+                        .param("meaning_0", "")
+                        .param("active_0", "true")
+                        .param("memory_0", "false"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Укажите, когда ставим")))
                 .andExpect(content().string(containsString("error-row")));
@@ -532,9 +563,10 @@ class AdminSettingsTest {
         mockMvc.perform(post("/admin/settings/reactions/emojis")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf())
-                        .param("meaning_😁", "")
-                        .param("active_😁", "false")
-                        .param("memory_😁", "false"))
+                        .param("emoji_0", "😁")
+                        .param("meaning_0", "")
+                        .param("active_0", "false")
+                        .param("memory_0", "false"))
                 .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
 
         verify(reactionEmojis).saveAll(anyList());
@@ -547,17 +579,59 @@ class AdminSettingsTest {
         mockMvc.perform(post("/admin/settings/reactions/emojis")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf())
-                        .param("meaning_😁", "смешно")
-                        .param("active_😁", "true")
-                        .param("memory_😁", "false")
-                        .param("meaning_✍", "попал в память")
-                        .param("active_✍", "true")
-                        .param("memory_✍", "true"))
+                        .param("emoji_0", "😁")
+                        .param("meaning_0", "смешно")
+                        .param("active_0", "true")
+                        .param("memory_0", "false")
+                        .param("emoji_1", "✍")
+                        .param("meaning_1", "попал в память")
+                        .param("active_1", "true")
+                        .param("memory_1", "true"))
                 .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
 
         verify(reactionEmojis).saveAll(argThat(rows -> rows.size() == 2
                 && rows.stream().anyMatch(row -> row.emoji().equals("✍") && row.memory() && row.active())
                 && rows.stream().anyMatch(row -> row.emoji().equals("😁") && row.active() && !row.memory())));
+    }
+
+    /** Страница, открытая до выкатки, присылает старые имена полей: молча «Сохранено» не показываем. */
+    @Test
+    void staleEmojiFormDoesNotReportSaved() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings/reactions/emojis")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param("meaning_😁", "смешно")
+                        .param("active_😁", "true")
+                        .param("memory_😁", "false"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("обновите страницу")));
+
+        verify(reactionEmojis, never()).saveAll(anyList());
+    }
+
+    /** Эмодзи вне разрешённого набора прислать нельзя: строка с чужим символом отбрасывается. */
+    @Test
+    void emojiOutsideCatalogIsIgnored() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings/reactions/emojis")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("emoji_0", "🚀")
+                        .param("meaning_0", "чужая реакция")
+                        .param("active_0", "true")
+                        .param("memory_0", "false")
+                        .param("emoji_1", "😁")
+                        .param("meaning_1", "смешно")
+                        .param("active_1", "true")
+                        .param("memory_1", "false"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(reactionEmojis).saveAll(argThat(rows -> rows.size() == 1
+                && rows.get(0).emoji().equals("😁") && rows.get(0).meaning().equals("смешно")));
     }
 
     @Test
