@@ -16,7 +16,7 @@
 ## 3. Интеграционная проверка
 
 - [x] 3.1 Прогнать весь набор тестов `"C:\Program Files\apache-maven-3.8.7\bin\mvn.cmd" clean test` и убедиться, что сборка и все тесты проходят
-- [ ] 3.2 Проверить изменение строго: `openspec validate "technical-prompt-recommended-length" --type change --strict`
+- [x] 3.2 Проверить изменение строго: `openspec validate "technical-prompt-recommended-length" --type change --strict`
 
 ## Workflow follow-up
 
