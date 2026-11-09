@@ -3,6 +3,7 @@ package org.example.admin;
 import org.example.core.aichat.LlmCatalog;
 import org.example.core.aichat.ProviderKeyStatusRepository;
 import org.example.core.aichat.ReactionEmoji;
+import org.example.core.aichat.ReactionEmojiCatalog;
 import org.example.core.aichat.ReactionEmojiRepository;
 import org.example.core.settings.SettingsService;
 import org.slf4j.Logger;
@@ -168,13 +169,26 @@ public class AdminSettingsController {
         List<ReactionEmoji> entered = new ArrayList<>();
         Map<String, String> errors = new LinkedHashMap<>();
 
-        for (ReactionEmoji row : reactionEmojis.findAllForAdmin()) {
-            String meaning = params.getOrDefault("meaning_" + row.emoji(), "").trim();
-            boolean memory = Boolean.parseBoolean(params.getOrDefault("memory_" + row.emoji(), "false"));
-            boolean active = Boolean.parseBoolean(params.getOrDefault("active_" + row.emoji(), "false"));
-            entered.add(new ReactionEmoji(row.emoji(), meaning, memory, active));
+        // Имена полей нумерованные, а эмодзи едет скрытым значением: символ, которого нет
+        // в таблицах Unicode у JVM, Spring Security отбраковывает в имени параметра — 400.
+        for (int index = 0; params.containsKey("emoji_" + index); index++) {
+            String emoji = params.get("emoji_" + index);
+            if (!ReactionEmojiCatalog.isAllowed(emoji))
+                continue;
+
+            String meaning = params.getOrDefault("meaning_" + index, "").trim();
+            boolean memory = Boolean.parseBoolean(params.getOrDefault("memory_" + index, "false"));
+            boolean active = Boolean.parseBoolean(params.getOrDefault("active_" + index, "false"));
+            entered.add(new ReactionEmoji(emoji, meaning, memory, active));
             if (active && meaning.isEmpty())
-                errors.put(row.emoji(), "Укажите, когда ставим");
+                errors.put(emoji, "Укажите, когда ставим");
+        }
+
+        // Страница, открытая до выкатки, присылает имена полей со старым эмодзи — сохранять нечего.
+        if (entered.isEmpty()) {
+            errors.put("", "Список не пришёл: обновите страницу и сохраните заново");
+            return render(model, storedValues(), Map.of(), "reactions", false, storedValues(),
+                    reactionEmojis.findAllForAdmin(), errors);
         }
 
         if (!errors.isEmpty())

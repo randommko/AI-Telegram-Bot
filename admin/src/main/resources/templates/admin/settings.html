@@ -195,24 +195,26 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="row : ${reactionEmojis}"
+                    <tr th:each="row, it : ${reactionEmojis}"
                         th:classappend="${reactionErrors[row.emoji] != null} ? 'error-row'">
                         <td class="emoji-cell" th:text="${row.emoji}">😂</td>
                         <td>
+                            <!-- Имя поля — номер строки: эмодзи в имени параметра режет Spring Security. -->
+                            <input type="hidden" th:name="|emoji_${it.index}|" th:value="${row.emoji}"/>
                             <input type="text" class="emoji-meaning"
-                                   th:name="|meaning_${row.emoji}|" th:value="${row.meaning}"/>
+                                   th:name="|meaning_${it.index}|" th:value="${row.meaning}"/>
                             <span class="error" th:if="${reactionErrors[row.emoji]}"
                                   th:text="${reactionErrors[row.emoji]}">Укажите, когда ставим</span>
                         </td>
                         <td>
-                            <input type="checkbox" th:name="|memory_${row.emoji}|" value="true"
+                            <input type="checkbox" th:name="|memory_${it.index}|" value="true"
                                    th:checked="${row.memory}"/>
-                            <input type="hidden" th:name="|memory_${row.emoji}|" value="false"/>
+                            <input type="hidden" th:name="|memory_${it.index}|" value="false"/>
                         </td>
                         <td>
-                            <input type="checkbox" th:name="|active_${row.emoji}|" value="true"
+                            <input type="checkbox" th:name="|active_${it.index}|" value="true"
                                    th:checked="${row.active}"/>
-                            <input type="hidden" th:name="|active_${row.emoji}|" value="false"/>
+                            <input type="hidden" th:name="|active_${it.index}|" value="false"/>
                         </td>
                     </tr>
                     </tbody>
