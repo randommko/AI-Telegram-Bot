@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -226,7 +227,7 @@ class CommandDispatcherTest {
                 "В этом чате отвечает Юра. Напиши вопрос с обращением — например: «Юра, как дела?»");
         verify(aiService, never()).askAi(any(Message.class));
         verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
-        assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
+        assertSavedFromCommand(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -258,7 +259,7 @@ class CommandDispatcherTest {
         verify(aiService, never()).askAi(any(Message.class));
         verify(aiService, never()).askAi(anyLong(), anyString(), any(), any());
         verify(messageSender, never()).sendMessage(anyLong(), anyString());
-        assertSaved(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
+        assertSavedFromCommand(BLUE_CHAT_ID, "как дела", 111L, "@nick", "Ник");
     }
 
     @Test
@@ -286,8 +287,22 @@ class CommandDispatcherTest {
 
     /** Сохранённый текст не содержит префикса автора, а сам автор уходит отдельными полями. */
     private void assertSaved(Long chatId, String text, Long userId, String nick, String name) {
+        assertSaved(chatId, text, userId, nick, name, MESSAGE_ID);
+    }
+
+    /** Текст команды сохраняется без Telegram-id: реакции на него не ставятся. */
+    private void assertSavedFromCommand(Long chatId, String text, Long userId, String nick, String name) {
+        assertSaved(chatId, text, userId, nick, name, null);
+    }
+
+    private void assertSaved(Long chatId, String text, Long userId, String nick, String name,
+                             Integer tgMessageId) {
         ArgumentCaptor<MessageAuthor> captor = ArgumentCaptor.forClass(MessageAuthor.class);
-        verify(aiService).saveMessage(eq(chatId), eq(USER_ROLE), eq(text), captor.capture());
+        if (tgMessageId == null) {
+            verify(aiService).saveMessage(eq(chatId), eq(USER_ROLE), eq(text), captor.capture(), isNull());
+        } else {
+            verify(aiService).saveMessage(eq(chatId), eq(USER_ROLE), eq(text), captor.capture(), eq(tgMessageId));
+        }
         assertEquals(new MessageAuthor(userId, nick, name), captor.getValue());
     }
 

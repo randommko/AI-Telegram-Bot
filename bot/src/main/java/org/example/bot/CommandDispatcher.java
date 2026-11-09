@@ -57,7 +57,7 @@ public class CommandDispatcher {
 
         if (!text.startsWith("/")) {
             // Сохраняем оригинальное сообщение
-            saveMessageText(message.getFrom(), message.getChat(), text);
+            saveMessageText(message.getFrom(), message.getChat(), text, message.getMessageId());
             answerNameAddress(message, text);
             return;
         }
@@ -66,7 +66,8 @@ public class CommandDispatcher {
         String commandText = parts[0];
 
         if (parts.length > 1) {
-            saveMessageText(message.getFrom(), message.getChat(), parts[1]);
+            // Текст команды реакций не получает: у него нет Telegram-id.
+            saveMessageText(message.getFrom(), message.getChat(), parts[1], null);
         }
 
         Command command = Command.fromString(commandText);
@@ -119,8 +120,8 @@ public class CommandDispatcher {
                 && replied.getFrom().getId() == botId;
     }
 
-    private void saveMessageText(User user, Chat chat, String text) {
-        aiService.saveMessage(chat.getId(), USER_ROLE, text, MessageAuthor.from(user));
+    private void saveMessageText(User user, Chat chat, String text, Integer tgMessageId) {
+        aiService.saveMessage(chat.getId(), USER_ROLE, text, MessageAuthor.from(user), tgMessageId);
     }
 
     private void handleBotInfo(Message message) {

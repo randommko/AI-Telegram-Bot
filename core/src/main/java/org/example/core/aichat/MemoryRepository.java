@@ -204,6 +204,30 @@ public class MemoryRepository {
         return find(query, personaId, limit);
     }
 
+    /** Несколько фактов о конкретном участнике: контекст прохода чтения о его авторе. */
+    public List<MemoryRecord> findForPerson(int personaId, long userId, int limit) {
+        String query = MEMORY_SELECT + "AND mp.user_id = ? GROUP BY m.id" +
+                " ORDER BY m.importance DESC, m.event_date DESC NULLS LAST, m.id DESC LIMIT ?";
+
+        List<MemoryRecord> memories = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, personaId);
+            statement.setLong(2, userId);
+            statement.setInt(3, limit);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next())
+                    memories.add(toMemory(resultSet));
+            }
+        } catch (Exception e) {
+            logger.error("Ошибка чтения фактов об участнике {} персоны {}: {}",
+                    userId, personaId, String.valueOf(e));
+            return List.of();
+        }
+        return memories;
+    }
+
     /**
      * Воспоминания, выбранные планом: только живые записи этой персоны.
      * Идентификаторы другой персоны и удалённые записи в результат не попадают.

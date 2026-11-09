@@ -26,12 +26,25 @@ public class AiChatRepository {
     }
 
     public void saveMessage(Long chatId, String role, String content, int limit) {
-        saveMessage(chatId, role, content, limit, MessageAuthor.none());
+        saveMessage(chatId, role, content, limit, MessageAuthor.none(), null);
     }
 
     public void saveMessage(Long chatId, String role, String content, int limit, MessageAuthor author) {
+        saveMessage(chatId, role, content, limit, author, null);
+    }
+
+    /**
+     * @param tgMessageId идентификатор сообщения в Telegram; нужен проходу чтения,
+     *                    чтобы поставить реакцию. У ответов бота и служебных
+     *                    сообщений его нет — тогда передаётся null.
+     */
+    public void saveMessage(Long chatId, String role, String content, int limit,
+                            MessageAuthor author, Integer tgMessageId) {
         String insertQuery = "INSERT INTO " + AI_MESSAGES_TABLE
-                + " (chat_id, role, content, author_user_id, author_nick, author_name) VALUES (?, ?, ?, ?, ?, ?)";
+                + " (chat_id, role, content, tg_message_id, author_user_id, author_nick, author_name)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                // Повторный апдейт того же сообщения не должен создавать дубль.
+                + " ON CONFLICT (chat_id, tg_message_id) WHERE tg_message_id IS NOT NULL DO NOTHING";
         // Окно истории на чат: всё, что вышло за последние limit сообщений, удаляется сразу.
         String trimQuery = "DELETE FROM " + AI_MESSAGES_TABLE +
                 " WHERE chat_id = ? AND id NOT IN (SELECT id FROM " + AI_MESSAGES_TABLE +
@@ -42,7 +55,11 @@ public class AiChatRepository {
                 insert.setLong(1, chatId);
                 insert.setString(2, role);
                 insert.setString(3, content);
-                setAuthor(insert, 4, author);
+                if (tgMessageId == null)
+                    insert.setNull(4, java.sql.Types.BIGINT);
+                else
+                    insert.setLong(4, tgMessageId);
+                setAuthor(insert, 5, author);
                 insert.executeUpdate();
             }
 

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.methods.reactions.SetMessageReaction;
+import org.telegram.telegrambots.meta.api.objects.reactions.ReactionTypeEmoji;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -13,6 +15,7 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -115,5 +118,31 @@ class MessageSenderTest {
         assertEquals(Integer.valueOf(77), captor.getAllValues().get(0).getReplyToMessageId());
         assertNull(captor.getAllValues().get(1).getReplyToMessageId());
         assertEquals("ответ", captor.getAllValues().get(1).getText());
+    }
+
+    @Test
+    void reactionIsSentWithOneEmoji() throws Exception {
+        TelegramClient client = mock(TelegramClient.class);
+        doReturn(true).when(client).execute(any(SetMessageReaction.class));
+
+        MessageSender sender = new MessageSender(client);
+
+        assertTrue(sender.react(-1007777777777L, 55, "🔥"));
+
+        ArgumentCaptor<SetMessageReaction> captor = ArgumentCaptor.forClass(SetMessageReaction.class);
+        verify(client).execute(captor.capture());
+        assertEquals(Integer.valueOf(55), captor.getValue().getMessageId());
+        assertEquals("🔥", ((ReactionTypeEmoji) captor.getValue().getReactionTypes().get(0)).getEmoji());
+    }
+
+    @Test
+    void rejectedReactionIsSilent() throws Exception {
+        TelegramClient client = mock(TelegramClient.class);
+        when(client.execute(any(SetMessageReaction.class)))
+                .thenThrow(new TelegramApiException("REACTION_INVALID"));
+
+        MessageSender sender = new MessageSender(client);
+
+        assertFalse(sender.react(-1007777777777L, 55, "🔥"));
     }
 }

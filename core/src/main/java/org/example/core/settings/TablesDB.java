@@ -9,9 +9,12 @@ public final class TablesDB {
     public static final String PERSONA_ALIASES_TABLE = "config.persona_aliases";
     public static final String CHAT_PERSONAS_TABLE = "config.chat_personas";
     public static final String MEMORY_CATEGORIES_TABLE = "config.memory_categories";
+    public static final String REACTION_EMOJIS_TABLE = "config.reaction_emojis";
     public static final String PERSONA_MEMORIES_TABLE = "ai.persona_memories";
     public static final String MEMORY_PEOPLE_TABLE = "ai.memory_people";
     public static final String MEMORY_ANALYSIS_STATE_TABLE = "ai.memory_analysis_state";
+    public static final String MESSAGE_REACTIONS_TABLE = "ai.message_reactions";
+    public static final String READ_STATE_TABLE = "ai.read_state";
     public static final String EMOTIONS_TABLE = "config.emotions";
     public static final String EMOTION_PHRASES_TABLE = "config.emotion_phrases";
     public static final String PERSONA_EMOTIONS_TABLE = "ai.persona_emotions";

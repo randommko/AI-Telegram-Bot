@@ -153,6 +153,12 @@ public class AiService {
         repository.saveMessage(chatId, role, messageToSave, history.size(), author);
     }
 
+    /** Telegram-id сохраняется только у сообщений участников: по нему проход ставит реакцию. */
+    public void saveMessage(Long chatId, String role, String messageToSave,
+                            MessageAuthor author, Integer tgMessageId) {
+        repository.saveMessage(chatId, role, messageToSave, history.size(), author, tgMessageId);
+    }
+
     public int getChatHistorySize(Long chatId) {
         return repository.countMessages(chatId);
     }

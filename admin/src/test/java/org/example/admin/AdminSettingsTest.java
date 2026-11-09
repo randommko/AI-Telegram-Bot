@@ -1,6 +1,8 @@
 package org.example.admin;
 
 import org.example.core.aichat.ProviderKeyStatusRepository;
+import org.example.core.aichat.ReactionEmoji;
+import org.example.core.aichat.ReactionEmojiRepository;
 import org.example.core.config.BotProperties;
 import org.example.core.settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,10 +21,19 @@ import java.util.Map;
 import static org.example.core.settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.core.settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
+import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
+import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
+import static org.example.core.settings.Settings.AI_REACTION_POOL_SIZE;
+import static org.example.core.settings.Settings.AI_REACTION_PROMPT;
+import static org.example.core.settings.Settings.AI_REACTION_ROUTE;
 import static org.example.core.settings.Settings.AI_ROUTE_KEY;
 import static org.example.core.settings.Settings.OWNER_CHAT_ID;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -63,6 +74,9 @@ class AdminSettingsTest {
     private ProviderKeyStatusRepository providerKeys;
 
     @MockitoBean
+    private ReactionEmojiRepository reactionEmojis;
+
+    @MockitoBean
     private AdminUserDetailsService adminUserDetailsService;
 
     @BeforeEach
@@ -70,6 +84,9 @@ class AdminSettingsTest {
         when(access.isOwner()).thenReturn(true);
         when(providerKeys.hasKey("deepseek")).thenReturn(true);
         when(providerKeys.hasKey("aitunnel")).thenReturn(true);
+        org.mockito.Mockito.lenient().when(reactionEmojis.findAllForAdmin()).thenReturn(List.of(
+                new ReactionEmoji("😁", "смешно, весело", false, true),
+                new ReactionEmoji("✍", "сообщение попало в память", true, true)));
     }
 
     @Test
@@ -460,6 +477,151 @@ class AdminSettingsTest {
 
         verify(settings).save(AI_MEMORY_NOTIFY_OWNER, "false");
         verify(settings).save(OWNER_CHAT_ID, "270459384");
+    }
+
+    @Test
+    void reactionsTabShowsFieldsAndEmojiCatalog() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=reactions").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Ставить реакции на сообщения")))
+                .andExpect(content().string(containsString("name=\"" + AI_REACTION_PROMPT + "\"")))
+                .andExpect(content().string(containsString("name=\"" + AI_REACTION_POOL_SIZE + "\"")))
+                .andExpect(content().string(containsString("name=\"" + AI_REACTION_PAUSE_SECONDS + "\"")))
+                .andExpect(content().string(containsString("name=\"" + AI_REACTION_MODEL_USE_OWN + "\"")))
+                .andExpect(content().string(containsString("name=\"aiReactionAccess\"")))
+                .andExpect(content().string(containsString("name=\"" + AI_REACTION_MODEL + "\"")))
+                .andExpect(content().string(containsString("name=\"meaning_😁\"")))
+                .andExpect(content().string(containsString("name=\"active_😁\"")))
+                .andExpect(content().string(containsString("name=\"memory_✍\"")))
+                .andExpect(content().string(containsString("Сохранить список")));
+    }
+
+    @Test
+    void reactionsTabHidesModelOnlyBlocks() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=reactions").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Ключи провайдеров"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Текущая модель"))));
+    }
+
+    @Test
+    void activeEmojiWithoutTextIsRejected() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings/reactions/emojis")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("meaning_😁", "")
+                        .param("active_😁", "true")
+                        .param("memory_😁", "false"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Укажите, когда ставим")))
+                .andExpect(content().string(containsString("error-row")));
+
+        verify(reactionEmojis, never()).saveAll(anyList());
+    }
+
+    @Test
+    void inactiveEmojiMayHaveNoText() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings/reactions/emojis")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("meaning_😁", "")
+                        .param("active_😁", "false")
+                        .param("memory_😁", "false"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(reactionEmojis).saveAll(anyList());
+    }
+
+    @Test
+    void emojiCatalogIsSavedWithOneAction() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings/reactions/emojis")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("meaning_😁", "смешно")
+                        .param("active_😁", "true")
+                        .param("memory_😁", "false")
+                        .param("meaning_✍", "попал в память")
+                        .param("active_✍", "true")
+                        .param("memory_✍", "true"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(reactionEmojis).saveAll(argThat(rows -> rows.size() == 2
+                && rows.stream().anyMatch(row -> row.emoji().equals("✍") && row.memory() && row.active())
+                && rows.stream().anyMatch(row -> row.emoji().equals("😁") && row.active() && !row.memory())));
+    }
+
+    @Test
+    void reactionModelWithoutKeyIsRejected() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param(AI_REACTIONS_ENABLED, "true")
+                        .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
+                        .param(AI_REACTION_POOL_SIZE, "20")
+                        .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MODEL_USE_OWN, "true")
+                        .param("aiReactionAccess", "direct")
+                        .param(AI_REACTION_MODEL, "grok-4.7")
+                        .param(AI_REACTION_ROUTE, ""))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("BOT_AI_KEY_GROK")));
+
+        verify(settings, never()).save(anyString(), anyString());
+    }
+
+    @Test
+    void ownReactionModelFromCascadeIsSaved() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param(AI_REACTIONS_ENABLED, "true")
+                        .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
+                        .param(AI_REACTION_POOL_SIZE, "20")
+                        .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MODEL_USE_OWN, "true")
+                        .param("aiReactionAccess", "provider")
+                        .param("aiReactionProvider", "aitunnel")
+                        .param("aiReactionGroup", "deepseek")
+                        .param("aiReactionDoorModel", "deepseek-v4-pro"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(settings).save(AI_REACTION_ROUTE, "aitunnel");
+        verify(settings).save(AI_REACTION_MODEL, "deepseek-v4-pro");
+    }
+
+    @Test
+    void ownModelOffKeepsStoredPair() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param(AI_REACTIONS_ENABLED, "true")
+                        .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
+                        .param(AI_REACTION_POOL_SIZE, "20")
+                        .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MODEL_USE_OWN, "false"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(settings, never()).save(eq(AI_REACTION_MODEL), anyString());
+        verify(settings, never()).save(eq(AI_REACTION_ROUTE), anyString());
     }
 
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {

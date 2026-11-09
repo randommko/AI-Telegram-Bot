@@ -27,6 +27,7 @@ public class AdminWikiController {
         model.addAttribute("timeTemplate", PromptDefaults.TIME_TEMPLATE);
         model.addAttribute("timeZone", PromptDefaults.TIME_ZONE);
         model.addAttribute("personaFallback", PromptDefaults.PERSONA_FALLBACK);
+        model.addAttribute("reactionPrompt", PromptDefaults.REACTION_PROMPT);
         return "admin/wiki";
     }
 }

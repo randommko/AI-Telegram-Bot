@@ -5,8 +5,8 @@
 | Каталог | Что создаёт | От чего зависит |
 |---|---|---|
 | `shared` | `tg_users`, `tg_chats` — общие таблицы Telegram | — |
-| `config` | персоны, алиасы, привязки, справочники эмоций и памяти, `bot_settings` | `shared` |
-| `ai` | история переписки, память, эмоции персоны, обиды, подсказки, `provider_key_status` | `config`, `shared` |
+| `config` | персоны, алиасы, привязки, справочники эмоций и памяти, каталог эмодзи реакций, `bot_settings` | `shared` |
+| `ai` | история переписки, память, эмоции персоны, обиды, подсказки, `provider_key_status`, журнал реакций и отметка прочитанного | `config`, `shared` |
 | `configurator` | учётки модераторов, выданные чаты | `shared` |
 | `roles` | роли `ai_user` и `admin_user`, их права и права на будущие таблицы | все схемы |
 
@@ -20,8 +20,12 @@
 psql "$BOT_DB_URL" -f migrations/shared/001_schema.sql
 psql "$BOT_DB_URL" -f migrations/config/001_schema.sql
 psql "$BOT_DB_URL" -f migrations/config/002_seed.sql
+psql "$BOT_DB_URL" -f migrations/config/003_memory_decay.sql
+psql "$BOT_DB_URL" -f migrations/config/004_memory_decay_floor.sql
+psql "$BOT_DB_URL" -f migrations/config/005_reaction_emojis.sql
 psql "$BOT_DB_URL" -f migrations/ai/001_schema.sql
 psql "$BOT_DB_URL" -f migrations/ai/002_seed.sql
+psql "$BOT_DB_URL" -f migrations/ai/003_message_reactions.sql
 psql "$BOT_DB_URL" -f migrations/configurator/001_schema.sql
 psql "$BOT_DB_URL" -f migrations/roles/001_roles.sql
 ```

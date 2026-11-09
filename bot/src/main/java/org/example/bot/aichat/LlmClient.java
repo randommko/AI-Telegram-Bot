@@ -72,8 +72,25 @@ public class LlmClient {
         return send(messages, temperature, maxTokens, true);
     }
 
+    /**
+     * Запрос с явной парой «маршрут + модель»: так проход чтения может считать
+     * реакции дешёвой моделью, не меняя модель ответов. Пустая модель — основная.
+     */
+    public String sendJsonRequestToAi(String modelId, String route, ArrayNode messages,
+                                      Float temperature, int maxTokens) {
+        String id = modelId == null ? "" : modelId.trim();
+        if (id.isEmpty())
+            return sendJsonRequestToAi(messages, temperature, maxTokens);
+
+        return send(messages, temperature, maxTokens, true, resolveModel(route, id));
+    }
+
     private String send(ArrayNode messages, Float temperature, int maxTokens, boolean jsonMode) {
-        LlmCatalog.Model model = resolveModel();
+        return send(messages, temperature, maxTokens, jsonMode, resolveModel());
+    }
+
+    private String send(ArrayNode messages, Float temperature, int maxTokens, boolean jsonMode,
+                        LlmCatalog.Model model) {
         LlmCatalog.Provider provider = LlmCatalog.providerOf(model)
                 .orElseThrow(() -> new IllegalStateException("У модели " + model.id() + " нет провайдера в каталоге"));
 
@@ -89,7 +106,7 @@ public class LlmClient {
             if (response.statusCode() == 400 && jsonMode && model.jsonMode()) {
                 logger.warn("{} отклонил JSON-режим (модель {}), повтор без него: {}",
                         provider.title(), model.id(), response.body());
-                return send(messages, temperature, maxTokens, false);
+                return send(messages, temperature, maxTokens, false, model);
             }
             if (response.statusCode() != 200) {
                 logger.error("{} вернул {} (модель {}): {}",
@@ -103,7 +120,7 @@ public class LlmClient {
         }
     }
 
-    /** Модель из настроек; неизвестная пара не глушит бота — уходим на модель по умолчанию. */
+    /** Модель из общих настроек; неизвестная пара не глушит бота — уходим на модель по умолчанию. */
     private LlmCatalog.Model resolveModel() {
         String configured = settings.getModel();
         String route = settings.getRoute();
@@ -120,6 +137,21 @@ public class LlmClient {
 
         return LlmCatalog.model(DEFAULT_AI_MODEL)
                 .orElseThrow(() -> new IllegalStateException("В каталоге нет модели по умолчанию " + DEFAULT_AI_MODEL));
+    }
+
+    /** Модель реакции; неизвестная пара откатывается на основную модель, как и у ответа. */
+    private LlmCatalog.Model resolveModel(String route, String modelId) {
+        String door = route == null ? "" : route.trim();
+        Optional<LlmCatalog.Model> model = LlmCatalog.model(door, modelId);
+        if (model.isPresent())
+            return model.get();
+
+        if (door.isEmpty())
+            logger.error("Модели реакций «{}» нет в каталоге: используется основная модель", modelId);
+        else
+            logger.error("Модели реакций «{}» нет в каталоге провайдера «{}»: используется основная модель",
+                    modelId, door);
+        return resolveModel();
     }
 
     /** Пакетный доступ нужен тесту: тело запроса проверяется без сети. */

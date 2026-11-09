@@ -42,6 +42,14 @@ GRANT INSERT, UPDATE, DELETE ON ai.persona_memories, ai.memory_people,
     ai.persona_emotions, ai.ai_messages TO admin_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA config, configurator, ai TO admin_user;
 
+-- Реакции: бот читает каталог эмодзи и пишет журнал с отметкой прочитанного,
+-- админка правит каталог и читает журнал. Явные гранты нужны и потому, что
+-- таблицы создаются позже этого файла, а ALTER DEFAULT PRIVILEGES действует
+-- только на объекты, созданные той же ролью.
+GRANT SELECT ON config.reaction_emojis TO ai_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ai.message_reactions, ai.read_state TO ai_user;
+GRANT SELECT ON ai.message_reactions, ai.read_state TO admin_user;
+
 -- Таблицы и последовательности, которые появятся в следующих миграциях.
 -- В ai админка по умолчанию только читает: запись в память выдаётся точечно.
 ALTER DEFAULT PRIVILEGES IN SCHEMA ai

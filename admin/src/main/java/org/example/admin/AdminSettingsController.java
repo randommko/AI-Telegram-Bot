@@ -2,6 +2,8 @@ package org.example.admin;
 
 import org.example.core.aichat.LlmCatalog;
 import org.example.core.aichat.ProviderKeyStatusRepository;
+import org.example.core.aichat.ReactionEmoji;
+import org.example.core.aichat.ReactionEmojiRepository;
 import org.example.core.settings.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,13 @@ import static org.example.core.settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.core.settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
 import static org.example.core.settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
+import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
+import static org.example.core.settings.Settings.AI_REACTION_POOL_SIZE;
+import static org.example.core.settings.Settings.AI_REACTION_PROMPT;
+import static org.example.core.settings.Settings.AI_REACTION_ROUTE;
 import static org.example.core.settings.Settings.AI_ROUTE_KEY;
 import static org.example.core.settings.Settings.DEFAULT_AI_MODEL;
 import static org.example.core.settings.Settings.OWNER_CHAT_ID;
@@ -111,12 +120,15 @@ public class AdminSettingsController {
     private final SettingsService settings;
     private final AdminSettingsValidator validator;
     private final ProviderKeyStatusRepository providerKeys;
+    private final ReactionEmojiRepository reactionEmojis;
 
     public AdminSettingsController(SettingsService settings, AdminSettingsValidator validator,
-                                   ProviderKeyStatusRepository providerKeys) {
+                                   ProviderKeyStatusRepository providerKeys,
+                                   ReactionEmojiRepository reactionEmojis) {
         this.settings = settings;
         this.validator = validator;
         this.providerKeys = providerKeys;
+        this.reactionEmojis = reactionEmojis;
     }
 
     @GetMapping("/admin/settings")
@@ -147,6 +159,37 @@ public class AdminSettingsController {
         return "redirect:/admin/settings?tab=" + tab + "&saved";
     }
 
+    /**
+     * Сохранение каталога эмодзи одной кнопкой. Включённая строка без текста
+     * отклоняет сохранение целиком: строки подсвечиваются, введённое остаётся.
+     */
+    @PostMapping("/admin/settings/reactions/emojis")
+    String saveEmojis(@RequestParam Map<String, String> params, Model model) {
+        List<ReactionEmoji> entered = new ArrayList<>();
+        Map<String, String> errors = new LinkedHashMap<>();
+
+        for (ReactionEmoji row : reactionEmojis.findAllForAdmin()) {
+            String meaning = params.getOrDefault("meaning_" + row.emoji(), "").trim();
+            boolean memory = Boolean.parseBoolean(params.getOrDefault("memory_" + row.emoji(), "false"));
+            boolean active = Boolean.parseBoolean(params.getOrDefault("active_" + row.emoji(), "false"));
+            entered.add(new ReactionEmoji(row.emoji(), meaning, memory, active));
+            if (active && meaning.isEmpty())
+                errors.put(row.emoji(), "Укажите, когда ставим");
+        }
+
+        if (!errors.isEmpty())
+            return render(model, storedValues(), Map.of(), "reactions", false, storedValues(), entered, errors);
+
+        try {
+            reactionEmojis.saveAll(entered);
+        } catch (IllegalStateException e) {
+            logger.error("Каталог эмодзи не сохранён: {}", e.getMessage());
+            errors.put("", "Каталог не сохранён: " + e.getMessage());
+            return render(model, storedValues(), Map.of(), "reactions", false, storedValues(), entered, errors);
+        }
+        return "redirect:/admin/settings?tab=reactions&saved";
+    }
+
     /** Значения приходят только за поля открытой вкладки: остальные настройки форма не перезаписывает. */
     private Map<String, String> submitted(Map<String, String> params, String tab) {
         Set<String> keys = fields(tab).stream().map(FieldView::key).collect(Collectors.toSet());
@@ -155,6 +198,7 @@ public class AdminSettingsController {
         for (String key : keys)
             values.put(key, params.getOrDefault(key, ""));
         composeModel(values);
+        composeReactionModel(values);
         return values;
     }
 
@@ -173,6 +217,36 @@ public class AdminSettingsController {
         }
 
         values.put(AI_ROUTE_KEY, LlmCatalog.model(values.get(AI_MODEL_KEY))
+                .flatMap(LlmCatalog::providerOf)
+                .map(LlmCatalog.Provider::id)
+                .orElse(""));
+    }
+
+    /**
+     * Пара модели реакций собирается из второго набора полей. При снятом флажке
+     * поля не сохраняются: реакции считает основная модель, а сохранённая пара
+     * остаётся на случай, если флажок вернут.
+     */
+    private void composeReactionModel(Map<String, String> values) {
+        if (!values.containsKey(AI_REACTION_MODEL_USE_OWN))
+            return;
+
+        if (!Boolean.parseBoolean(values.get(AI_REACTION_MODEL_USE_OWN))) {
+            values.keySet().removeIf(key -> key.equals(AI_REACTION_MODEL) || key.equals(AI_REACTION_ROUTE)
+                    || key.equals(AdminModelForm.REACTION_ACCESS_KEY)
+                    || key.equals(AdminModelForm.REACTION_PROVIDER_KEY)
+                    || key.equals(AdminModelForm.REACTION_GROUP_KEY)
+                    || key.equals(AdminModelForm.REACTION_DOOR_MODEL_KEY));
+            return;
+        }
+
+        if (AdminModelForm.PROVIDER.equals(values.getOrDefault(AdminModelForm.REACTION_ACCESS_KEY, ""))) {
+            values.put(AI_REACTION_MODEL, values.getOrDefault(AdminModelForm.REACTION_DOOR_MODEL_KEY, ""));
+            values.put(AI_REACTION_ROUTE, values.getOrDefault(AdminModelForm.REACTION_PROVIDER_KEY, ""));
+            return;
+        }
+
+        values.put(AI_REACTION_ROUTE, LlmCatalog.model(values.get(AI_REACTION_MODEL))
                 .flatMap(LlmCatalog::providerOf)
                 .map(LlmCatalog.Provider::id)
                 .orElse(""));
@@ -203,6 +277,13 @@ public class AdminSettingsController {
 
     private String render(Model model, Map<String, String> stored, Map<String, String> errors, String tab,
                           boolean saved, Map<String, String> values) {
+        return render(model, stored, errors, tab, saved, values,
+                reactionEmojis.findAllForAdmin(), Map.of());
+    }
+
+    private String render(Model model, Map<String, String> stored, Map<String, String> errors, String tab,
+                          boolean saved, Map<String, String> values,
+                          List<ReactionEmoji> emojiRows, Map<String, String> emojiErrors) {
         Map<String, String> notes = settings.listAll().stream()
                 .filter(setting -> setting.description() != null)
                 .collect(Collectors.toMap(SettingsService.Setting::key, SettingsService.Setting::description));
@@ -228,6 +309,8 @@ public class AdminSettingsController {
         model.addAttribute("saved", saved);
         model.addAttribute("keyHints", keyHints());
         model.addAttribute("currentModel", currentModel());
+        model.addAttribute("reactionEmojis", emojiRows);
+        model.addAttribute("reactionErrors", emojiErrors);
         return "admin/settings";
     }
 
@@ -242,6 +325,7 @@ public class AdminSettingsController {
     /** Вкладки собираются на каждый запрос: у групп моделей признак ключа меняется вместе с окружением. */
     private List<TabView> tabs() {
         Selection selection = selection();
+        Selection reactionSelection = reactionSelection();
 
         return List.of(
                 new TabView("model", "Модель", false, List.of(
@@ -274,7 +358,24 @@ public class AdminSettingsController {
                         area(AI_CONTEXT, "Промпт чата без персоны"))),
                 new TabView("notifications", "Уведомления", false, List.of(
                         text(OWNER_CHAT_ID, "Telegram ID получателя сообщения о запуске"),
-                        checkbox(AI_MEMORY_NOTIFY_OWNER, "Присылать обновления памяти"))));
+                        checkbox(AI_MEMORY_NOTIFY_OWNER, "Присылать обновления памяти"))),
+                new TabView("reactions", "Реакции", false, List.of(
+                        checkbox(AI_REACTIONS_ENABLED, "Ставить реакции на сообщения", false),
+                        area(AI_REACTION_PROMPT, "Промпт для определения эмодзи"),
+                        range(AI_REACTION_POOL_SIZE, "Размер пула сообщений в пачке", "1", "100", "1"),
+                        range(AI_REACTION_PAUSE_SECONDS, "Время с последнего сообщения, секунд", "1", "3600", "5"),
+                        checkbox(AI_REACTION_MODEL_USE_OWN, "Своя модель для реакций", false),
+                        radio(AdminModelForm.REACTION_ACCESS_KEY, "Способ выбора модели реакций",
+                                reactionSelection.mode()),
+                        hidden(AI_REACTION_ROUTE),
+                        select(AI_REACTION_MODEL, "Модель для реакций",
+                                modelGroups(reactionSelection), reactionSelection.directModel()),
+                        cascade("provider", AdminModelForm.REACTION_PROVIDER_KEY, "Провайдер",
+                                providerChoices(reactionSelection), reactionSelection.providerId()),
+                        cascade("group", AdminModelForm.REACTION_GROUP_KEY, "Группа моделей",
+                                groupChoices(), reactionSelection.groupId()),
+                        cascade("door-model", AdminModelForm.REACTION_DOOR_MODEL_KEY, "Модель у провайдера",
+                                doorModelChoices(reactionSelection), reactionSelection.modelId()))));
     }
 
     /** Выбранная пара из базы: режим и три ступени каскада для формы. */
@@ -284,6 +385,29 @@ public class AdminSettingsController {
         String configured = stored.getOrDefault(AI_MODEL_KEY, "").trim();
         String modelId = configured.isEmpty() ? DEFAULT_AI_MODEL : configured;
 
+        Optional<LlmCatalog.Model> found = LlmCatalog.model(route, modelId);
+        if (found.isEmpty())
+            return new Selection(AdminModelForm.DIRECT, "", "", modelId);
+
+        LlmCatalog.Model model = found.get();
+        boolean aggregator = LlmCatalog.provider(model.providerId())
+                .map(LlmCatalog.Provider::aggregator)
+                .orElse(false);
+        return new Selection(aggregator ? AdminModelForm.PROVIDER : AdminModelForm.DIRECT,
+                model.providerId(), model.group(), model.id());
+    }
+
+    /**
+     * Пара модели реакций. Пока своя модель не выбрана, форма показывает основную
+     * пару: так видно, кто считает реакции, если флажок снят.
+     */
+    private Selection reactionSelection() {
+        Map<String, String> stored = storedValues();
+        String modelId = stored.getOrDefault(AI_REACTION_MODEL, "").trim();
+        if (!settings.getBoolean(AI_REACTION_MODEL_USE_OWN, false) || modelId.isEmpty())
+            return selection();
+
+        String route = stored.getOrDefault(AI_REACTION_ROUTE, "").trim();
         Optional<LlmCatalog.Model> found = LlmCatalog.model(route, modelId);
         if (found.isEmpty())
             return new Selection(AdminModelForm.DIRECT, "", "", modelId);
@@ -413,7 +537,13 @@ public class AdminSettingsController {
 
     /** Флажок: без строки в базе показывается включённым, как и читает его бот. */
     private static FieldView checkbox(String key, String title) {
-        return new FieldView(key, title, "checkbox", "true", null, "", List.of(), List.of(), null, null, null);
+        return checkbox(key, title, true);
+    }
+
+    /** Флажок со значением по умолчанию для тех настроек, где включённое состояние неочевидно. */
+    private static FieldView checkbox(String key, String title, boolean defaultValue) {
+        return new FieldView(key, title, "checkbox", String.valueOf(defaultValue), null, "",
+                List.of(), List.of(), null, null, null);
     }
 
     private static FieldView area(String key, String title) {
