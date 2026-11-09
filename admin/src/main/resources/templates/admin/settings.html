@@ -167,10 +167,61 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
 
                 <span class="error" th:if="${field.error}" th:text="${field.error}"></span>
             </div>
+
+            <p class="hint" th:if="${tab.id == 'reactions'}">
+                Если флажок «Своя модель для реакций» снят, реакции считает основная модель ответов.
+            </p>
         </section>
 
         <button class="primary" type="submit">Сохранить</button>
     </form>
+
+    <section class="group emoji-catalog" th:if="${activeTab == 'reactions'}">
+        <h2>Эмодзи</h2>
+        <p class="hint">
+            Включённый эмодзи обязан иметь текст «когда ставим». Сохранение одно на весь
+            список: строки с ошибкой подсвечиваются, а введённое остаётся в форме.
+        </p>
+        <form th:action="@{/admin/settings/reactions/emojis}" method="post">
+            <input type="hidden" name="tab" value="reactions"/>
+            <div class="emoji-scroll">
+                <table class="list">
+                    <thead>
+                    <tr>
+                        <th>Эмодзи</th>
+                        <th>Когда ставим</th>
+                        <th>Память</th>
+                        <th>Включена</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="row : ${reactionEmojis}"
+                        th:classappend="${reactionErrors[row.emoji] != null} ? 'error-row'">
+                        <td class="emoji-cell" th:text="${row.emoji}">😂</td>
+                        <td>
+                            <input type="text" class="emoji-meaning"
+                                   th:name="|meaning_${row.emoji}|" th:value="${row.meaning}"/>
+                            <span class="error" th:if="${reactionErrors[row.emoji]}"
+                                  th:text="${reactionErrors[row.emoji]}">Укажите, когда ставим</span>
+                        </td>
+                        <td>
+                            <input type="checkbox" th:name="|memory_${row.emoji}|" value="true"
+                                   th:checked="${row.memory}"/>
+                            <input type="hidden" th:name="|memory_${row.emoji}|" value="false"/>
+                        </td>
+                        <td>
+                            <input type="checkbox" th:name="|active_${row.emoji}|" value="true"
+                                   th:checked="${row.active}"/>
+                            <input type="hidden" th:name="|active_${row.emoji}|" value="false"/>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="error" th:if="${reactionErrors['']}" th:text="${reactionErrors['']}"></p>
+            <button class="primary" type="submit">Сохранить список</button>
+        </form>
+    </section>
 
     <style>
         .radio-row { display: flex; gap: 18px; font-size: 14px; }
@@ -192,6 +243,18 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
                     border: 1px solid transparent; }
         .key-chip.ok { background: #e8f4ea; color: #1e6b3a; border-color: #b7dfc2; }
         .key-chip.missing { background: #fdecea; color: #b3261e; border-color: #f5c2bd; }
+
+        .emoji-catalog { margin-top: 24px; }
+        .emoji-scroll { max-height: 30rem; overflow-y: auto;
+                        border: 1px solid #dcdfe4; border-radius: 6px; }
+        .emoji-scroll table.list { border: 0; border-radius: 0; }
+        .emoji-scroll thead th { position: sticky; top: 0; z-index: 1; }
+        .emoji-cell { font-size: 20px; text-align: center; width: 48px; }
+        .emoji-meaning { width: 100%; max-width: 420px; padding: 6px;
+                         border: 1px solid #c4c8ce; border-radius: 4px; font: inherit; font-size: 14px; }
+        tr.error-row td { background: #fdecea; }
+        tr.error-row .emoji-meaning { border-color: #b3261e; }
+        .emoji-catalog .primary { margin-top: 12px; }
     </style>
 
     <script>
@@ -199,91 +262,111 @@ journalctl -u telegram-bot -n 30 --no-pager</code></pre>
             var form = document.querySelector('form.setting');
             if (!form) return;
 
-            var directSelect = form.querySelector('select[name="aiModel"]');
-            var providerSelect = form.querySelector('select[name="aiProvider"]');
-            var groupSelect = form.querySelector('select[name="aiModelGroup"]');
-            var modelSelect = form.querySelector('select[name="aiDoorModel"]');
-            if (!directSelect || !providerSelect || !groupSelect || !modelSelect) return;
+            function setup(names) {
+                var directSelect = form.querySelector('select[name="' + names.direct + '"]');
+                var providerSelect = form.querySelector('select[name="' + names.provider + '"]');
+                var groupSelect = form.querySelector('select[name="' + names.group + '"]');
+                var modelSelect = form.querySelector('select[name="' + names.door + '"]');
+                if (!directSelect || !providerSelect || !groupSelect || !modelSelect) return;
 
-            var access = Array.prototype.slice.call(form.querySelectorAll('input[name="aiAccess"]'));
-            var directField = directSelect.closest('.field');
-            var providerField = providerSelect.closest('.field');
-            var groupField = groupSelect.closest('.field');
-            var modelField = modelSelect.closest('.field');
+                var access = Array.prototype.slice.call(form.querySelectorAll('input[name="' + names.access + '"]'));
+                var toggle = names.toggle ? form.querySelector('input[name="' + names.toggle + '"]') : null;
+                var directField = directSelect.closest('.field');
+                var providerField = providerSelect.closest('.field');
+                var groupField = groupSelect.closest('.field');
+                var modelField = modelSelect.closest('.field');
 
-            // Пункты без ключа выключены сервером: фильтрация по двери не должна их включать обратно.
-            var noKey = new WeakSet();
-            Array.prototype.slice.call(directSelect.options)
-                .concat(Array.prototype.slice.call(providerSelect.options),
-                        Array.prototype.slice.call(groupSelect.options),
-                        Array.prototype.slice.call(modelSelect.options))
-                .forEach(function (option) {
-                    if (option.disabled) noKey.add(option);
-                });
+                // Пункты без ключа выключены сервером: фильтрация по двери не должна их включать обратно.
+                var noKey = new WeakSet();
+                Array.prototype.slice.call(directSelect.options)
+                    .concat(Array.prototype.slice.call(providerSelect.options),
+                            Array.prototype.slice.call(groupSelect.options),
+                            Array.prototype.slice.call(modelSelect.options))
+                    .forEach(function (option) {
+                        if (option.disabled) noKey.add(option);
+                    });
 
-            function providerMode() {
-                return access.some(function (radio) { return radio.checked && radio.value === 'provider'; });
-            }
-
-            function selectableOptions(select) {
-                return Array.prototype.slice.call(select.options).filter(function (option) {
-                    return !option.hidden && !option.disabled;
-                });
-            }
-
-            function filterByDoor(select, prefix) {
-                Array.prototype.slice.call(select.options).forEach(function (option) {
-                    var ok = !prefix || (option.dataset.door || '').indexOf(prefix) === 0;
-                    option.hidden = !ok;
-                    option.disabled = !ok || noKey.has(option);
-                });
-                var current = select.options[select.selectedIndex];
-                if (!current || current.hidden || current.disabled) {
-                    var first = selectableOptions(select)[0];
-                    if (first) select.value = first.value;
+                function providerMode() {
+                    return access.some(function (radio) { return radio.checked && radio.value === 'provider'; });
                 }
+
+                function selectableOptions(select) {
+                    return Array.prototype.slice.call(select.options).filter(function (option) {
+                        return !option.hidden && !option.disabled;
+                    });
+                }
+
+                function filterByDoor(select, prefix) {
+                    Array.prototype.slice.call(select.options).forEach(function (option) {
+                        var ok = !prefix || (option.dataset.door || '').indexOf(prefix) === 0;
+                        option.hidden = !ok;
+                        option.disabled = !ok || noKey.has(option);
+                    });
+                    var current = select.options[select.selectedIndex];
+                    if (!current || current.hidden || current.disabled) {
+                        var first = selectableOptions(select)[0];
+                        if (first) select.value = first.value;
+                    }
+                }
+
+                function doorPrefix() {
+                    return providerSelect.value + '|';
+                }
+
+                function refreshGroups() {
+                    filterByDoor(groupSelect, doorPrefix());
+                    var options = selectableOptions(groupSelect);
+                    if (options.length === 1) groupSelect.value = options[0].value;
+                    if (options.length <= 1) groupField.hidden = true;
+                }
+
+                function refreshModels() {
+                    filterByDoor(modelSelect, doorPrefix() + groupSelect.value);
+                }
+
+                function ownModelOn() {
+                    return !toggle || toggle.checked;
+                }
+
+                function applyMode() {
+                    var mode = providerMode();
+                    var on = ownModelOn();
+
+                    directField.hidden = mode;
+                    providerField.hidden = !mode;
+                    groupField.hidden = !mode;
+                    modelField.hidden = !mode;
+
+                    access.forEach(function (radio) { radio.disabled = !on; });
+                    directSelect.disabled = !on || mode;
+                    providerSelect.disabled = !on || !mode;
+                    groupSelect.disabled = !on || !mode;
+                    modelSelect.disabled = !on || !mode;
+
+                    if (!on || !mode) return;
+                    refreshGroups();
+                    refreshModels();
+                }
+
+                access.forEach(function (radio) { radio.addEventListener('change', applyMode); });
+                providerSelect.addEventListener('change', function () {
+                    groupField.hidden = false;
+                    refreshGroups();
+                    refreshModels();
+                });
+                groupSelect.addEventListener('change', refreshModels);
+                if (toggle) toggle.addEventListener('change', applyMode);
+
+                applyMode();
             }
 
-            function doorPrefix() {
-                return providerSelect.value + '|';
-            }
+            setup({access: 'aiAccess', direct: 'aiModel', provider: 'aiProvider',
+                group: 'aiModelGroup', door: 'aiDoorModel'});
+            setup({access: 'aiReactionAccess', direct: 'aiReactionModel', provider: 'aiReactionProvider',
+                group: 'aiReactionGroup', door: 'aiReactionDoorModel', toggle: 'aiReactionModelUseOwn'});
 
-            function refreshGroups() {
-                filterByDoor(groupSelect, doorPrefix());
-                var options = selectableOptions(groupSelect);
-                if (options.length === 1) groupSelect.value = options[0].value;
-                if (options.length <= 1) groupField.hidden = true;
-            }
-
-            function refreshModels() {
-                filterByDoor(modelSelect, doorPrefix() + groupSelect.value);
-            }
-
-            function applyMode() {
-                var mode = providerMode();
-                directField.hidden = mode;
-                directSelect.disabled = mode;
-                providerField.hidden = !mode;
-                groupField.hidden = !mode;
-                modelField.hidden = !mode;
-                providerSelect.disabled = !mode;
-                groupSelect.disabled = !mode;
-                modelSelect.disabled = !mode;
-                if (!mode) return;
-
-                refreshGroups();
-                refreshModels();
-            }
-
-            access.forEach(function (radio) { radio.addEventListener('change', applyMode); });
-            providerSelect.addEventListener('change', function () {
-                groupField.hidden = false;
-                refreshGroups();
-                refreshModels();
-            });
-            groupSelect.addEventListener('change', refreshModels);
-
-            applyMode();
+            var firstError = document.querySelector('.error-row');
+            if (firstError) firstError.scrollIntoView({block: 'center'});
         })();
     </script>
 </main>

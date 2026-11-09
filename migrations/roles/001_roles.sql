@@ -36,11 +36,23 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO ai_user;
 GRANT USAGE ON SCHEMA shared, config, ai, configurator TO admin_user;
 -- Владелец таблиц создаёт объекты в схеме конфигуратора: под ним идут миграции.
 GRANT CREATE ON SCHEMA configurator TO admin;
+-- Владелец таблиц создаёт новые таблицы реакций в config и ai: схемы принадлежат
+-- app_user, а таблицы — admin, поэтому без этого права CREATE TABLE падает на 42501.
+GRANT CREATE ON SCHEMA config, ai TO admin;
 GRANT SELECT ON ALL TABLES IN SCHEMA shared, ai TO admin_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA config, configurator TO admin_user;
 GRANT INSERT, UPDATE, DELETE ON ai.persona_memories, ai.memory_people,
     ai.persona_emotions, ai.ai_messages TO admin_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA config, configurator, ai TO admin_user;
+
+-- Реакции: бот читает каталог эмодзи и пишет журнал с отметкой прочитанного,
+-- админка правит каталог и читает журнал. Явные гранты нужны и потому, что
+-- таблицы создаются позже этого файла, а ALTER DEFAULT PRIVILEGES действует
+-- только на объекты, созданные той же ролью.
+GRANT SELECT ON config.reaction_emojis TO ai_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON config.reaction_emojis TO admin_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ai.message_reactions, ai.read_state TO ai_user;
+GRANT SELECT ON ai.message_reactions, ai.read_state TO admin_user;
 
 -- Таблицы и последовательности, которые появятся в следующих миграциях.
 -- В ai админка по умолчанию только читает: запись в память выдаётся точечно.

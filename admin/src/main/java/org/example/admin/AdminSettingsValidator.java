@@ -22,6 +22,10 @@ import static org.example.core.settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.core.settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
 import static org.example.core.settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL;
+import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
+import static org.example.core.settings.Settings.AI_REACTION_POOL_SIZE;
+import static org.example.core.settings.Settings.AI_REACTION_ROUTE;
 import static org.example.core.settings.Settings.AI_ROUTE_KEY;
 import static org.example.core.settings.Settings.OWNER_CHAT_ID;
 
@@ -49,8 +53,17 @@ public class AdminSettingsValidator {
     public Map<String, String> validate(Map<String, String> values, Map<String, String> stored) {
         Map<String, String> errors = new LinkedHashMap<>();
 
-        requireModel(values, errors);
-        modelFromCatalog(values, stored, errors);
+        requireModel(values, AI_MODEL_KEY, AdminModelForm.ACCESS_KEY, AdminModelForm.DOOR_MODEL_KEY, errors);
+        modelFromCatalog(values, stored, AI_MODEL_KEY, AI_ROUTE_KEY,
+                AdminModelForm.ACCESS_KEY, AdminModelForm.DOOR_MODEL_KEY, errors);
+        requireModel(values, AI_REACTION_MODEL, AdminModelForm.REACTION_ACCESS_KEY,
+                AdminModelForm.REACTION_DOOR_MODEL_KEY, errors);
+        modelFromCatalog(values, stored, AI_REACTION_MODEL, AI_REACTION_ROUTE,
+                AdminModelForm.REACTION_ACCESS_KEY, AdminModelForm.REACTION_DOOR_MODEL_KEY, errors);
+        integerInRange(values, AI_REACTION_POOL_SIZE, 1, 100,
+                "Размер пула должен быть целым от 1 до 100", errors);
+        integerInRange(values, AI_REACTION_PAUSE_SECONDS, 1, 3600,
+                "Пауза должна быть целой от 1 до 3600 секунд", errors);
         requireText(values, AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа не может быть пустым", errors);
         decimalInRange(values, AI_ANSWER_TEMPERATURE, 0f, MAX_TEMPERATURE,
                 "Температура должна быть числом от 0 до 2", errors);
@@ -81,15 +94,16 @@ public class AdminSettingsValidator {
         return errors;
     }
 
-    /** Модель должна существовать у провайдера из aiRoute, а его ключ нужен при смене пары. */
+    /** Модель должна существовать у провайдера из маршрута, а его ключ нужен при смене пары. */
     private void modelFromCatalog(Map<String, String> values, Map<String, String> stored,
+                                  String modelKey, String routeKey, String accessKey, String doorKey,
                                   Map<String, String> errors) {
-        String value = values.get(AI_MODEL_KEY);
+        String value = values.get(modelKey);
         if (value == null || value.isBlank())
             return;
 
-        String route = values.getOrDefault(AI_ROUTE_KEY, "").trim();
-        String errorKey = modelErrorKey(values);
+        String route = values.getOrDefault(routeKey, "").trim();
+        String errorKey = modelErrorKey(values, accessKey, doorKey, modelKey);
 
         Optional<LlmCatalog.Model> found = LlmCatalog.model(route, value);
         if (found.isEmpty()) {
@@ -97,8 +111,8 @@ public class AdminSettingsValidator {
             return;
         }
 
-        String previousRoute = stored.getOrDefault(AI_ROUTE_KEY, "").trim();
-        String previousModel = stored.getOrDefault(AI_MODEL_KEY, "").trim();
+        String previousRoute = stored.getOrDefault(routeKey, "").trim();
+        String previousModel = stored.getOrDefault(modelKey, "").trim();
         Optional<LlmCatalog.Model> before = LlmCatalog.model(previousRoute, previousModel);
         boolean sameDoorAndModel = before
                 .map(model -> model.id().equals(found.get().id())
@@ -114,19 +128,18 @@ public class AdminSettingsValidator {
     }
 
     /** Ошибка модели показывается у того поля, которое видно в выбранном режиме. */
-    private String modelErrorKey(Map<String, String> values) {
-        return AdminModelForm.PROVIDER.equals(values.getOrDefault(AdminModelForm.ACCESS_KEY, ""))
-                ? AdminModelForm.DOOR_MODEL_KEY
-                : AI_MODEL_KEY;
+    private String modelErrorKey(Map<String, String> values, String accessKey, String doorKey, String modelKey) {
+        return AdminModelForm.PROVIDER.equals(values.getOrDefault(accessKey, "")) ? doorKey : modelKey;
     }
 
-    private void requireModel(Map<String, String> values, Map<String, String> errors) {
-        if (!values.containsKey(AI_MODEL_KEY))
+    private void requireModel(Map<String, String> values, String modelKey,
+                              String accessKey, String doorKey, Map<String, String> errors) {
+        if (!values.containsKey(modelKey))
             return;
 
-        String value = values.get(AI_MODEL_KEY);
+        String value = values.get(modelKey);
         if (value == null || value.isBlank())
-            errors.put(modelErrorKey(values), "Модель не может быть пустой");
+            errors.put(modelErrorKey(values, accessKey, doorKey, modelKey), "Модель не может быть пустой");
     }
 
     private void requireText(Map<String, String> values, String key, String message, Map<String, String> errors) {

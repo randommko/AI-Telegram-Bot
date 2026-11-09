@@ -44,6 +44,15 @@ public class Settings {
     public static final String AI_GRUDGE_ANGER_DELTA = "aiGrudgeAngerDelta";
     public static final String AI_GRUDGE_DECAY_PER_HOUR = "aiGrudgeDecayPerHour";
     public static final String AI_GRUDGE_THRESHOLD = "aiGrudgeThreshold";
+    /** Реакции на прочитанные сообщения: выключатель, промпт, пул, пауза и своя модель. */
+    public static final String AI_REACTIONS_ENABLED = "aiReactionsEnabled";
+    public static final String AI_REACTION_PROMPT = "aiReactionPrompt";
+    public static final String AI_REACTION_POOL_SIZE = "aiReactionPoolSize";
+    public static final String AI_REACTION_PAUSE_SECONDS = "aiReactionPauseSeconds";
+    public static final String AI_REACTION_MODEL_USE_OWN = "aiReactionModelUseOwn";
+    public static final String AI_REACTION_MODEL = "aiReactionModel";
+    /** Пусто — провайдер выбранной модели реакций, как у основной пары. */
+    public static final String AI_REACTION_ROUTE = "aiReactionRoute";
     public static final Long AI_ID = 0L;
     public final static String AI_SYSTEM_ROLE = "system";
     public final static String AI_ASSISTANT_ROLE = "assistant";

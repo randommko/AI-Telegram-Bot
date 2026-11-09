@@ -8,6 +8,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.methods.reactions.SetMessageReaction;
+import org.telegram.telegrambots.meta.api.objects.reactions.ReactionTypeEmoji;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -113,6 +115,30 @@ public class MessageSender {
             return true;
         } catch (TelegramApiException e) {
             logger.error("Ошибка edit: ", e);
+            return false;
+        }
+    }
+
+    /**
+     * Ставит одну реакцию на сообщение. Бот держит не больше одной реакции на
+     * сообщение, поэтому повторная заменяет прошлую. Отказ Telegram не роняет
+     * проход чтения: причина остаётся в логе.
+     */
+    public boolean react(Long chatId, Integer messageId, String emoji) {
+        if (chatId == null || messageId == null || emoji == null || emoji.isBlank())
+            return false;
+
+        SetMessageReaction reaction = SetMessageReaction.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .reactionTypes(List.of(ReactionTypeEmoji.builder().emoji(emoji).build()))
+                .build();
+        try {
+            client.execute(reaction);
+            return true;
+        } catch (TelegramApiException e) {
+            logger.warn("Реакция {} на сообщение {} в чате {} не поставлена: {}",
+                    emoji, messageId, chatId, String.valueOf(e));
             return false;
         }
     }
