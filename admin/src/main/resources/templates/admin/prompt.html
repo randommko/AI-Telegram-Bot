@@ -29,7 +29,8 @@
 
     <form class="setting" th:each="section : ${sections}" th:action="@{/admin/prompt}" method="post">
         <h2 class="section" th:text="${section.spec().title()}">Раздел</h2>
-        <p class="hint" th:text="${'Бюджет раздела: ' + section.spec().budget() + ' символов'}"></p>
+        <p class="hint" th:unless="${section.recommendedLength()}"
+           th:text="${'Бюджет раздела: ' + section.spec().budget() + ' символов'}"></p>
         <p class="hint" th:if="${section.spec().heading() != null}"
            th:text="${'Заголовок в промпте: ' + section.spec().heading()}"></p>
 
@@ -42,18 +43,21 @@
 
             <textarea th:if="${field.multiline()}"
                       th:id="${field.key()}" th:name="${field.key()}"
-                      th:attr="data-budget=${field.budget()}"
+                      th:attr="data-budget=${field.budget()},data-limit-kind=${section.recommendedLength() ? 'recommended' : 'budget'}"
                       th:text="${field.value()}"
-                      oninput="const c = this.closest('.field').querySelector('.counter'); c.textContent = this.value.length + ' / ' + this.dataset.budget + ' символов'; c.classList.toggle('error', this.value.length > this.dataset.budget);"></textarea>
+                      oninput="updateCounter(this)"></textarea>
 
             <input th:unless="${field.multiline()}" type="text"
                    th:id="${field.key()}" th:name="${field.key()}"
-                   th:attr="data-budget=${field.budget()}" th:value="${field.value()}"
-                   oninput="const c = this.closest('.field').querySelector('.counter'); c.textContent = this.value.length + ' / ' + this.dataset.budget + ' символов'; c.classList.toggle('error', this.value.length > this.dataset.budget);"/>
+                   th:attr="data-budget=${field.budget()},data-limit-kind=${section.recommendedLength() ? 'recommended' : 'budget'}" th:value="${field.value()}"
+                   oninput="updateCounter(this)"/>
 
             <span class="hint counter"
-                  th:classappend="${field.length() > field.budget()} ? ' error'"
-                  th:text="${field.length() + ' / ' + field.budget() + ' символов'}">0 / 0 символов</span>
+                  th:classappend="${not section.recommendedLength() and field.length() > field.budget()} ? ' error'"
+                  th:text="${section.recommendedLength() ? field.length() + ' символов' : field.length() + ' / ' + field.budget() + ' символов'}">0 символов</span>
+            <span class="hint recommendation" th:if="${section.recommendedLength()}"
+                  th:hidden="${field.length() <= field.budget()}"
+                  th:text="${'Больше рекомендуемых ' + field.budget() + ' символов — сохранить можно'}"></span>
         </div>
 
         <div class="toolbar" th:if="${not #lists.isEmpty(section.templates())}">
@@ -65,5 +69,22 @@
         </div>
     </form>
 </main>
+<script>
+    function updateCounter(field) {
+        const wrapper = field.closest('.field');
+        const counter = wrapper.querySelector('.counter');
+        const recommendation = wrapper.querySelector('.recommendation');
+        const budget = Number(field.dataset.budget);
+        const recommended = field.dataset.limitKind === 'recommended';
+        const length = field.value.length;
+
+        counter.textContent = recommended
+            ? length + ' символов'
+            : length + ' / ' + budget + ' символов';
+        counter.classList.toggle('error', !recommended && length > budget);
+        if (recommendation)
+            recommendation.hidden = !recommended || length <= budget;
+    }
+</script>
 </body>
 </html>

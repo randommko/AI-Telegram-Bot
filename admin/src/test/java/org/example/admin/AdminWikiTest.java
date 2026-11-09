@@ -48,6 +48,7 @@ class AdminWikiTest {
                 .andExpect(content().string(containsString("Как бот отвечает")))
                 .andExpect(content().string(containsString("Тексты по умолчанию")))
                 .andExpect(content().string(containsString("Ты участник этого чата")))
+                .andExpect(content().string(containsString("рекомендуемая")))
                 .andExpect(content().string(containsString("Вики")));
     }
 

@@ -280,6 +280,18 @@ class PromptComposerTest {
     }
 
     @Test
+    void longTechnicalPartGoesToPromptWhole() {
+        when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
+        String longTechnical = "Правило поведения. ".repeat(60).strip();
+        when(settings.getSettingValue(AI_PROMPT_TECHNICAL)).thenReturn(longTechnical);
+
+        String technical = section(composer.compose(CHAT_ID), PromptSection.TECHNICAL);
+
+        assertTrue(longTechnical.length() > PromptSection.TECHNICAL.budget(), "текст длиннее рекомендуемой длины");
+        assertEquals(longTechnical, technical);
+    }
+
+    @Test
     void settingsChangeIsVisibleBetweenCalls() {
         when(personaService.personaForChat(CHAT_ID)).thenReturn(Optional.empty());
         when(settings.getSettingValue(AI_PROMPT_PEOPLE_HEADER))
