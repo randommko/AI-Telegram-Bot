@@ -73,7 +73,8 @@ public class AdminSettingsController {
             Map.entry("mistral", "https://console.mistral.ai/api-keys"),
             Map.entry("aitunnel", "https://aitunnel.ru/"),
             Map.entry("venice", "https://venice.ai/settings/api/keys"),
-            Map.entry("abliteration", "https://abliteration.ai/console"));
+            Map.entry("abliteration", "https://abliteration.ai/console"),
+            Map.entry("polza", "https://polza.ai/dashboard/api-keys"));
 
     /** Опция списка моделей: значение — идентификатор модели, title — описание, enabled — есть ли ключ. */
     public record Option(String value, String title, boolean enabled) {
@@ -515,10 +516,18 @@ public class AdminSettingsController {
         for (LlmCatalog.Provider provider : LlmCatalog.aggregators()) {
             boolean hasKey = providerKeys.hasKey(provider.id());
             for (LlmCatalog.Model model : LlmCatalog.modelsOf(provider.id()))
-                choices.add(new Choice(model.id(), model.id(), door(provider.id(), model.group()),
-                        model.title(), hasKey || isCurrent(selection, provider.id(), model.id())));
+                choices.add(new Choice(model.id(), withPrice(model.id(), model), door(provider.id(), model.group()),
+                        withPrice(model.title(), model), hasKey || isCurrent(selection, provider.id(), model.id())));
         }
         return choices;
+    }
+
+    /** Цена за миллион токенов рядом с названием — там, где площадка её публикует. */
+    private static String withPrice(String label, LlmCatalog.Model model) {
+        if (model.inputPricePerMillion() == null || model.outputPricePerMillion() == null)
+            return label;
+        return label + " · " + model.inputPricePerMillion().stripTrailingZeros().toPlainString()
+                + " / " + model.outputPricePerMillion().stripTrailingZeros().toPlainString() + " ₽ за млн";
     }
 
     /** Сохранённая пара остаётся выбираемой: иначе снятый ключ молча переключил бы модель при сохранении. */

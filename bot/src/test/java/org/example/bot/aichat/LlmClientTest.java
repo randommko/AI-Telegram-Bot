@@ -48,7 +48,7 @@ class LlmClientTest {
         logger.addAppender(logs);
         logs.start();
 
-        when(settings.getInt(AI_MAX_TOKENS_ANSWER_QUESTION, 1000)).thenReturn(1000);
+        when(settings.getInt(AI_MAX_TOKENS_ANSWER_QUESTION, 4096)).thenReturn(4096);
         when(httpClient.send(any(), any())).thenAnswer(invocation -> {
             sent.set(invocation.getArgument(0));
             return response;
@@ -192,6 +192,28 @@ class LlmClientTest {
         assertThat(sent.get().uri().toString()).isEqualTo("https://api.deepseek.com/v1/chat/completions");
         assertThat(logs.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
                 .contains("grok").contains("нет в каталоге"));
+    }
+
+    @Test
+    void slashInPolzaModelIdSurvivesFromSettingsToRequestBody() throws Exception {
+        client = clientWith(Map.of("polza", "sk-polza"));
+        when(settings.getModel()).thenReturn("z-ai/glm-5.3-flash");
+        when(settings.getRoute()).thenReturn("polza");
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(answer("привет"));
+
+        assertThat(client.sendJsonRequestToAi(messages(), 1.0f)).isEqualTo("привет");
+
+        HttpRequest request = sent.get();
+        assertThat(request.uri().toString()).isEqualTo("https://polza.ai/api/v1/chat/completions");
+        assertThat(request.headers().firstValue("Authorization")).contains("Bearer sk-polza");
+
+        LlmCatalog.Model model = LlmCatalog.model("polza", "z-ai/glm-5.3-flash").orElseThrow();
+        ObjectNode body = client.request(model, messages(), 1.0f, 1000, true);
+        assertThat(body.get("model").asText()).isEqualTo("z-ai/glm-5.3-flash");
+        assertThat(body.has("response_format")).isFalse();
+        assertThat(body.has("max_tokens")).isTrue();
+        assertThat(body.has("max_completion_tokens")).isFalse();
     }
 
     @Test

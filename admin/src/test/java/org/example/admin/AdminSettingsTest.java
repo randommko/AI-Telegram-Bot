@@ -348,8 +348,25 @@ class AdminSettingsTest {
                 .andExpect(content().string(containsString(">BOT_AI_KEY_VENICE<")))
                 .andExpect(content().string(containsString("https://venice.ai/settings/api/keys")))
                 .andExpect(content().string(containsString(">BOT_AI_KEY_DEEPSEEK<")))
+                .andExpect(content().string(containsString(">BOT_AI_KEY_POLZA<")))
+                .andExpect(content().string(containsString("https://polza.ai/dashboard/api-keys")))
                 .andExpect(content().string(containsString(
                         "группы: DeepSeek, Grok, OpenAI, Google Gemini, Anthropic, Qwen, Kimi, GLM")));
+    }
+
+    @Test
+    void polzaModelsShowPriceAndOthersDoNot() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=model").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        ">z-ai/glm-5.3 · 8.33 / 166.9 ₽ за млн<")))
+                .andExpect(content().string(containsString(
+                        ">sber/gigachat-2 · 93.6 / 93.6 ₽ за млн<")))
+                .andExpect(content().string(containsString(">grok-4-7<")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("grok-4-7 ·"))));
     }
 
     @Test
