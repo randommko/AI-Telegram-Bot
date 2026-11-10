@@ -11,13 +11,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LlmCatalogTest {
 
     @Test
-    void hasFiveDirectProvidersAndThreeAggregatorsWithEnoughDataToCallThem() {
+    void hasFiveDirectProvidersAndFourAggregatorsWithEnoughDataToCallThem() {
         assertThat(LlmCatalog.directProviders())
                 .extracting(LlmCatalog.Provider::id)
                 .containsExactly("deepseek", "grok", "openai", "gemini", "mistral");
         assertThat(LlmCatalog.aggregators())
                 .extracting(LlmCatalog.Provider::id)
-                .containsExactly("aitunnel", "venice", "abliteration");
+                .containsExactly("aitunnel", "venice", "abliteration", "polza");
 
         for (LlmCatalog.Provider provider : LlmCatalog.providers()) {
             assertThat(provider.title()).isNotBlank();
@@ -93,6 +93,33 @@ class LlmCatalogTest {
         assertThat(LlmCatalog.groupsOf("abliteration"))
                 .extracting(LlmCatalog.Group::title)
                 .containsExactly("Abliterated");
+        assertThat(LlmCatalog.groupsOf("polza"))
+                .extracting(LlmCatalog.Group::title)
+                .containsExactly("DeepSeek", "OpenAI", "Anthropic", "Google Gemini", "Grok", "Mistral",
+                        "Qwen", "Kimi", "GLM", "MiniMax", "GigaChat", "Xiaomi MiMo", "Tencent Hunyuan",
+                        "ByteDance Seed");
+    }
+
+    @Test
+    void priceIsPresentOnlyWhereTheSitePublishesIt() {
+        LlmCatalog.Model glm = LlmCatalog.model("polza", "z-ai/glm-5.3").orElseThrow();
+        assertThat(glm.inputPricePerMillion()).isEqualByComparingTo("8.33");
+        assertThat(glm.outputPricePerMillion()).isEqualByComparingTo("166.90");
+
+        assertThat(LlmCatalog.modelsOf("polza")).allSatisfy(model ->
+                assertThat(model.inputPricePerMillion()).isNotNull());
+        assertThat(LlmCatalog.modelsOf("deepseek")).allSatisfy(model ->
+                assertThat(model.inputPricePerMillion()).isNull());
+    }
+
+    @Test
+    void slashInPolzaModelIdDoesNotBreakLookup() {
+        assertThat(LlmCatalog.model("polza", "z-ai/glm-5.3-flash"))
+                .map(LlmCatalog.Model::providerId).contains("polza");
+        assertThat(LlmCatalog.model("z-ai/glm-5.3-flash"))
+                .map(LlmCatalog.Model::providerId).contains("polza");
+        assertThat(LlmCatalog.model("polza", "z-ai/glm-5.3-flash"))
+                .map(LlmCatalog.Model::jsonMode).contains(false);
     }
 
     @Test

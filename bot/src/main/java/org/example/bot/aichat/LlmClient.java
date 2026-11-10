@@ -31,7 +31,7 @@ import static org.example.core.settings.Settings.DEFAULT_AI_MODEL;
 @Component
 public class LlmClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
-    private static final int DEFAULT_MAX_TOKENS = 1000;
+    private static final int DEFAULT_MAX_TOKENS = 4096;
     /** Потолок настройки: больше админка не предложит. Потолок модели может быть ниже. */
     private static final int SETTINGS_MAX_TOKENS = 8192;
 

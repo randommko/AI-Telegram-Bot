@@ -1,5 +1,6 @@
 package org.example.core.aichat;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,13 +41,22 @@ public final class LlmCatalog {
 
     /**
      * jsonMode — провайдер принимает response_format: json_object; group — вендор модели,
-     * по нему строится список групп в админке; потолок — больше модель не выдаст.
+     * по нему строится список групп в админке; потолок — больше модель не выдаст;
+     * цены входа и выхода за миллион токенов в рублях необязательны и есть только там,
+     * где площадка их публикует.
      */
     public record Model(String id, String providerId, String group, String title,
-                        boolean jsonMode, int maxOutputTokens) {
+                        boolean jsonMode, int maxOutputTokens,
+                        BigDecimal inputPricePerMillion, BigDecimal outputPricePerMillion) {
 
         public Model {
             group = group == null || group.isBlank() ? providerId : group;
+        }
+
+        /** Модель без цены: вендор совпадает с провайдером либо задан явно. */
+        public Model(String id, String providerId, String group, String title,
+                     boolean jsonMode, int maxOutputTokens) {
+            this(id, providerId, group, title, jsonMode, maxOutputTokens, null, null);
         }
 
         /** Прямое подключение: вендор совпадает с провайдером. */
@@ -69,7 +79,12 @@ public final class LlmCatalog {
             Map.entry("qwen", "Qwen"),
             Map.entry("kimi", "Kimi"),
             Map.entry("glm", "GLM"),
-            Map.entry("abliterated", "Abliterated"));
+            Map.entry("abliterated", "Abliterated"),
+            Map.entry("minimax", "MiniMax"),
+            Map.entry("gigachat", "GigaChat"),
+            Map.entry("xiaomi", "Xiaomi MiMo"),
+            Map.entry("hunyuan", "Tencent Hunyuan"),
+            Map.entry("seed", "ByteDance Seed"));
 
     private static final List<Provider> PROVIDERS = List.of(
             new Provider("deepseek", "DeepSeek", "https://api.deepseek.com/v1/chat/completions",
@@ -94,7 +109,10 @@ public final class LlmCatalog {
                             "strip_thinking_response", true)),
                     "max_completion_tokens"),
             new Provider("abliteration", "Abliteration", "https://api.abliteration.ai/v1/chat/completions",
-                    "BOT_AI_KEY_ABLITERATION", Duration.ofSeconds(90), Kind.AGGREGATOR, Map.of(), "max_tokens"));
+                    "BOT_AI_KEY_ABLITERATION", Duration.ofSeconds(90), Kind.AGGREGATOR, Map.of(), "max_tokens"),
+            // Рассуждающие флагманы polza отвечают дольше прямых провайдеров, поэтому таймаут как у AITunnel.
+            new Provider("polza", "polza.ai", "https://polza.ai/api/v1/chat/completions",
+                    "BOT_AI_KEY_POLZA", Duration.ofSeconds(120), Kind.AGGREGATOR, Map.of(), "max_tokens"));
 
     private static final List<Model> MODELS = List.of(
             new Model("deepseek-flash", "deepseek", "flash, рассуждения по умолчанию", true, 8192),
@@ -166,7 +184,83 @@ public final class LlmCatalog {
             new Model("abliterated-model", "abliteration", "abliterated", "Abliterated Model", true, 8192),
             new Model("abliterated-model-large", "abliteration", "abliterated", "Abliterated Large", true, 8192),
             new Model("abliterated-model-large-v2", "abliteration", "abliterated", "Abliterated Large v2", true, 8192),
-            new Model("abliterated-model-large-flash", "abliteration", "abliterated", "Abliterated Large Flash", true, 8192));
+            new Model("abliterated-model-large-flash", "abliteration", "abliterated", "Abliterated Large Flash", true, 8192),
+
+            // polza: свежие поколения девяти знакомых семейств и пять новых вендоров.
+            // Потолки, JSON-режим и цены — из каталога polza на 2026-11-10; у GigaChat
+            // потолок вывода не публикуется, поэтому он равен максимуму настройки бота.
+            new Model("deepseek/deepseek-v4.1-flash", "polza", "deepseek", "DeepSeek V4.1 Flash", true, 943718,
+                    new BigDecimal("2.62"), new BigDecimal("47.69")),
+            new Model("deepseek/deepseek-v4-pro", "polza", "deepseek", "DeepSeek V4 Pro", true, 393216,
+                    new BigDecimal("107.30"), new BigDecimal("178.83")),
+            new Model("deepseek/deepseek-v4-flash", "polza", "deepseek", "DeepSeek V4 Flash", true, 131072,
+                    new BigDecimal("5.96"), new BigDecimal("11.92")),
+            new Model("openai/gpt-6.1-terra", "polza", "openai", "GPT-6.1 Terra", true, 128000,
+                    new BigDecimal("59.61"), new BigDecimal("298.04")),
+            new Model("openai/gpt-6.1-sol", "polza", "openai", "GPT-6.1 Sol", true, 128000,
+                    new BigDecimal("121.70"), new BigDecimal("608.51")),
+            new Model("openai/gpt-5.6-luna", "polza", "openai", "GPT-5.6 Luna", true, 128000,
+                    new BigDecimal("12.17"), new BigDecimal("73.02")),
+            new Model("anthropic/claude-haiku-5.5", "polza", "anthropic", "Claude Haiku 5.5", true, 128000,
+                    new BigDecimal("12.17"), new BigDecimal("60.85")),
+            new Model("anthropic/claude-sonnet-5", "polza", "anthropic", "Claude Sonnet 5", true, 128000,
+                    new BigDecimal("243.40"), new BigDecimal("1217.01")),
+            new Model("anthropic/claude-opus-4.8", "polza", "anthropic", "Claude Opus 4.8", true, 128000,
+                    new BigDecimal("608.51"), new BigDecimal("3042.53")),
+            new Model("google/gemini-4-argon", "polza", "gemini", "Gemini 4 Argon", true, 65536,
+                    new BigDecimal("120.05"), new BigDecimal("600.25")),
+            new Model("google/gemini-4-carbon", "polza", "gemini", "Gemini 4 Carbon", true, 943718,
+                    new BigDecimal("238.44"), new BigDecimal("1192.18")),
+            new Model("google/gemini-3.8-flash", "polza", "gemini", "Gemini 3.8 Flash", true, 65536,
+                    new BigDecimal("45.02"), new BigDecimal("225.09")),
+            new Model("x-ai/grok-4.7", "polza", "grok", "Grok 4.7", true, 450000,
+                    new BigDecimal("238.44"), new BigDecimal("715.31")),
+            new Model("x-ai/grok-4.3", "polza", "grok", "Grok 4.3", true, 900000,
+                    new BigDecimal("149.02"), new BigDecimal("298.04")),
+            new Model("mistralai/mistral-large-2512", "polza", "mistral", "Mistral Large 3", true, 209715,
+                    new BigDecimal("59.61"), new BigDecimal("178.83")),
+            new Model("mistralai/mistral-small-2603", "polza", "mistral", "Mistral Small 4", true, 209715,
+                    new BigDecimal("17.88"), new BigDecimal("71.53")),
+            new Model("qwen/qwen3.8-max", "polza", "qwen", "Qwen 3.8 Max", true, 131072,
+                    new BigDecimal("238.44"), new BigDecimal("715.31")),
+            new Model("qwen/qwen3.8-flash", "polza", "qwen", "Qwen 3.8 Flash", true, 131072,
+                    new BigDecimal("17.88"), new BigDecimal("56.03")),
+            new Model("qwen/qwen3.6-plus", "polza", "qwen", "Qwen 3.6 Plus", true, 65536,
+                    new BigDecimal("38.75"), new BigDecimal("232.47")),
+            new Model("moonshotai/kimi-k3.1-pro", "polza", "kimi", "Kimi K3.1 Pro", true, 943718,
+                    new BigDecimal("31.71"), new BigDecimal("991.75")),
+            new Model("moonshotai/kimi-k2.6", "polza", "kimi", "Kimi K2.6", true, 235929,
+                    new BigDecimal("46.44"), new BigDecimal("195.52")),
+            new Model("z-ai/glm-5.3", "polza", "glm", "GLM 5.3", true, 943718,
+                    new BigDecimal("8.33"), new BigDecimal("166.90")),
+            new Model("z-ai/glm-5.3-flashx", "polza", "glm", "GLM 5.3 FlashX", true, 131072,
+                    new BigDecimal("44.11"), new BigDecimal("149.02")),
+            new Model("z-ai/glm-5.2", "polza", "glm", "GLM 5.2", true, 163840,
+                    new BigDecimal("53.65"), new BigDecimal("171.67")),
+            new Model("z-ai/glm-5.3-flash", "polza", "glm", "GLM 5.3 Flash", false, 131072,
+                    new BigDecimal("4.76"), new BigDecimal("9.35")),
+            new Model("minimax/minimax-m3", "polza", "minimax", "MiniMax M3", true, 131072,
+                    new BigDecimal("26.70"), new BigDecimal("104.91")),
+            new Model("minimax/minimax-m3.1-flash", "polza", "minimax", "MiniMax M3.1 Flash", true, 524288,
+                    new BigDecimal("8.94"), new BigDecimal("35.77")),
+            new Model("GigaChat/GigaChat-3-Pro", "polza", "gigachat", "GigaChat 3 Pro", true, 8192,
+                    new BigDecimal("105.16"), new BigDecimal("254.00")),
+            new Model("sber/gigachat-2", "polza", "gigachat", "GigaChat 2", false, 8192,
+                    new BigDecimal("93.60"), new BigDecimal("93.60")),
+            new Model("xiaomi/mimo-v2.6-flash", "polza", "xiaomi", "MiMo V2.6 Flash", true, 945000,
+                    new BigDecimal("13.35"), new BigDecimal("26.70")),
+            new Model("xiaomi/mimo-v2.6-pro", "polza", "xiaomi", "MiMo V2.6 Pro", true, 945000,
+                    new BigDecimal("38.89"), new BigDecimal("77.79")),
+            new Model("tencent/hy3", "polza", "hunyuan", "Hunyuan Hy3", true, 128000,
+                    new BigDecimal("9.84"), new BigDecimal("39.34")),
+            new Model("tencent/hy4-preview", "polza", "hunyuan", "Hunyuan Hy4 Preview", true, 64000,
+                    new BigDecimal("89.48"), new BigDecimal("268.35")),
+            new Model("bytedance-seed/seed-2.0-lite", "polza", "seed", "Seed 2.0 Lite", true, 131072,
+                    new BigDecimal("29.80"), new BigDecimal("238.44")),
+            new Model("bytedance-seed/seed-2.0-mini", "polza", "seed", "Seed 2.0 Mini", true, 131072,
+                    new BigDecimal("11.92"), new BigDecimal("47.69")),
+            new Model("bytedance-seed/seed-1.6-flash", "polza", "seed", "Seed 1.6 Flash", true, 32768,
+                    new BigDecimal("8.94"), new BigDecimal("35.77")));
 
     private LlmCatalog() {
     }

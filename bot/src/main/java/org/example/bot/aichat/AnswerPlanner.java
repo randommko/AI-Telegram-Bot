@@ -27,7 +27,7 @@ public class AnswerPlanner {
     private static final Logger logger = LoggerFactory.getLogger(AnswerPlanner.class);
 
     static final float PLAN_TEMPERATURE = 0.2f;
-    static final int DEFAULT_PLAN_MAX_TOKENS = 1500;
+    static final int DEFAULT_PLAN_MAX_TOKENS = 4096;
     static final int MAX_ALLOWED_TOKENS = 8192;
 
     private final PromptComposer composer;
