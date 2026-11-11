@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import static org.example.core.settings.Settings.AI_MAX_TOKENS_ANSWER_QUESTION;
+import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
 import static org.example.core.settings.Settings.USER_ROLE;
 
 @Component
@@ -175,11 +177,11 @@ public class CommandDispatcher {
         info.append("Потолок выходных токенов модели: ").append(actualModel.maxOutputTokens()).append("\n");
         
         // Current answer limit (from settings)
-        int maxTokens = settingsService.getInt("aiMaxTokensAnswerQuestion", 4096);
+        int maxTokens = settingsService.getInt(AI_MAX_TOKENS_ANSWER_QUESTION, 4096);
         info.append("Действующий лимит ответа: ").append(maxTokens).append("\n");
         
         // Reaction model setting
-        boolean reactionModelUseOwn = settingsService.getBoolean("aiReactionModelUseOwn", false);
+        boolean reactionModelUseOwn = settingsService.getBoolean(AI_REACTION_MODEL_USE_OWN, false);
         info.append("Модель для реакций: ")
             .append(reactionModelUseOwn ? "своя модель" : "основная модель")
             .append("\n");

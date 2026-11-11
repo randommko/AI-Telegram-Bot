@@ -27,6 +27,8 @@ import static org.example.core.settings.Settings.USER_ROLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -286,6 +288,40 @@ class CommandDispatcherTest {
         dispatcher.dispatch(update("/bot_info", BLUE_CHAT_ID));
 
         verify(messageSender).sendMessage(eq(BLUE_CHAT_ID), contains("/clear"));
+    }
+
+    @Test
+    void modelInfoShowsCostForPricedModel() {
+        when(settingsService.getModel()).thenReturn("z-ai/glm-5.3-flash");
+        when(settingsService.getRoute()).thenReturn("polza");
+        when(settingsService.getInt(anyString(), anyInt())).thenReturn(4096);
+        when(settingsService.getBoolean(anyString(), anyBoolean())).thenReturn(false);
+
+        dispatcher.dispatch(update("/model_info", BLUE_CHAT_ID));
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(messageSender).sendMessage(eq(BLUE_CHAT_ID), captor.capture());
+        String text = captor.getValue();
+        assertTrue(text.contains("через агрегатор"), text);
+        assertTrue(text.contains("Стоимость модели за миллион токенов"), text);
+        assertTrue(text.contains("4.76"), text);
+        assertTrue(text.contains("9.35"), text);
+    }
+
+    @Test
+    void modelInfoOmitsCostForModelWithoutPrice() {
+        when(settingsService.getModel()).thenReturn("deepseek-flash");
+        when(settingsService.getRoute()).thenReturn("");
+        when(settingsService.getInt(anyString(), anyInt())).thenReturn(4096);
+        when(settingsService.getBoolean(anyString(), anyBoolean())).thenReturn(false);
+
+        dispatcher.dispatch(update("/model_info", BLUE_CHAT_ID));
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(messageSender).sendMessage(eq(BLUE_CHAT_ID), captor.capture());
+        String text = captor.getValue();
+        assertTrue(text.contains("прямое подключение"), text);
+        assertTrue(text.contains("Стоимость модели: информация отсутствует"), text);
     }
 
     /** Сохранённый текст не содержит префикса автора, а сам автор уходит отдельными полями. */
