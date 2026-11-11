@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
+import static org.example.core.settings.Settings.AI_REACTION_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
 import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
@@ -59,7 +60,8 @@ public class ReactionPass {
     static final int MAX_POOL_SIZE = 100;
     static final int DEFAULT_PAUSE_SECONDS = 30;
     static final int MAX_PAUSE_SECONDS = 3600;
-    static final int REACTION_MAX_TOKENS = 500;
+    static final int DEFAULT_REACTION_MAX_TOKENS = 2000;
+    static final int MAX_REACTION_TOKENS = 8192;
     static final float REACTION_TEMPERATURE = 0.2f;
     static final int MAX_FACTS_PER_AUTHOR = 3;
     static final int MAX_AUTHORS_WITH_FACTS = 5;
@@ -108,6 +110,17 @@ public class ReactionPass {
     @PreDestroy
     void shutdown() {
         executor.shutdownNow();
+    }
+
+    /** Потолок токенов запроса прохода: рассуждения модели тратят его же, поэтому читается на каждый проход. */
+    private int reactionMaxTokens() {
+        int configured = settings.getInt(AI_REACTION_MAX_TOKENS, DEFAULT_REACTION_MAX_TOKENS);
+        if (configured < 1 || configured > MAX_REACTION_TOKENS) {
+            logger.warn("Лимит токенов прохода {} вне диапазона 1..{}: используется {}",
+                    configured, MAX_REACTION_TOKENS, DEFAULT_REACTION_MAX_TOKENS);
+            return DEFAULT_REACTION_MAX_TOKENS;
+        }
+        return configured;
     }
 
     /** Проверка раз в 10 секунд: сама модель вызывается уже в отдельном пуле потоков. */
@@ -189,7 +202,7 @@ public class ReactionPass {
 
         try {
             String raw = llmClient.sendJsonRequestToAi(reactionModel(), reactionRoute(),
-                    payload(chat, batch, catalog), REACTION_TEMPERATURE, REACTION_MAX_TOKENS);
+                    payload(chat, batch, catalog), REACTION_TEMPERATURE, reactionMaxTokens());
             if (raw == null || raw.isBlank()) {
                 logger.warn("Проход чтения чата {}: модель не ответила, пачка пропущена", chatId);
                 messages.saveReadState(chatId, lastMessageId);

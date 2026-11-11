@@ -24,6 +24,7 @@ psql "$BOT_DB_URL" -f migrations/config/003_memory_decay.sql
 psql "$BOT_DB_URL" -f migrations/config/004_memory_decay_floor.sql
 psql "$BOT_DB_URL" -f migrations/config/005_reaction_emojis.sql
 psql "$BOT_DB_URL" -f migrations/config/006_answer_budgets.sql
+psql "$BOT_DB_URL" -f migrations/config/007_reaction_budget.sql
 psql "$BOT_DB_URL" -f migrations/ai/001_schema.sql
 psql "$BOT_DB_URL" -f migrations/ai/002_seed.sql
 psql "$BOT_DB_URL" -f migrations/ai/003_message_reactions.sql

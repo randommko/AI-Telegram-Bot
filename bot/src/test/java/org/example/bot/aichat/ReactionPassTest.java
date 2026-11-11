@@ -27,6 +27,7 @@ import java.util.Optional;
 
 import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
+import static org.example.core.settings.Settings.AI_REACTION_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTION_POOL_SIZE;
 import static org.example.core.settings.Settings.AI_REACTION_PROMPT;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -76,6 +77,7 @@ class ReactionPassTest {
         pass = new ReactionPass(personaRepository, messages, emojis, personaService, composer, grudges,
                 memoryRepository, llmClient, settings, sender, new ReactionDecisionParser(), clock);
         lenient().when(settings.getInt(eq(AI_REACTION_POOL_SIZE), eq(20))).thenReturn(20);
+        lenient().when(settings.getInt(eq(AI_REACTION_MAX_TOKENS), eq(2000))).thenReturn(2000);
         lenient().when(settings.getSettingValue(AI_REACTION_PROMPT)).thenReturn(null);
         lenient().when(settings.getBoolean(eq(AI_REACTION_MODEL_USE_OWN), eq(false))).thenReturn(false);
     }
@@ -113,7 +115,7 @@ class ReactionPassTest {
     @Test
     void sendsAtMostTwoReactionsAndAdvancesWatermark() {
         stubRun();
-        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(500)))
+        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(2000)))
                 .thenReturn("{\"reactions\":["
                         + "{\"message_id\":101,\"emoji\":\"🔥\",\"reason\":\"сильно\"},"
                         + "{\"message_id\":102,\"emoji\":\"🤡\",\"reason\":\"клоун\"}]}");
@@ -132,7 +134,7 @@ class ReactionPassTest {
     @Test
     void emojiOutsideCatalogIsDropped() {
         stubRun();
-        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(500)))
+        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(2000)))
                 .thenReturn("{\"reactions\":[{\"message_id\":101,\"emoji\":\"👍\"}]}");
 
         pass.runPass(CHAT_PERSONA);
@@ -144,12 +146,23 @@ class ReactionPassTest {
     @Test
     void modelFailureIsSilentAndDoesNotRepeatTheBatch() {
         stubRun();
-        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(500))).thenReturn(null);
+        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(2000))).thenReturn(null);
 
         pass.runPass(CHAT_PERSONA);
 
         verifyNoInteractions(sender);
         verify(messages).saveReadState(CHAT, 2L);
+    }
+
+    @Test
+    void budgetComesFromSetting() {
+        when(settings.getInt(eq(AI_REACTION_MAX_TOKENS), eq(2000))).thenReturn(7000);
+        stubRun();
+        when(llmClient.sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(7000))).thenReturn(null);
+
+        pass.runPass(CHAT_PERSONA);
+
+        verify(llmClient).sendJsonRequestToAi(any(), any(), any(), eq(0.2f), eq(7000));
     }
 
     @Test

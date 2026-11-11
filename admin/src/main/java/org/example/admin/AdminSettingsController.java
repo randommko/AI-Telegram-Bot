@@ -43,6 +43,7 @@ import static org.example.core.settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
 import static org.example.core.settings.Settings.AI_PLAN_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
+import static org.example.core.settings.Settings.AI_REACTION_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
 import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
@@ -379,6 +380,7 @@ public class AdminSettingsController {
                         area(AI_REACTION_PROMPT, "Промпт для определения эмодзи"),
                         range(AI_REACTION_POOL_SIZE, "Размер пула сообщений в пачке", "1", "100", "1"),
                         range(AI_REACTION_PAUSE_SECONDS, "Время с последнего сообщения, секунд", "1", "3600", "5"),
+                        range(AI_REACTION_MAX_TOKENS, "Лимит токенов прохода", "1", "8192", "1"),
                         checkbox(AI_REACTION_MODEL_USE_OWN, "Своя модель для реакций", false),
                         radio(AdminModelForm.REACTION_ACCESS_KEY, "Способ выбора модели реакций",
                                 reactionSelection.mode()),
