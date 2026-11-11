@@ -56,13 +56,15 @@ class CommandDispatcherTest {
     private AiService aiService;
     @Mock
     private PersonaService personaService;
+    @Mock
+    private SettingsService settingsService;
 
     private CommandDispatcher dispatcher;
 
     @BeforeEach
     void setUp() {
         BotProperties properties = new BotProperties(BOT_ID + ":dummy", null, null, null, null);
-        dispatcher = new CommandDispatcher(messageSender, aiService, new AiAddressParser(), personaService, properties);
+        dispatcher = new CommandDispatcher(messageSender, aiService, new AiAddressParser(), personaService, properties, settingsService);
     }
 
     @Test

@@ -6,7 +6,8 @@ import java.util.List;
 public enum Command {
     BOT_INFO("/bot_info", "/help"),
     AI("/ai", "/ии", "/аи"),
-    AI_CLEAR_HISTORY("/clear");
+    AI_CLEAR_HISTORY("/clear"),
+    MODEL_INFO("/model_info");
 
     private final List<String> aliases;
 
