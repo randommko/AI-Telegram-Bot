@@ -42,15 +42,14 @@ public class CommandDispatcher {
             Command.BOT_INFO, this::handleBotInfo,
             Command.AI, this::handleAi,
             Command.AI_CLEAR_HISTORY, this::handleAiChatHistory,
-            Command.MODEL_INFO, this::handleModelInfo
-    );
+            Command.MODEL_INFO, this::handleModelInfo);
 
     public CommandDispatcher(MessageSender messageSender,
-                             AiService aiService,
-                             AiAddressParser addressParser,
-                             PersonaService personaService,
-                             BotProperties properties,
-                             SettingsService settingsService) {
+            AiService aiService,
+            AiAddressParser addressParser,
+            PersonaService personaService,
+            BotProperties properties,
+            SettingsService settingsService) {
         this.messageSender = messageSender;
         this.aiService = aiService;
         this.addressParser = addressParser;
@@ -97,7 +96,8 @@ public class CommandDispatcher {
         if (persona.isEmpty())
             return;
 
-        // Ответ реплаем на сообщение самого бота — второй триггер, имя в тексте не нужно.
+        // Ответ реплаем на сообщение самого бота — второй триггер, имя в тексте не
+        // нужно.
         if (isReplyToBot(message)) {
             askAi(message, text);
             return;
@@ -114,7 +114,10 @@ public class CommandDispatcher {
         });
     }
 
-    /** Триггер передаётся явно: в гонке потоков «последнее сообщение в базе» может быть чужим. */
+    /**
+     * Триггер передаётся явно: в гонке потоков «последнее сообщение в базе» может
+     * быть чужим.
+     */
     private void askAi(Message message, String question) {
         aiService.askAi(message.getChatId(), question,
                 AiService.replyToMessageId(message), MessageAuthor.from(message.getFrom()));
@@ -151,41 +154,44 @@ public class CommandDispatcher {
     private String getModelInfo() {
         // Get the actual model being used by resolving the current configuration
         LlmCatalog.Model actualModel = resolveActualModel();
-        
+
         StringBuilder info = new StringBuilder();
         info.append("Информация о текущей модели:\n\n");
-        
+
+        // Display name
+        info.append("Название: ").append(actualModel.title()).append("\n");
+
         // Provider information
-        info.append("Провайдер: ").append(actualModel.providerId()).append("\n");
-        
+        // info.append("Провайдер: ").append(actualModel.providerId()).append("\n");
+
         // Model identifier
         info.append("Идентификатор модели: ").append(actualModel.id()).append("\n");
-        
-        // Display name
-        info.append("Отображаемое название: ").append(actualModel.title()).append("\n");
-        
+
         // Connection method (direct or aggregator)
         LlmCatalog.Provider provider = LlmCatalog.provider(actualModel.providerId())
                 .orElse(null);
         if (provider != null) {
             info.append("Способ подключения: ")
-                .append(provider.aggregator() ? "через агрегатор" : "прямое подключение")
-                .append("\n");
+                    .append(provider.aggregator() ? "через агрегатор " + actualModel.providerId()
+                            : "прямое подключение")
+                    .append("\n");
         }
-        
+
         // Output token limit
-        info.append("Потолок выходных токенов модели: ").append(actualModel.maxOutputTokens()).append("\n");
-        
+        // info.append("Потолок выходных токенов модели:
+        // ").append(actualModel.maxOutputTokens()).append("\n");
+
         // Current answer limit (from settings)
         int maxTokens = settingsService.getInt(AI_MAX_TOKENS_ANSWER_QUESTION, 4096);
         info.append("Действующий лимит ответа: ").append(maxTokens).append("\n");
-        
+
         // Reaction model setting
-        boolean reactionModelUseOwn = settingsService.getBoolean(AI_REACTION_MODEL_USE_OWN, false);
-        info.append("Модель для реакций: ")
-            .append(reactionModelUseOwn ? "своя модель" : "основная модель")
-            .append("\n");
-            
+        // boolean reactionModelUseOwn =
+        // settingsService.getBoolean(AI_REACTION_MODEL_USE_OWN, false);
+        // info.append("Модель для реакций: ")
+        // .append(reactionModelUseOwn ? "своя модель" : "основная модель")
+        // .append("\n");
+
         // Cost information (if available)
         if (actualModel.inputPricePerMillion() != null && actualModel.outputPricePerMillion() != null) {
             info.append("Стоимость модели за миллион токенов:\n");
@@ -194,15 +200,15 @@ public class CommandDispatcher {
         } else {
             info.append("Стоимость модели: информация отсутствует\n");
         }
-        
+
         return info.toString();
     }
-    
+
     private LlmCatalog.Model resolveActualModel() {
         // This mimics the logic from LlmClient.resolveModel() to get the actual model
         String configuredModel = settingsService.getModel();
         String configuredRoute = settingsService.getRoute();
-        
+
         // If we have a configured route, use it to resolve the model
         if (configuredRoute != null && !configuredRoute.isEmpty()) {
             Optional<LlmCatalog.Model> model = LlmCatalog.model(configuredRoute, configuredModel);
@@ -210,13 +216,13 @@ public class CommandDispatcher {
                 return model.get();
             }
         }
-        
+
         // Fall back to resolving without route (direct provider)
         Optional<LlmCatalog.Model> model = LlmCatalog.model(configuredModel);
         if (model.isPresent()) {
             return model.get();
         }
-        
+
         // Fallback to default model
         return LlmCatalog.model("deepseek-flash")
                 .orElseThrow(() -> new IllegalStateException("В каталоге нет модели по умолчанию"));
