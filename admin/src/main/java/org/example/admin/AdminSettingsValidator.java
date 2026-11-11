@@ -22,6 +22,7 @@ import static org.example.core.settings.Settings.AI_MEMORY_EXTRACT_PROMPT;
 import static org.example.core.settings.Settings.AI_MEMORY_PROMPT_SIZE;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
 import static org.example.core.settings.Settings.AI_PLAN_MAX_TOKENS;
+import static org.example.core.settings.Settings.AI_REACTION_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL;
 import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
 import static org.example.core.settings.Settings.AI_REACTION_POOL_SIZE;
@@ -64,6 +65,8 @@ public class AdminSettingsValidator {
                 "Размер пула должен быть целым от 1 до 100", errors);
         integerInRange(values, AI_REACTION_PAUSE_SECONDS, 1, 3600,
                 "Пауза должна быть целой от 1 до 3600 секунд", errors);
+        integerInRange(values, AI_REACTION_MAX_TOKENS, 1, MAX_TOKENS_LIMIT,
+                "Лимит токенов прохода должен быть целым от 1 до 8192", errors);
         requireText(values, AI_MEMORY_EXTRACT_PROMPT, "Промпт анализа не может быть пустым", errors);
         decimalInRange(values, AI_ANSWER_TEMPERATURE, 0f, MAX_TEMPERATURE,
                 "Температура должна быть числом от 0 до 2", errors);

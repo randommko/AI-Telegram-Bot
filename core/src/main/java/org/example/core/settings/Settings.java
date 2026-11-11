@@ -49,6 +49,8 @@ public class Settings {
     public static final String AI_REACTION_PROMPT = "aiReactionPrompt";
     public static final String AI_REACTION_POOL_SIZE = "aiReactionPoolSize";
     public static final String AI_REACTION_PAUSE_SECONDS = "aiReactionPauseSeconds";
+    /** Бюджет токенов запроса прохода реакций: reasoning-модель тратит его и на размышления. */
+    public static final String AI_REACTION_MAX_TOKENS = "aiReactionMaxTokens";
     public static final String AI_REACTION_MODEL_USE_OWN = "aiReactionModelUseOwn";
     public static final String AI_REACTION_MODEL = "aiReactionModel";
     /** Пусто — провайдер выбранной модели реакций, как у основной пары. */

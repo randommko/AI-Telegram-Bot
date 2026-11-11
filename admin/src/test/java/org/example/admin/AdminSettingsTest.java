@@ -25,6 +25,7 @@ import static org.example.core.settings.Settings.AI_ANSWER_TEMPERATURE;
 import static org.example.core.settings.Settings.AI_MEMORY_NOTIFY_OWNER;
 import static org.example.core.settings.Settings.AI_MODEL_KEY;
 import static org.example.core.settings.Settings.AI_REACTIONS_ENABLED;
+import static org.example.core.settings.Settings.AI_REACTION_MAX_TOKENS;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL;
 import static org.example.core.settings.Settings.AI_REACTION_MODEL_USE_OWN;
 import static org.example.core.settings.Settings.AI_REACTION_PAUSE_SECONDS;
@@ -685,6 +686,7 @@ class AdminSettingsTest {
                         .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
                         .param(AI_REACTION_POOL_SIZE, "20")
                         .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MAX_TOKENS, "2000")
                         .param(AI_REACTION_MODEL_USE_OWN, "true")
                         .param("aiReactionAccess", "provider")
                         .param("aiReactionProvider", "aitunnel")
@@ -708,11 +710,57 @@ class AdminSettingsTest {
                         .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
                         .param(AI_REACTION_POOL_SIZE, "20")
                         .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MAX_TOKENS, "2000")
                         .param(AI_REACTION_MODEL_USE_OWN, "false"))
                 .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
 
         verify(settings, never()).save(eq(AI_REACTION_MODEL), anyString());
         verify(settings, never()).save(eq(AI_REACTION_ROUTE), anyString());
+    }
+
+    @Test
+    void reactionsTabShowsAndSavesTokenBudget() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/settings?tab=reactions").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"aiReactionMaxTokens\"")))
+                .andExpect(content().string(containsString("Лимит токенов прохода")));
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param(AI_REACTIONS_ENABLED, "true")
+                        .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
+                        .param(AI_REACTION_POOL_SIZE, "20")
+                        .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MAX_TOKENS, "2000")
+                        .param(AI_REACTION_MODEL_USE_OWN, "false"))
+                .andExpect(redirectedUrl("/admin/settings?tab=reactions&saved"));
+
+        verify(settings).save(AI_REACTION_MAX_TOKENS, "2000");
+    }
+
+    @Test
+    void rejectsReactionBudgetOutOfRange() throws Exception {
+        when(settings.listAll()).thenReturn(List.of());
+
+        mockMvc.perform(post("/admin/settings")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("tab", "reactions")
+                        .param(AI_REACTIONS_ENABLED, "true")
+                        .param(AI_REACTION_PROMPT, "Ты читаешь переписку")
+                        .param(AI_REACTION_POOL_SIZE, "20")
+                        .param(AI_REACTION_PAUSE_SECONDS, "30")
+                        .param(AI_REACTION_MAX_TOKENS, "9000")
+                        .param(AI_REACTION_MODEL_USE_OWN, "false"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "Лимит токенов прохода должен быть целым от 1 до 8192")));
+
+        verify(settings, never()).save(eq(AI_REACTION_MAX_TOKENS), anyString());
     }
 
     private MockHttpServletRequestBuilder formWith(Map<String, String> overrides) {
