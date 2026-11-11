@@ -6,6 +6,7 @@ import org.example.core.aichat.MessageAuthor;
 import org.example.core.aichat.Persona;
 import org.example.core.aichat.PersonaService;
 import org.example.core.config.BotProperties;
+import org.example.core.settings.SettingsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
